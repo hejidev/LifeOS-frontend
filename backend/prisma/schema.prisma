@@ -1,0 +1,1269 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String            @id @default(uuid())
+  email             String            @unique
+  name              String
+  passwordHash      String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  avatarUrl         String?
+  emailVerified     Boolean           @default(false)
+  isActive          Boolean           @default(true)
+  providerId        String?
+  role              Role              @default(USER)
+  provider          Provider          @default(CREDENTIALS)
+  currency          String            @default("NGN")
+  darkMode          Boolean           @default(false)
+  location          String?
+  notifyCalendar    Boolean           @default(true)
+  notifyFinance     Boolean           @default(false)
+  notifyTasks       Boolean           @default(true)
+  timezone          String            @default("Africa/Lagos")
+  weekStartsOn      Int               @default(1)
+  sessionVersion    Int               @default(1)
+  twoFactorEnabled  Boolean           @default(false)
+  twoFactorSecret   String?
+  achievements      Achievement[]
+  adminAuditLogs    AdminAuditLog[]
+  permissions       AdminPermission[]
+  bizCustomers      BizCustomer[]
+  bizExpenses       BizExpense[]
+  bizProducts       BizProduct[]
+  bizProfile        BizProfile?
+  bizSales          BizSale[]
+  calendarEvents    CalendarEvent[]
+  careerGoals       CareerGoal[]
+  content           ContentItem[]
+  conversationsAsA  Conversation[]    @relation("ConversationsAsA")
+  conversationsAsB  Conversation[]    @relation("ConversationsAsB")
+  documents         Document[]
+  documentFolders   DocumentFolder[]
+  emergencyProfile  EmergencyProfile?
+  familyControls    FamilyControl[]
+  familyInvites     FamilyInvite[]
+  familyMembers     FamilyMember[]
+  financeAccounts   FinanceAccount[]
+  financeBudgets    FinanceBudget[]
+  financeCategories FinanceCategory[]
+  goals             Goal[]
+  habits            Habit[]
+  healthLogs        HealthLog[]
+  messages          Message[]
+  notes             Note[]
+  notifications     Notification[]
+  skills            Skill[]
+  studyMaterials    StudyMaterial[]
+  studySessions     StudySession[]
+  studySubjects     StudySubject[]
+  subscription      Subscription?
+  tasks             Task[]
+  toolUsage         ToolUsage[]
+  transactions      Transaction[]
+  vaultItems        VaultItem[]
+  writingDocuments  WritingDocument[]
+
+  @@index([email])
+}
+
+model Task {
+  id                 String       @id @default(uuid())
+  userId             String
+  title              String
+  description        String?
+  priority           TaskPriority @default(P3)
+  status             TaskStatus   @default(TODO)
+  dueDate            DateTime?
+  dueTime            String?
+  tags               String[]
+  linkedNoteId       String?
+  linkedGoalId       String?
+  linkedBudgetItemId String?
+  recurring          Boolean      @default(false)
+  smartReminder      Boolean      @default(false)
+  suggestedSchedule  String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  subtasks           Subtask[]
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, dueDate])
+}
+
+model Subtask {
+  id        String  @id @default(uuid())
+  taskId    String
+  title     String
+  completed Boolean @default(false)
+  task      Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+}
+
+model Note {
+  id            String     @id @default(uuid())
+  userId        String
+  title         String
+  content       String     @default("")
+  summary       String?
+  folder        NoteFolder @default(Personal)
+  tags          String[]
+  linkedTaskIds String[]
+  pinned        Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, folder])
+}
+
+model HealthLog {
+  id           String   @id @default(uuid())
+  userId       String
+  date         DateTime @default(now()) @db.Date
+  sleepHours   Float?
+  steps        Int?
+  waterGlasses Int?
+  workoutDone  Boolean  @default(false)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+}
+
+model Habit {
+  id            String            @id @default(uuid())
+  userId        String
+  title         String
+  description   String?
+  frequency     String            @default("daily")
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  archived      Boolean           @default(false)
+  colorHex      String?
+  currentStreak Int               @default(0)
+  longestStreak Int               @default(0)
+  category      HabitCategory     @default(OTHER)
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  completions   HabitCompletion[]
+
+  @@index([userId])
+}
+
+model HabitCompletion {
+  id        String   @id @default(uuid())
+  habitId   String
+  date      DateTime @db.Date
+  createdAt DateTime @default(now())
+  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@unique([habitId, date])
+  @@index([habitId])
+}
+
+model FinanceAccount {
+  id           String        @id @default(uuid())
+  userId       String
+  name         String
+  type         AccountType
+  currency     String        @default("USD")
+  balance      Decimal       @default(0)
+  isDefault    Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([userId])
+}
+
+model FinanceCategory {
+  id           String          @id @default(uuid())
+  userId       String
+  name         String
+  type         TransactionType
+  color        String?
+  icon         String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  budgets      BudgetItem[]
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([userId, name, type])
+  @@index([userId])
+}
+
+model FinanceBudget {
+  id         String       @id @default(uuid())
+  userId     String
+  name       String
+  period     BudgetPeriod @default(MONTHLY)
+  startDate  DateTime
+  endDate    DateTime
+  totalLimit Decimal      @default(0)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  items      BudgetItem[]
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, startDate, endDate])
+}
+
+model BudgetItem {
+  id          String          @id @default(uuid())
+  budgetId    String
+  categoryId  String
+  limitAmount Decimal         @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  budget      FinanceBudget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  category    FinanceCategory @relation(fields: [categoryId], references: [id])
+
+  @@unique([budgetId, categoryId])
+  @@index([budgetId])
+  @@index([categoryId])
+}
+
+model Transaction {
+  id           String           @id @default(uuid())
+  userId       String
+  accountId    String?
+  categoryId   String?
+  type         TransactionType
+  amount       Decimal
+  description  String
+  date         DateTime
+  isRecurring  Boolean          @default(false)
+  linkedTaskId String?
+  linkedNoteId String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  account      FinanceAccount?  @relation(fields: [accountId], references: [id])
+  category     FinanceCategory? @relation(fields: [categoryId], references: [id])
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, date])
+  @@index([userId, type])
+}
+
+model StudySubject {
+  id          String          @id @default(uuid())
+  userId      String
+  name        String
+  color       String?
+  description String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  materials   StudyMaterial[]
+  sessions    StudySession[]
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model StudyMaterial {
+  id         String            @id @default(uuid())
+  userId     String
+  subjectId  String?
+  title      String
+  type       StudyMaterialType
+  url        String?
+  notes      String?
+  status     StudyStatus       @default(PLANNED)
+  progress   Int               @default(0)
+  targetDate DateTime?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  fileName   String?
+  fileSize   Int?
+  fileType   String?
+  subject    StudySubject?     @relation(fields: [subjectId], references: [id])
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions   StudySession[]
+
+  @@index([userId])
+  @@index([userId, status])
+}
+
+model StudySession {
+  id         String         @id @default(uuid())
+  userId     String
+  subjectId  String?
+  materialId String?
+  title      String
+  startedAt  DateTime
+  endedAt    DateTime?
+  minutes    Int?
+  notes      String?
+  createdAt  DateTime       @default(now())
+  material   StudyMaterial? @relation(fields: [materialId], references: [id])
+  subject    StudySubject?  @relation(fields: [subjectId], references: [id])
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, startedAt])
+}
+
+model DocumentFolder {
+  id          String     @id @default(uuid())
+  userId      String
+  name        String
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  documents   Document[]
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Document {
+  id           String           @id @default(uuid())
+  userId       String
+  folderId     String?
+  title        String
+  category     DocumentCategory
+  status       DocumentStatus   @default(ACTIVE)
+  fileUrl      String?
+  fileName     String?
+  fileType     String?
+  fileSize     Int?
+  tags         String[]
+  summary      String?
+  expiresAt    DateTime?
+  linkedNoteId String?
+  linkedTaskId String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  folder       DocumentFolder?  @relation(fields: [folderId], references: [id])
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, category])
+  @@index([userId, status])
+}
+
+model CareerGoal {
+  id         String           @id @default(uuid())
+  userId     String
+  title      String
+  area       CareerGoalArea
+  status     CareerGoalStatus @default(NOT_STARTED)
+  progress   Int              @default(0)
+  targetDate DateTime?
+  notes      String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Skill {
+  id              String     @id @default(uuid())
+  userId          String
+  name            String
+  level           SkillLevel @default(BEGINNER)
+  progress        Int        @default(0)
+  category        String?
+  relatedGoalId   String?
+  lastPracticedAt DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Achievement {
+  id            String          @id @default(uuid())
+  userId        String
+  title         String
+  type          AchievementType @default(OTHER)
+  issuer        String?
+  date          DateTime?
+  description   String?
+  credentialUrl String?
+  createdAt     DateTime        @default(now())
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VaultItem {
+  id             String        @id @default(uuid())
+  userId         String
+  label          String
+  username       String?
+  passwordCipher String?
+  passwordHash   String?
+  url            String?
+  category       VaultCategory @default(WEBSITE)
+  notes          String?
+  tags           String[]
+  favorite       Boolean       @default(false)
+  strength       Int           @default(0)
+  lastChangedAt  DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, passwordHash])
+}
+
+model FamilyMember {
+  id                     String             @id @default(uuid())
+  userId                 String
+  name                   String
+  role                   FamilyRole
+  device                 String?
+  avatarUrl              String?
+  locationSharing        Boolean            @default(false)
+  status                 FamilyMemberStatus @default(OFFLINE)
+  screenTimeMinutesToday Int                @default(0)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  controls               FamilyControl[]
+  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model FamilyControl {
+  id          String        @id @default(uuid())
+  userId      String
+  memberId    String?
+  title       String
+  description String?
+  enabled     Boolean       @default(true)
+  value       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  member      FamilyMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([memberId])
+}
+
+model FamilyInvite {
+  id        String       @id @default(uuid())
+  userId    String
+  email     String
+  role      FamilyRole   @default(CHILD)
+  token     String       @unique
+  status    InviteStatus @default(PENDING)
+  expiresAt DateTime
+  createdAt DateTime     @default(now())
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model CalendarEvent {
+  id           String            @id @default(uuid())
+  userId       String
+  title        String
+  start        DateTime
+  end          DateTime
+  type         CalendarEventType
+  location     String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  allDay       Boolean           @default(false)
+  description  String?
+  linkedTaskId String?
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, start])
+}
+
+model Goal {
+  id        String     @id @default(uuid())
+  userId    String
+  title     String
+  module    GoalModule @default(OTHER)
+  target    Float
+  progress  Float      @default(0)
+  unit      String?
+  deadline  DateTime?
+  status    GoalStatus @default(ACTIVE)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model BizProfile {
+  id                   String             @id @default(uuid())
+  userId               String             @unique
+  businessName         String
+  currency             String             @default("NGN")
+  logoUrl              String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  address              String?
+  appliedAt            DateTime           @default(now())
+  category             BusinessCategory?
+  contactEmail         String?
+  contactPhone         String?
+  description          String?
+  rejectionReason      String?
+  reviewedAt           DateTime?
+  reviewedBy           String?
+  status               MerchantStatus     @default(PENDING)
+  currentPeriodEnd     DateTime?
+  idBackUrl            String?
+  idDocumentNumber     String?
+  idDocumentType       IdDocumentType?
+  idFrontUrl           String?
+  idVerifiedAt         DateTime?
+  planStatus           MerchantPlanStatus @default(INACTIVE)
+  planTier             MerchantPlanTier   @default(NONE)
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  staffLoginCode       String?            @unique
+  notifyDailySummary   Boolean            @default(false)
+  notifyLowStock       Boolean            @default(true)
+  notifyNewSale        Boolean            @default(false)
+  paused               Boolean            @default(false)
+  staffTokenVersion    Int                @default(1)
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  staff                BizStaff[]
+}
+
+model BizProduct {
+  id         String        @id @default(uuid())
+  userId     String
+  name       String
+  sku        String?
+  category   String?
+  price      Decimal
+  cost       Decimal?
+  stock      Int           @default(0)
+  lowStockAt Int           @default(3)
+  imageUrl   String?
+  active     Boolean       @default(true)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  saleItems  BizSaleItem[]
+
+  @@index([userId])
+  @@index([userId, active])
+}
+
+model BizCustomer {
+  id        String    @id @default(uuid())
+  userId    String
+  name      String
+  phone     String?
+  email     String?
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sales     BizSale[]
+
+  @@index([userId])
+}
+
+model BizSale {
+  id            String           @id @default(uuid())
+  userId        String
+  customerId    String?
+  receiptNumber String           @unique
+  subtotal      Decimal
+  discount      Decimal          @default(0)
+  total         Decimal
+  paymentMethod BizPaymentMethod @default(CASH)
+  status        BizSaleStatus    @default(PAID)
+  note          String?
+  createdAt     DateTime         @default(now())
+  customer      BizCustomer?     @relation(fields: [customerId], references: [id])
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items         BizSaleItem[]
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([userId, status])
+}
+
+model BizSaleItem {
+  id        String      @id @default(uuid())
+  saleId    String
+  productId String?
+  name      String
+  quantity  Int
+  unitPrice Decimal
+  lineTotal Decimal
+  product   BizProduct? @relation(fields: [productId], references: [id])
+  sale      BizSale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model BizExpense {
+  id        String             @id @default(uuid())
+  userId    String
+  title     String
+  category  BizExpenseCategory @default(OTHER)
+  amount    Decimal
+  date      DateTime           @default(now())
+  note      String?
+  createdAt DateTime           @default(now())
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, date])
+}
+
+model BizStaff {
+  id           String             @id @default(uuid())
+  bizProfileId String
+  name         String
+  email        String?
+  phone        String?
+  role         StaffRole          @default(CASHIER)
+  pinHash      String
+  status       StaffStatus        @default(ACTIVE)
+  lastActiveAt DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  bizProfile   BizProfile         @relation(fields: [bizProfileId], references: [id], onDelete: Cascade)
+  activityLogs BizStaffActivity[]
+
+  @@index([bizProfileId])
+}
+
+model BizStaffActivity {
+  id           String          @id @default(uuid())
+  staffId      String
+  bizProfileId String
+  action       StaffActionType
+  description  String
+  metadata     Json?
+  createdAt    DateTime        @default(now())
+  staff        BizStaff        @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@index([bizProfileId])
+}
+
+model WritingDocument {
+  id        String      @id @default(uuid())
+  userId    String
+  title     String
+  mode      WritingMode
+  input     String
+  output    String
+  tone      String?
+  createdAt DateTime    @default(now())
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model EmergencyProfile {
+  id                    String               @id @default(uuid())
+  userId                String               @unique
+  bloodType             String?
+  organDonor            Boolean?
+  height                String?
+  weight                String?
+  physicianName         String?
+  physicianPhone        String?
+  allergiesCipher       String?
+  conditionsCipher      String?
+  medicationsCipher     String?
+  notesCipher           String?
+  shareToken            String?              @unique
+  shareEnabled          Boolean              @default(false)
+  shareExpiresAt        DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  dateOfBirth           DateTime?
+  dnrStatus             Boolean?
+  insurancePhone        String?
+  insurancePolicyCipher String?
+  insuranceProvider     String?
+  lastViewedAt          DateTime?
+  preferredHospital     String?
+  pregnancyStatus       Boolean?
+  sharePinHash          String?
+  viewCount             Int                  @default(0)
+  accessLog             EmergencyAccessLog[]
+  contacts              EmergencyContact[]
+  user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EmergencyContact {
+  id                      String           @id @default(uuid())
+  profileId               String
+  name                    String
+  relationship            String?
+  phone                   String
+  email                   String?
+  priority                Int              @default(0)
+  createdAt               DateTime         @default(now())
+  canMakeMedicalDecisions Boolean          @default(false)
+  profile                 EmergencyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model EmergencyAccessLog {
+  id         String           @id @default(uuid())
+  profileId  String
+  accessedAt DateTime         @default(now())
+  ipAddress  String?
+  userAgent  String?
+  profile    EmergencyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model Subscription {
+  id                   String             @id @default(uuid())
+  userId               String             @unique
+  tier                 SubscriptionTier   @default(FREE)
+  status               SubscriptionStatus @default(ACTIVE)
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ToolUsage {
+  id        String   @id @default(uuid())
+  userId    String
+  tool      ToolKey
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tool])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType @default(INFO)
+  title     String
+  message   String
+  actionUrl String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, read])
+}
+
+model AdminAuditLog {
+  id          String           @id @default(uuid())
+  adminId     String
+  action      AdminAuditAction
+  targetType  String
+  targetId    String
+  description String
+  createdAt   DateTime         @default(now())
+  admin       User             @relation(fields: [adminId], references: [id])
+
+  @@index([adminId])
+  @@index([createdAt])
+}
+
+model AdminPermission {
+  id         String          @id @default(uuid())
+  userId     String
+  capability AdminCapability
+  grantedBy  String
+  grantedAt  DateTime        @default(now())
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, capability])
+  @@index([userId])
+}
+
+model TeamMember {
+  id          String   @id @default(uuid())
+  name        String
+  role        String
+  bio         String?
+  imageUrl    String?
+  linkedinUrl String?
+  twitterUrl  String?
+  githubUrl   String?
+  isFounder   Boolean  @default(false)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Testimonial {
+  id        String   @id @default(uuid())
+  quote     String
+  name      String
+  role      String?
+  avatarUrl String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model LoginAttempt {
+  id        String   @id @default(uuid())
+  email     String
+  success   Boolean
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([createdAt])
+}
+
+model ContentItem {
+  id            String        @id @default(uuid())
+  type          ContentType
+  title         String
+  slug          String?       @unique
+  excerpt       String?
+  body          String
+  coverImageUrl String?
+  order         Int           @default(0)
+  status        ContentStatus @default(DRAFT)
+  authorId      String
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  reviewNote    String?
+  publishedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  author        User          @relation(fields: [authorId], references: [id])
+
+  @@index([type])
+  @@index([status])
+}
+
+model Conversation {
+  id             String    @id @default(uuid())
+  participantAId String
+  participantBId String
+  lastMessageAt  DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  participantA   User      @relation("ConversationsAsA", fields: [participantAId], references: [id])
+  participantB   User      @relation("ConversationsAsB", fields: [participantBId], references: [id])
+  messages       Message[]
+
+  @@unique([participantAId, participantBId])
+  @@index([participantAId])
+  @@index([participantBId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  senderId       String
+  body           String
+  read           Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId])
+}
+
+model ContactSubmission {
+  id        String                  @id @default(uuid())
+  name      String
+  email     String
+  subject   String?
+  message   String
+  status    ContactSubmissionStatus @default(NEW)
+  createdAt DateTime                @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum Provider {
+  CREDENTIALS
+  GOOGLE
+  GITHUB
+  APPLE
+}
+
+enum TaskPriority {
+  P1
+  P2
+  P3
+  P4
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum HabitCategory {
+  HEALTH
+  FOCUS
+  LEARNING
+  FINANCE
+  OTHER
+}
+
+enum NoteFolder {
+  Personal
+  Work
+  Study
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum AccountType {
+  CASH
+  BANK
+  MOBILE_MONEY
+  CARD
+  SAVINGS
+  INVESTMENT
+}
+
+enum BudgetPeriod {
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum DocumentCategory {
+  IDENTITY
+  LEGAL
+  EDUCATION
+  FINANCE
+  HEALTH
+  WORK
+  PERSONAL
+  OTHER
+}
+
+enum DocumentStatus {
+  ACTIVE
+  ARCHIVED
+  EXPIRED
+}
+
+enum StudyMaterialType {
+  BOOK
+  ARTICLE
+  VIDEO
+  COURSE
+  PODCAST
+  PDF
+  NOTE
+  IMAGE
+  DOCUMENT
+}
+
+enum StudyStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+}
+
+enum CareerGoalArea {
+  SKILLS
+  ROLE
+  PROJECT
+  CERTIFICATION
+}
+
+enum CareerGoalStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+}
+
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum AchievementType {
+  CERTIFICATION
+  AWARD
+  PROMOTION
+  PUBLICATION
+  OTHER
+}
+
+enum VaultCategory {
+  WEBSITE
+  APP
+  BANK
+  CARD
+  NOTE
+}
+
+enum FamilyRole {
+  PARENT
+  GUARDIAN
+  CHILD
+}
+
+enum FamilyMemberStatus {
+  ONLINE
+  OFFLINE
+  AWAY
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum CalendarEventType {
+  MEETING
+  PERSONAL
+  DEADLINE
+  REMINDER
+  OTHER
+}
+
+enum GoalModule {
+  TASKS
+  FINANCE
+  STUDY
+  HEALTH
+  CAREER
+  OTHER
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+enum BizPaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+  MOBILE_MONEY
+}
+
+enum BizSaleStatus {
+  PAID
+  PENDING
+  REFUNDED
+  CANCELLED
+}
+
+enum BizExpenseCategory {
+  INVENTORY
+  RENT
+  UTILITIES
+  SALARY
+  MARKETING
+  SUPPLIES
+  OTHER
+}
+
+enum MerchantStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum IdDocumentType {
+  NATIONAL_ID
+  PASSPORT
+  DRIVERS_LICENSE
+  VOTERS_CARD
+}
+
+enum MerchantPlanTier {
+  NONE
+  STARTER
+  GROWTH
+  PRO
+}
+
+enum MerchantPlanStatus {
+  INACTIVE
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum BusinessCategory {
+  RETAIL
+  FOOD_BEVERAGE
+  SERVICES
+  FASHION
+  ELECTRONICS
+  HEALTH_BEAUTY
+  EDUCATION
+  OTHER
+}
+
+enum StaffRole {
+  MANAGER
+  CASHIER
+  SALES_REP
+  INVENTORY_CLERK
+}
+
+enum StaffStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum StaffActionType {
+  LOGIN
+  SALE_CREATED
+  PRODUCT_UPDATED
+  PRODUCT_CREATED
+  CUSTOMER_ADDED
+  EXPENSE_CREATED
+  REFUND_ISSUED
+  OTHER
+  CLOCK_OUT
+}
+
+enum WritingMode {
+  GENERATE
+  REWRITE
+  IMPROVE
+  SHORTEN
+  EXPAND
+  SUMMARIZE
+  TRANSLATE
+  TONE_CHANGE
+}
+
+enum SubscriptionTier {
+  FREE
+  STARTER
+  PRO
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  INCOMPLETE
+}
+
+enum ToolKey {
+  AI_WRITING
+  AI_IMAGE
+  FILE_CONVERTER
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ALERT
+  BILLING
+  MERCHANT
+  STAFF
+  SYSTEM
+}
+
+enum AdminAuditAction {
+  USER_SUSPENDED
+  USER_ACTIVATED
+  USER_PASSWORD_RESET_SENT
+  USER_EMAIL_CHANGE_REQUESTED
+  USER_EMAIL_CHANGED
+  USER_TWO_FACTOR_RESET
+  USER_DELETED
+  MERCHANT_APPROVED
+  MERCHANT_REJECTED
+  MERCHANT_SUSPENDED
+  MERCHANT_REACTIVATED
+  MERCHANT_ID_VERIFIED
+  ROLE_CHANGED
+  ADMIN_CREATED
+  PERMISSION_GRANTED
+  PERMISSION_REVOKED
+  BROADCAST_SENT
+}
+
+enum AdminCapability {
+  MANAGE_USERS
+  MANAGE_MERCHANTS
+  MANAGE_CONTENT
+  SEND_BROADCASTS
+  VIEW_ANALYTICS
+  MESSAGE_USERS
+}
+
+enum ContentType {
+  ABOUT
+  CONTACT
+  BLOG
+  FAQ
+}
+
+enum ContentStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+}
+
+enum ContactSubmissionStatus {
+  NEW
+  READ
+  RESOLVED
+}
