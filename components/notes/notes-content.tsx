@@ -29,7 +29,6 @@ import {
   useCreateNote,
   useConvertNoteToTask,
 } from "@/lib/hooks/use-life-data";
-import { noteFolders } from "@/lib/mock/notes";
 import { cn } from "@/lib/utils";
 import type { Note } from "@/types/life";
 
@@ -191,7 +190,7 @@ export default function NotesContent() {
                 >
                   All Notes
                 </button>
-                {noteFolders.map((f) => (
+                {/* {noteFolders.map((f) => (
                   <button
                     key={f}
                     className={cn(
@@ -203,8 +202,8 @@ export default function NotesContent() {
                     onClick={() => setFolder(f)}
                   >
                     {f}
-                  </button>
-                ))}
+                  </button> */}
+                {/* ))} */}
               </div>
 
               <Separator className="my-2" />
