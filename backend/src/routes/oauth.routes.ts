@@ -37,11 +37,13 @@ router.get("/auth/google/callback", asyncHandler(async (req, res) => {
 
   const { accessToken, refreshToken } = await authService.issueSession(user.id, user.role, user.sessionVersion);
 
+  const isProd = env.NODE_ENV !== "development";
+
   res.cookie(REFRESH_COOKIE, refreshToken, {
     httpOnly: true,
-    secure: env.NODE_ENV === "production",
-    sameSite: "strict",
-    path: "/api/auth",
+    secure: isProd,
+    sameSite: isProd ? ("none" as const) : ("lax" as const),
+    path: "/api",
     maxAge: 30 * 24 * 60 * 60 * 1000,
   });
 

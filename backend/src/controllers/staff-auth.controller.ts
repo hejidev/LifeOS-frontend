@@ -6,10 +6,11 @@ import * as staffAuthService from "../services/staff-auth.service";
 import type { StaffRequest } from "../middlewares/staff-session.middleware";
 
 const STAFF_COOKIE = "lifeos_staff_token";
+const isProd = env.NODE_ENV !== "development";
 const STAFF_COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: env.NODE_ENV === "production",
-  sameSite: "lax" as const,
+  secure: isProd,
+  sameSite: isProd ? ("none" as const) : ("lax" as const),
   path: "/api",
   maxAge: 12 * 60 * 60 * 1000,
 };
