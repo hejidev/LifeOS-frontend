@@ -23,8 +23,7 @@ export function useLogin() {
       if (data.requires2FA) return;
 
       setAccessToken(data.accessToken);
-      document.cookie = "lifeos_authed=1; path=/; SameSite=Strict";
-      document.cookie = `lifeos_role=${data.user.role}; path=/; SameSite=Strict`;
+      // Cookies are set by the backend with proper SameSite/secure settings
       queryClient.setQueryData(["me"], { user: data.user });
 
       authStoreLogin({
@@ -45,8 +44,7 @@ export function useLogout() {
     mutationFn: () => api.post("/auth/logout"),
     onSuccess: () => {
       setAccessToken(null);
-      document.cookie = "lifeos_authed=; path=/; max-age=0";
-      document.cookie = "lifeos_role=; path=/; max-age=0";
+      // Cookies are cleared by the backend
       queryClient.setQueryData(["me"], null);
       authStoreLogout();
     },

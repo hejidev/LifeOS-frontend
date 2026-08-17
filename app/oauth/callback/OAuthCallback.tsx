@@ -20,11 +20,10 @@ export default function OAuthCallbackPage() {
     (async () => {
       try {
         setAccessToken(accessToken);
-        document.cookie = "lifeos_authed=1; path=/; SameSite=Strict";
+        // Cookies are set by the backend with proper SameSite/secure settings
 
         const data = await api.get("/auth/me");
 
-        document.cookie = `lifeos_role=${data.user.role}; path=/; SameSite=Strict`;
         queryClient.setQueryData(["me"], { user: data.user });
 
         const role = data.user.role as string;

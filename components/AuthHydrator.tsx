@@ -28,9 +28,7 @@ export function AuthHydrator() {
             return;
           }
 
-          document.cookie = "lifeos_authed=1; path=/; SameSite=Strict";
-          document.cookie = `lifeos_role=${data.user.role}; path=/; SameSite=Strict`;
-
+          // Cookies are set by the backend with proper SameSite/secure settings
           queryClient.setQueryData(["me"], { user: data.user });
 
           authStoreLogin({
@@ -41,6 +39,7 @@ export function AuthHydrator() {
           });
         }
       } catch {
+        // Clear cookies on error since backend might not be reachable
         document.cookie = "lifeos_authed=; path=/; max-age=0";
         document.cookie = "lifeos_role=; path=/; max-age=0";
         authStoreLogin(null);

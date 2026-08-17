@@ -120,8 +120,7 @@ function UserLoginForm() {
 
   function finishLogin(data: any) {
     setAccessToken(data.accessToken);
-    document.cookie = "lifeos_authed=1; path=/; SameSite=Strict";
-    document.cookie = `lifeos_role=${data.user.role}; path=/; SameSite=Strict`;
+    // Cookies are set by the backend with proper SameSite/secure settings
     const role = data.user.role as string;
     if (role === "SUPER_ADMIN") { window.location.href = "/super-admin"; return; }
     if (role === "ADMIN") { window.location.href = "/admin"; return; }
@@ -177,8 +176,7 @@ function UserLoginForm() {
       }
       const data = await res.json();
       setAccessToken(data.accessToken);
-      document.cookie = "lifeos_authed=1; path=/; SameSite=Strict";
-      document.cookie = `lifeos_role=${data.user.role}; path=/; SameSite=Strict`;
+      // Cookies are set by the backend with proper SameSite/secure settings
       finishLogin(data);
     } catch (err: any) {
       setTwoFAError(err.message);
