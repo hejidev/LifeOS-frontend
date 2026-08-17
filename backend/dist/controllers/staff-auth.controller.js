@@ -39,11 +39,12 @@ const env_1 = require("../config/env");
 const prisma_1 = require("../config/prisma");
 const staffAuthService = __importStar(require("../services/staff-auth.service"));
 const STAFF_COOKIE = "lifeos_staff_token";
+const isProd = env_1.env.NODE_ENV !== "development";
 const STAFF_COOKIE_OPTIONS = {
     httpOnly: true,
-    secure: env_1.env.NODE_ENV === "production",
+    secure: isProd,
     sameSite: "lax",
-    path: "/api",
+    path: "/",
     maxAge: 12 * 60 * 60 * 1000,
 };
 exports.login = (0, errors_1.asyncHandler)(async (req, res) => {

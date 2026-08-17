@@ -65,11 +65,28 @@ router.get("/auth/google/callback", (0, errors_1.asyncHandler)(async (req, res) 
         });
     }
     const { accessToken, refreshToken } = await authService.issueSession(user.id, user.role, user.sessionVersion);
+    const isProd = env_1.env.NODE_ENV !== "development";
+    // Set refresh token cookie
     res.cookie(REFRESH_COOKIE, refreshToken, {
         httpOnly: true,
-        secure: env_1.env.NODE_ENV === "production",
-        sameSite: "strict",
-        path: "/api/auth",
+        secure: isProd,
+        sameSite: isProd ? "none" : "lax",
+        path: "/",
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+    // Set flag cookies for middleware
+    res.cookie("lifeos_authed", "1", {
+        httpOnly: false,
+        secure: isProd,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+    res.cookie("lifeos_role", user.role, {
+        httpOnly: false,
+        secure: isProd,
+        sameSite: "lax",
+        path: "/",
         maxAge: 30 * 24 * 60 * 60 * 1000,
     });
     // Access token rides a one-time redirect; the frontend exchanges it

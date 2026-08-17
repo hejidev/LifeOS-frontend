@@ -43,15 +43,27 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const prisma_1 = require("../config/prisma");
 const twoFactorService = __importStar(require("../services/two-factor.service"));
 const authService = __importStar(require("../services/auth.service"));
+const isProd = env_1.env.NODE_ENV !== "development";
 const REFRESH_COOKIE = "lifeos_rt";
 const REFRESH_COOKIE_OPTIONS = {
     httpOnly: true,
-    secure: env_1.env.NODE_ENV === "production",
-    // sameSite: "strict" as const,
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax",
+    path: "/",
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+};
+const FLAG_COOKIE_OPTIONS = {
+    httpOnly: false,
+    secure: isProd,
     sameSite: "lax",
     path: "/",
     maxAge: 30 * 24 * 60 * 60 * 1000,
 };
+function setSessionCookies(res, refreshToken, role) {
+    res.cookie(REFRESH_COOKIE, refreshToken, REFRESH_COOKIE_OPTIONS);
+    res.cookie("lifeos_authed", "1", FLAG_COOKIE_OPTIONS);
+    res.cookie("lifeos_role", role, FLAG_COOKIE_OPTIONS);
+}
 function sendRefreshCookie(res, refreshToken) {
     res.cookie(REFRESH_COOKIE, refreshToken, REFRESH_COOKIE_OPTIONS);
 }
@@ -70,13 +82,11 @@ exports.login = (0, errors_1.asyncHandler)(async (req, res) => {
     });
     const fullUser = await prisma_1.prisma.user.findUnique({ where: { id: user.id } });
     if (fullUser?.twoFactorEnabled) {
-        const pendingToken = createPendingTwoFactorToken(user.id);
+        const pendingToken = jsonwebtoken_1.default.sign({ sub: user.id, purpose: "2fa_pending" }, env_1.env.ACCESS_TOKEN_SECRET, { expiresIn: 300 });
         return res.status(200).json({ requires2FA: true, pendingToken });
     }
     const { accessToken, refreshToken } = await authService.issueSession(user.id, user.role, user.sessionVersion);
-    sendRefreshCookie(res, refreshToken);
-    // res.cookie("lifeos_authed", "1", { httpOnly: false, secure: env.NODE_ENV === "production", sameSite: "strict", path: "/", maxAge: 30 * 24 * 60 * 60 * 1000 });
-    // res.cookie("lifeos_role", user.role, { httpOnly: false, secure: env.NODE_ENV === "production", sameSite: "strict", path: "/", maxAge: 30 * 24 * 60 * 60 * 1000 });
+    setSessionCookies(res, refreshToken, user.role);
     return res.status(200).json({ accessToken, user });
 });
 exports.refresh = (0, errors_1.asyncHandler)(async (req, res) => {
@@ -84,21 +94,7 @@ exports.refresh = (0, errors_1.asyncHandler)(async (req, res) => {
     if (!token)
         throw new errors_1.AppError("Not authenticated", 401);
     const { accessToken, refreshToken, user } = await authService.refreshSession(token);
-    res.cookie(REFRESH_COOKIE, refreshToken, REFRESH_COOKIE_OPTIONS);
-    res.cookie("lifeos_authed", "1", {
-        httpOnly: false,
-        secure: env_1.env.NODE_ENV === "production",
-        sameSite: "strict",
-        path: "/",
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
-    res.cookie("lifeos_role", user.role, {
-        httpOnly: false,
-        secure: env_1.env.NODE_ENV === "production",
-        sameSite: "strict",
-        path: "/",
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
+    setSessionCookies(res, refreshToken, user.role);
     return res.status(200).json({ accessToken, user });
 });
 exports.verifyTwoFactor = (0, errors_1.asyncHandler)(async (req, res) => {
@@ -119,14 +115,11 @@ exports.verifyTwoFactor = (0, errors_1.asyncHandler)(async (req, res) => {
     if (!valid)
         throw new errors_1.AppError("Incorrect code", 401);
     const { accessToken, refreshToken } = await authService.issueSession(user.id, user.role, user.sessionVersion);
-    sendRefreshCookie(res, refreshToken);
-    res.cookie("lifeos_authed", "1", { httpOnly: false, secure: env_1.env.NODE_ENV === "production", sameSite: "strict", path: "/", maxAge: 30 * 24 * 60 * 60 * 1000 });
-    res.cookie("lifeos_role", user.role, { httpOnly: false, secure: env_1.env.NODE_ENV === "production", sameSite: "strict", path: "/", maxAge: 30 * 24 * 60 * 60 * 1000 });
+    setSessionCookies(res, refreshToken, user.role);
     return res.status(200).json({ accessToken, user: authService.sanitizeUser(user) });
 });
 exports.forgotPassword = (0, errors_1.asyncHandler)(async (req, res) => {
     await authService.forgotPassword(req.body.email);
-    // Always 200 — never reveal whether the email exists
     return res.status(200).json({ message: "If that email is registered, a reset link has been sent." });
 });
 exports.resetPassword = (0, errors_1.asyncHandler)(async (req, res) => {

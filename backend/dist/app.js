@@ -88,7 +88,14 @@ const errorHandler_middleware_1 = require("./middlewares/errorHandler.middleware
 const app = (0, express_1.default)();
 app.set("trust proxy", 1);
 app.use((0, helmet_1.default)());
-app.use((0, cors_1.default)({ origin: env_1.env.FRONTEND_URL, credentials: true }));
+app.use((0, cors_1.default)({
+    origin: [
+        env_1.env.FRONTEND_URL,
+        "http://localhost:3000",
+        "https://life-os-vert-ten.vercel.app"
+    ],
+    credentials: true
+}));
 app.post("/api/billing/webhook", express_1.default.raw({ type: "application/json" }), billingController.webhook);
 app.use(express_1.default.json({ limit: "1mb" }));
 app.use((0, cookie_parser_1.default)());
