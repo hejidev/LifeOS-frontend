@@ -20,11 +20,11 @@ export async function listStaff(userId: string) {
   return staff.map(serializeStaff);
 }
 
-export async function createStaff(userId: string, data: { name: string; email?: string; phone?: string; role: string; pin: string }) {
+export async function createStaff(userId: string, data: { name: string; email?: string; phone?: string; address?: string; age?: number; sex?: string; tribe?: string; religion?: string; role: string; pin: string }) {
   const bizProfileId = await getBizProfileId(userId);
   const pinHash = await bcrypt.hash(data.pin, 10);
   const staff = await prisma.bizStaff.create({
-    data: { bizProfileId, name: data.name, email: data.email, phone: data.phone, role: data.role as any, pinHash },
+    data: { bizProfileId, name: data.name, email: data.email, phone: data.phone, address: data.address, age: data.age, sex: data.sex, tribe: data.tribe, religion: data.religion, role: data.role as any, pinHash },
   });
   return serializeStaff(staff);
 }
@@ -42,6 +42,11 @@ export async function updateStaff(userId: string, staffId: string, data: any) {
       ...(data.name && { name: data.name }),
       ...(data.email !== undefined && { email: data.email }),
       ...(data.phone !== undefined && { phone: data.phone }),
+      ...(data.address !== undefined && { address: data.address }),
+      ...(data.age !== undefined && { age: data.age }),
+      ...(data.sex !== undefined && { sex: data.sex }),
+      ...(data.tribe !== undefined && { tribe: data.tribe }),
+      ...(data.religion !== undefined && { religion: data.religion }),
       ...(data.role && { role: data.role }),
       ...(data.status && { status: data.status }),
       ...(pinHash && { pinHash }),

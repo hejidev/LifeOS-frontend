@@ -17,6 +17,7 @@ export default function POSPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
+  const [searchQuery, setSearchQuery] = useState("");
 
   function addToCart(p: any) {
     setCart((prev) => {
@@ -34,6 +35,10 @@ export default function POSPage() {
 
   const total = cart.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
 
+  const filteredProducts = searchQuery
+    ? (products as any[]).filter((p) => p.name.toLowerCase() === searchQuery.toLowerCase())
+    : products;
+
   function handleCheckout() {
     if (cart.length === 0) return;
     createSale.mutate(
@@ -46,13 +51,23 @@ export default function POSPage() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 space-y-3">
         <h1 className="text-2xl font-bold flex items-center gap-2"><ShoppingCart className="h-5 w-5 text-primary" /> Point of Sale</h1>
+        <input
+          type="text"
+          placeholder="Search products (exact match)..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm"
+        />
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {(products as any[]).map((p) => (
+          {(filteredProducts as any[]).map((p) => (
             <button key={p.id} onClick={() => addToCart(p)} className="text-left rounded-lg border border-border/60 bg-card/60 p-3 hover:border-primary/40 transition-colors">
               <p className="text-sm font-medium truncate">{p.name}</p>
               <p className="text-xs text-muted-foreground">${p.price} · {p.stock} in stock</p>
             </button>
           ))}
+          {filteredProducts.length === 0 && searchQuery && (
+            <p className="text-sm text-muted-foreground col-span-2 md:col-span-3 text-center py-4">No exact match found for "{searchQuery}"</p>
+          )}
         </div>
       </div>
 

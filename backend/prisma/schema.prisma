@@ -648,6 +648,11 @@ model BizStaff {
   name         String
   email        String?
   phone        String?
+  address      String?
+  age          Int?
+  sex          String?
+  tribe        String?
+  religion     String?
   role         StaffRole          @default(CASHIER)
   pinHash      String
   status       StaffStatus        @default(ACTIVE)
