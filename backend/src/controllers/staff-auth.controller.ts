@@ -10,8 +10,8 @@ const isProd = env.NODE_ENV !== "development";
 const STAFF_COOKIE_OPTIONS = {
   httpOnly: true,
   secure: isProd,
-  sameSite: isProd ? ("none" as const) : ("lax" as const),
-  path: "/api",
+  sameSite: "lax",
+  path: "/",
   maxAge: 12 * 60 * 60 * 1000,
 };
 

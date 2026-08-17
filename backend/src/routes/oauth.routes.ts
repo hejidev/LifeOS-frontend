@@ -39,11 +39,29 @@ router.get("/auth/google/callback", asyncHandler(async (req, res) => {
 
   const isProd = env.NODE_ENV !== "development";
 
+  // Set refresh token cookie
   res.cookie(REFRESH_COOKIE, refreshToken, {
     httpOnly: true,
     secure: isProd,
     sameSite: isProd ? ("none" as const) : ("lax" as const),
-    path: "/api",
+    path: "/",
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+  });
+
+  // Set flag cookies for middleware
+  res.cookie("lifeos_authed", "1", {
+    httpOnly: false,
+    secure: isProd,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+  });
+
+  res.cookie("lifeos_role", user.role, {
+    httpOnly: false,
+    secure: isProd,
+    sameSite: "lax",
+    path: "/",
     maxAge: 30 * 24 * 60 * 60 * 1000,
   });
 
