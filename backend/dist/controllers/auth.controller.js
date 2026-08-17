@@ -91,11 +91,19 @@ exports.login = (0, errors_1.asyncHandler)(async (req, res) => {
 });
 exports.refresh = (0, errors_1.asyncHandler)(async (req, res) => {
     const token = req.cookies?.[REFRESH_COOKIE];
+    console.log("[refresh] Token present:", !!token, "Token length:", token?.length);
     if (!token)
         throw new errors_1.AppError("Not authenticated", 401);
-    const { accessToken, refreshToken, user } = await authService.refreshSession(token);
-    setSessionCookies(res, refreshToken, user.role);
-    return res.status(200).json({ accessToken, user });
+    try {
+        const { accessToken, refreshToken, user } = await authService.refreshSession(token);
+        console.log("[refresh] Session refreshed for user:", user.id);
+        setSessionCookies(res, refreshToken, user.role);
+        return res.status(200).json({ accessToken, user });
+    }
+    catch (err) {
+        console.error("[refresh] Error:", err.message);
+        throw err;
+    }
 });
 exports.verifyTwoFactor = (0, errors_1.asyncHandler)(async (req, res) => {
     const { pendingToken, code } = req.body;

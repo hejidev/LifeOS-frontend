@@ -68,12 +68,18 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 
 export const refresh = asyncHandler(async (req: Request, res: Response) => {
   const token = req.cookies?.[REFRESH_COOKIE];
+  console.log("[refresh] Token present:", !!token, "Token length:", token?.length);
   if (!token) throw new AppError("Not authenticated", 401);
 
-  const { accessToken, refreshToken, user } = await authService.refreshSession(token);
-  setSessionCookies(res, refreshToken, user.role);
-
-  return res.status(200).json({ accessToken, user });
+  try {
+    const { accessToken, refreshToken, user } = await authService.refreshSession(token);
+    console.log("[refresh] Session refreshed for user:", user.id);
+    setSessionCookies(res, refreshToken, user.role);
+    return res.status(200).json({ accessToken, user });
+  } catch (err: any) {
+    console.error("[refresh] Error:", err.message);
+    throw err;
+  }
 });
 
 export const verifyTwoFactor = asyncHandler(async (req: Request, res: Response) => {
