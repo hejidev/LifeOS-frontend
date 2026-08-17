@@ -55,7 +55,7 @@ const REFRESH_COOKIE_OPTIONS = {
 const FLAG_COOKIE_OPTIONS = {
     httpOnly: false,
     secure: isProd,
-    sameSite: "lax",
+    sameSite: isProd ? "none" : "lax",
     path: "/",
     maxAge: 30 * 24 * 60 * 60 * 1000,
 };
@@ -131,9 +131,9 @@ exports.logout = (0, errors_1.asyncHandler)(async (req, res) => {
     const token = req.cookies?.[REFRESH_COOKIE];
     if (token)
         await authService.endSession(token);
-    res.clearCookie(REFRESH_COOKIE, { path: "/" });
-    res.clearCookie("lifeos_authed", { path: "/" });
-    res.clearCookie("lifeos_role", { path: "/" });
+    res.clearCookie(REFRESH_COOKIE, { path: "/", secure: isProd, sameSite: isProd ? "none" : "lax" });
+    res.clearCookie("lifeos_authed", { path: "/", secure: isProd, sameSite: isProd ? "none" : "lax" });
+    res.clearCookie("lifeos_role", { path: "/", secure: isProd, sameSite: isProd ? "none" : "lax" });
     return res.status(204).send();
 });
 exports.me = (0, errors_1.asyncHandler)(async (req, res) => {

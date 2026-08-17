@@ -19,7 +19,7 @@ const REFRESH_COOKIE_OPTIONS = {
 const FLAG_COOKIE_OPTIONS = {
   httpOnly: false,
   secure: isProd,
-  sameSite: "lax" as const,
+  sameSite: isProd ? ("none" as const) : ("lax" as const),
   path: "/",
   maxAge: 30 * 24 * 60 * 60 * 1000,
 };
@@ -113,9 +113,9 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
 export const logout = asyncHandler(async (req: Request, res: Response) => {
   const token = req.cookies?.[REFRESH_COOKIE];
   if (token) await authService.endSession(token);
-  res.clearCookie(REFRESH_COOKIE, { path: "/" });
-  res.clearCookie("lifeos_authed", { path: "/" });
-  res.clearCookie("lifeos_role", { path: "/" });
+  res.clearCookie(REFRESH_COOKIE, { path: "/", secure: isProd, sameSite: isProd ? "none" : "lax" });
+  res.clearCookie("lifeos_authed", { path: "/", secure: isProd, sameSite: isProd ? "none" : "lax" });
+  res.clearCookie("lifeos_role", { path: "/", secure: isProd, sameSite: isProd ? "none" : "lax" });
   return res.status(204).send();
 });
 
