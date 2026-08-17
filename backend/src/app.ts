@@ -55,7 +55,14 @@ const app = express();
 
 app.set("trust proxy", 1);
 app.use(helmet());
-app.use(cors({ origin: env.FRONTEND_URL, credentials: true }));
+app.use(cors({
+  origin: [
+    env.FRONTEND_URL,
+    "http://localhost:3000",
+    "https://life-os-vert-ten.vercel.app"
+  ],
+  credentials: true
+}));
 
 app.post("/api/billing/webhook", express.raw({ type: "application/json" }), billingController.webhook);
 

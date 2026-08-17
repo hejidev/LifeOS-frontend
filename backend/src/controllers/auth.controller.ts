@@ -19,7 +19,7 @@ const REFRESH_COOKIE_OPTIONS = {
 const FLAG_COOKIE_OPTIONS = {
   httpOnly: false,
   secure: isProd,
-  sameSite: isProd ? ("none" as const) : ("strict" as const),
+  sameSite: "lax" as const,
   path: "/",
   maxAge: 30 * 24 * 60 * 60 * 1000,
 };
