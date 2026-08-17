@@ -43,7 +43,7 @@ const isProd = env_1.env.NODE_ENV !== "development";
 const STAFF_COOKIE_OPTIONS = {
     httpOnly: true,
     secure: isProd,
-    sameSite: "lax",
+    sameSite: isProd ? "none" : "lax",
     path: "/",
     maxAge: 12 * 60 * 60 * 1000,
 };
@@ -69,6 +69,11 @@ exports.me = (0, errors_1.asyncHandler)(async (req, res) => {
     });
 });
 exports.logout = (0, errors_1.asyncHandler)(async (_req, res) => {
-    res.clearCookie(STAFF_COOKIE, { path: "/api" });
+    res.clearCookie(STAFF_COOKIE, {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: isProd ? "none" : "lax",
+        path: "/",
+    });
     return res.status(204).send();
 });

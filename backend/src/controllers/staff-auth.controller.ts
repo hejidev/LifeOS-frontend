@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+import type { Request, Response, CookieOptions } from "express";
 import { asyncHandler } from "../lib/errors";
 import { env } from "../config/env";
 import { prisma } from "../config/prisma";
@@ -7,13 +7,14 @@ import type { StaffRequest } from "../middlewares/staff-session.middleware";
 
 const STAFF_COOKIE = "lifeos_staff_token";
 const isProd = env.NODE_ENV !== "development";
+
 const STAFF_COOKIE_OPTIONS = {
   httpOnly: true,
   secure: isProd,
-  sameSite: "lax",
+  sameSite: isProd ? "none" as const : "lax" as const,
   path: "/",
   maxAge: 12 * 60 * 60 * 1000,
-};
+} as const;
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
   const { storeCode, name, pin } = req.body;
@@ -40,6 +41,11 @@ export const me = asyncHandler(async (req: StaffRequest, res: Response) => {
 });
 
 export const logout = asyncHandler(async (_req: StaffRequest, res: Response) => {
-  res.clearCookie(STAFF_COOKIE, { path: "/api" });
+  res.clearCookie(STAFF_COOKIE, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax" as const,
+    path: "/",
+  });
   return res.status(204).send();
 });
