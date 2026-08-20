@@ -21,6 +21,16 @@ import {
   ShoppingCart,
   Download,
   Printer,
+  Search,
+  BarChart3,
+  ArrowUpRight,
+  ArrowDownRight,
+  DollarSign,
+  Target,
+  Clock,
+  Zap,
+  X,
+  RotateCcw,
 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -192,10 +202,15 @@ export default function MerchantDashboardPage() {
 
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [newExpense, setNewExpense] = useState({ title: "", amount: 0, category: "OTHER" });
+  const [productSearchQuery, setProductSearchQuery] = useState("");
 
   const subtotal = cart.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
   const total = Math.max(0, subtotal - discount);
   const currency = dash?.currency ?? "NGN";
+
+  const filteredProducts = productSearchQuery
+    ? (products ?? []).filter((p) => p.name.toLowerCase().includes(productSearchQuery.toLowerCase()))
+    : products ?? [];
 
   const addToCart = (p: BizProduct) => {
     setCart((prev) => {
@@ -304,21 +319,23 @@ export default function MerchantDashboardPage() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={item} className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Building2 className="h-6 w-6 text-primary" />
-            {dash.businessName} POS
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Sell, restock, and track the money — all synced live
-          </p>
+      <motion.div variants={item} className="flex items-center justify-between flex-wrap gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-gradient-to-br from-primary/20 to-primary/5 rounded-xl border border-primary/20">
+              <Building2 className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">{dash.businessName}</h1>
+              <p className="text-muted-foreground text-sm">Point of Sale Dashboard</p>
+            </div>
+          </div>
         </div>
-        <Tabs value={range} onValueChange={(v) => setRange(v as any)}>
-          <TabsList>
-            <TabsTrigger value="today">Today</TabsTrigger>
-            <TabsTrigger value="week">Week</TabsTrigger>
-            <TabsTrigger value="month">Month</TabsTrigger>
+        <Tabs value={range} onValueChange={(v) => setRange(v as any)} className="bg-muted/50 p-1 rounded-lg">
+          <TabsList className="bg-transparent h-9">
+            <TabsTrigger value="today" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Today</TabsTrigger>
+            <TabsTrigger value="week" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Week</TabsTrigger>
+            <TabsTrigger value="month" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Month</TabsTrigger>
           </TabsList>
         </Tabs>
       </motion.div>
@@ -326,29 +343,31 @@ export default function MerchantDashboardPage() {
       {/* Stats row */}
       <motion.div variants={item} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { id: "revenue", icon: TrendingUp },
-          { id: "orders", icon: Receipt },
-          { id: "customers", icon: Users },
-          { id: "profit", icon: CreditCard },
-        ].map(({ id, icon: Icon }) => {
+          { id: "revenue", icon: DollarSign, color: "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20", textColor: "text-emerald-700" },
+          { id: "orders", icon: Receipt, color: "from-blue-500/10 to-blue-600/5 border-blue-500/20", textColor: "text-blue-700" },
+          { id: "customers", icon: Users, color: "from-purple-500/10 to-purple-600/5 border-purple-500/20", textColor: "text-purple-700" },
+          { id: "profit", icon: BarChart3, color: "from-amber-500/10 to-amber-600/5 border-amber-500/20", textColor: "text-amber-700" },
+        ].map(({ id, icon: Icon, color, textColor }) => {
           const m = metric(id);
           const negative = m?.change?.startsWith("-");
           return (
-            <Card key={id} className="hover:border-primary/20 transition-colors">
+            <Card key={id} className={`bg-gradient-to-br ${color} hover:shadow-md transition-all duration-200`}>
               <CardHeader className="pb-2 flex items-center justify-between">
-                <CardTitle className="text-xs text-muted-foreground">{m?.label ?? id}</CardTitle>
-                <Icon className="h-4 w-4 text-primary" />
+                <CardTitle className={`text-xs font-medium ${textColor}`}>{m?.label ?? id}</CardTitle>
+                <div className={`p-2 rounded-lg bg-white/50`}>
+                  <Icon className={`h-4 w-4 ${textColor}`} />
+                </div>
               </CardHeader>
               <CardContent>
-                <p className="text-xl font-semibold">{m?.value ?? "—"}</p>
+                <p className="text-2xl font-bold">{m?.value ?? "—"}</p>
                 {m?.change && (
                   <p
                     className={cn(
-                      "text-[11px] mt-1 flex items-center gap-1",
-                      negative ? "text-destructive" : "text-emerald-500"
+                      "text-[11px] mt-2 flex items-center gap-1 font-medium",
+                      negative ? "text-red-600" : "text-emerald-600"
                     )}
                   >
-                    {negative ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                    {negative ? <ArrowDownRight className="h-3 w-3" /> : <ArrowUpRight className="h-3 w-3" />}
                     {m.change}
                   </p>
                 )}
@@ -360,24 +379,42 @@ export default function MerchantDashboardPage() {
 
       {lowStock.length > 0 && (
         <motion.div variants={item}>
-          <Card className="border-warning/30 bg-warning/5">
-            <CardContent className="p-3 flex items-center gap-2 text-xs">
-              <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
-              <span>
-                Low stock: {lowStock.map((p) => `${p.name} (${p.stock} left)`).join(", ")}
-              </span>
+          <Card className="border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-orange-500/5">
+            <CardContent className="p-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-500/20 rounded-lg">
+                  <AlertTriangle className="h-5 w-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-amber-900 text-sm">Low Stock Alert</p>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    {lowStock.length} product{lowStock.length > 1 ? 's' : ''} need restocking
+                  </p>
+                </div>
+              </div>
+              <Button size="sm" variant="outline" className="border-amber-500/30 text-amber-700 hover:bg-amber-500/10" onClick={() => setTab("products")}>
+                View Products
+              </Button>
             </CardContent>
           </Card>
         </motion.div>
       )}
 
       <motion.div variants={item}>
-        <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-          <TabsList>
-            <TabsTrigger value="sell">Sell</TabsTrigger>
-            <TabsTrigger value="products">Products</TabsTrigger>
-            <TabsTrigger value="customers">Customers</TabsTrigger>
-            <TabsTrigger value="expenses">Expenses</TabsTrigger>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
+          <TabsList className="grid grid-cols-4 w-full bg-muted/50 p-1 rounded-lg h-11">
+            <TabsTrigger value="sell" className="data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2">
+              <ShoppingCart className="h-4 w-4" /> Sell
+            </TabsTrigger>
+            <TabsTrigger value="products" className="data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2">
+              <Package className="h-4 w-4" /> Products
+            </TabsTrigger>
+            <TabsTrigger value="customers" className="data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2">
+              <Users className="h-4 w-4" /> Customers
+            </TabsTrigger>
+            <TabsTrigger value="expenses" className="data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2">
+              <Receipt className="h-4 w-4" /> Expenses
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       </motion.div>
@@ -385,47 +422,76 @@ export default function MerchantDashboardPage() {
       {tab === "sell" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <motion.div variants={item} className="lg:col-span-2">
-            <Card className="hover:border-primary/20 transition-colors">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Package className="h-4 w-4 text-primary" /> Catalog
-                </CardTitle>
+            <Card className="hover:border-primary/20 transition-all duration-200 hover:shadow-lg">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Package className="h-4 w-4 text-primary" /> Product Catalog
+                  </CardTitle>
+                  {productSearchQuery && (
+                    <Button size="sm" variant="ghost" onClick={() => setProductSearchQuery("")} className="h-8 text-xs">
+                      <X className="h-3 w-3 mr-1" /> Clear
+                </Button>
+                  )}
+                </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search products by name..."
+                    value={productSearchQuery}
+                    onChange={(e) => setProductSearchQuery(e.target.value)}
+                    className="pl-10 h-10"
+                  />
+                </div>
                 {!products || products.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No products yet — add one from the Products tab to start selling.
-                  </p>
+                  <div className="text-center py-12">
+                    <Package className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
+                    <p className="text-sm text-muted-foreground">
+                      No products yet — add one from the Products tab to start selling.
+                    </p>
+                  </div>
+                ) : filteredProducts.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Search className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
+                    <p className="text-sm text-muted-foreground">
+                      No products match "{productSearchQuery}"
+                    </p>
+                  </div>
                 ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {products.map((p) => (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {filteredProducts.map((p) => (
                       <button
                         key={p.id}
                         onClick={() => addToCart(p)}
                         disabled={p.stock <= 0}
-                        className="text-left rounded-lg border border-border bg-card p-3 hover:border-primary/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="group text-left rounded-xl border border-border bg-card p-4 hover:border-primary/40 hover:shadow-md transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none relative overflow-hidden"
                       >
-                        <p className="text-sm font-medium truncate">{p.name}</p>
-
-                        <div className="mt-1.5 flex items-center justify-between text-xs">
-                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                            Price
-                          </span>
-                          <span className="font-semibold">
-                            {currency} {p.price.toLocaleString()}
-                          </span>
-                        </div>
-
-                        <div className="mt-1 flex items-center justify-between text-xs">
-                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                            Stock
-                          </span>
-                          <Badge
-                            variant={p.stock <= 0 ? "destructive" : p.stock <= p.lowStockAt ? "warning" : "secondary"}
-                            className="text-[10px] px-1.5 py-0"
-                          >
-                            {p.stock > 0 ? `${p.stock} in stock` : "Out of stock"}
-                          </Badge>
+                        {p.stock <= p.lowStockAt && p.stock > 0 && (
+                          <div className="absolute top-2 right-2">
+                            <Badge variant="warning" className="text-[9px] px-1.5 py-0 h-4">Low</Badge>
+                          </div>
+                        )}
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">{p.name}</p>
+                            {p.category && (
+                              <p className="text-[10px] text-muted-foreground mt-0.5 capitalize">{p.category}</p>
+                            )}
+                          </div>
+                          <div className="flex items-end justify-between">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Price</p>
+                              <p className="text-lg font-bold">{currency} {p.price.toLocaleString()}</p>
+                            </div>
+                            <Badge
+                              variant={p.stock <= 0 ? "destructive" : p.stock <= p.lowStockAt ? "warning" : "secondary"}
+                              className="text-[10px] px-2 py-0.5"
+                            >
+                              {p.stock > 0 ? `${p.stock}` : "0"}
+                            </Badge>
+                          </div>
                         </div>
                       </button>
                     ))}
@@ -436,111 +502,144 @@ export default function MerchantDashboardPage() {
           </motion.div>
 
           <motion.div variants={item}>
-            <Card className="hover:border-primary/20 transition-colors sticky top-4">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <ShoppingCart className="h-4 w-4 text-primary" /> Cart
-                </CardTitle>
+            <Card className="hover:border-primary/20 transition-all duration-200 hover:shadow-lg sticky top-4">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ShoppingCart className="h-4 w-4 text-primary" /> Shopping Cart
+                  </CardTitle>
+                  <Badge variant="secondary" className="text-xs">{cart.length} item{cart.length !== 1 ? 's' : ''}</Badge>
+                </div>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-4">
                 {cart.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Tap a product to add it here.</p>
+                  <div className="text-center py-8">
+                    <ShoppingCart className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
+                    <p className="text-sm text-muted-foreground">Tap a product to add it here.</p>
+                  </div>
                 ) : (
-                  <div className="space-y-2">
-                    {cart.map((l) => (
-                      <div key={`${l.productId}-${l.name}`} className="flex items-center justify-between gap-2 text-xs">
-                        <span className="truncate flex-1">{l.name}</span>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => updateQty(l.productId, l.name, -1)}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <span className="w-5 text-center">{l.quantity}</span>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => updateQty(l.productId, l.name, 1)}
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
+                  <>
+                    <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+                      {cart.map((l) => (
+                        <div key={`${l.productId}-${l.name}`} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/30 border border-border/50">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{l.name}</p>
+                            <p className="text-xs text-muted-foreground">{currency} {l.unitPrice.toLocaleString()} each</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => updateQty(l.productId, l.name, -1)}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <span className="w-6 text-center text-sm font-medium">{l.quantity}</span>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => updateQty(l.productId, l.name, 1)}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <div className="text-right min-w-[70px]">
+                            <p className="text-sm font-semibold">{currency} {(l.unitPrice * l.quantity).toLocaleString()}</p>
+                          </div>
                         </div>
-                        <span className="w-16 text-right">
-                          {currency} {(l.unitPrice * l.quantity).toLocaleString()}
-                        </span>
+                      ))}
+                    </div>
+
+                    <div className="space-y-3 pt-3 border-t border-border/60">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium">Customer (optional)</Label>
+                        <Select value={customerId} onValueChange={setCustomerId}>
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue placeholder="Walk-in customer" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(customers ?? []).map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="space-y-2 pt-2 border-t border-border/60">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Customer (optional)</Label>
-                    <Select value={customerId} onValueChange={setCustomerId}>
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="Walk-in customer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(customers ?? []).map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Discount</Label>
-                      <Input
-                        type="number"
-                        className="h-8 text-xs"
-                        value={discount}
-                        onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))}
-                      />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label className="text-xs font-medium">Discount</Label>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              className="h-9 text-sm"
+                              value={discount}
+                              onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))}
+                              placeholder="0"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{currency}</span>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs font-medium">Payment</Label>
+                          <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                            <SelectTrigger className="h-9 text-sm">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="CASH">Cash</SelectItem>
+                              <SelectItem value="CARD">Card</SelectItem>
+                              <SelectItem value="TRANSFER">Transfer</SelectItem>
+                              <SelectItem value="MOBILE_MONEY">Mobile money</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Payment</Label>
-                      <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="CASH">Cash</SelectItem>
-                          <SelectItem value="CARD">Card</SelectItem>
-                          <SelectItem value="TRANSFER">Transfer</SelectItem>
-                          <SelectItem value="MOBILE_MONEY">Mobile money</SelectItem>
-                        </SelectContent>
-                      </Select>
+
+                    <div className="space-y-2 pt-3 border-t border-border/60">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Subtotal</span>
+                        <span className="font-medium">{currency} {subtotal.toLocaleString()}</span>
+                      </div>
+                      {discount > 0 && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Discount</span>
+                          <span className="font-medium text-emerald-600">-{currency} {discount.toLocaleString()}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between pt-2">
+                        <span className="text-base font-semibold">Total</span>
+                        <span className="text-xl font-bold">{currency} {total.toLocaleString()}</span>
+                      </div>
                     </div>
-                  </div>
-                </div>
 
-                <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm font-semibold">
-                  <span>Total</span>
-                  <span>
-                    {currency} {total.toLocaleString()}
-                  </span>
-                </div>
+                    <Button className="w-full h-11 text-base font-medium" disabled={cart.length === 0 || createSale.isPending} onClick={handleCheckout}>
+                      {createSale.isPending ? (
+                        <span className="flex items-center gap-2">
+                          <RotateCcw className="h-4 w-4 animate-spin" /> Processing...
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <Zap className="h-4 w-4" /> Complete Sale
+                        </span>
+                      )}
+                    </Button>
 
-                <Button className="w-full" disabled={cart.length === 0 || createSale.isPending} onClick={handleCheckout}>
-                  {createSale.isPending ? "Processing..." : "Complete sale"}
-                </Button>
-
-                {lastSale && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full text-xs"
-                    onClick={() => setReceiptOpen(true)}
-                  >
-                    <Receipt className="mr-1.5 h-3.5 w-3.5" />
-                    View last receipt · {lastSale.receiptNumber}
-                  </Button>
+                    {lastSale && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs"
+                        onClick={() => setReceiptOpen(true)}
+                      >
+                        <Receipt className="mr-1.5 h-3.5 w-3.5" />
+                        View last receipt · {lastSale.receiptNumber}
+                      </Button>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -550,52 +649,87 @@ export default function MerchantDashboardPage() {
 
       {tab === "products" && (
         <motion.div variants={item}>
-          <Card>
-            <CardHeader className="pb-3 flex items-center justify-between">
-              <CardTitle className="text-base">Products</CardTitle>
-              <Button size="sm" onClick={() => setProductDialogOpen(true)}>
-                <Plus className="mr-1 h-3.5 w-3.5" /> Add product
-              </Button>
+          <Card className="hover:border-primary/20 transition-all duration-200 hover:shadow-lg">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Package className="h-4 w-4 text-primary" /> Products
+                </CardTitle>
+                <Button size="sm" onClick={() => setProductDialogOpen(true)} className="gap-2">
+                  <Plus className="h-4 w-4" /> Add Product
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-2 grid grid-cols-1 md:grid-cols-4 gap-5">
-              {(products ?? []).map((p) => (
-                <div key={p.id} className="flex items-center justify-between rounded-lg border border-border/60 p-3 text-sm">
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{p.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {currency} {p.price.toLocaleString()} · {p.stock} in stock
-                      {p.margin != null ? ` · ${p.margin}% margin` : ""}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {p.stock <= p.lowStockAt && <Badge variant="warning">Low stock</Badge>}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => openEditProduct(p)}
-                      aria-label={`Edit ${p.name}`}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive hover:text-destructive"
-                      onClick={() => {
-                        if (confirm(`Remove "${p.name}" from your catalog?`)) {
-                          deleteProduct.mutate(p.id);
-                        }
-                      }}
-                      aria-label={`Delete ${p.name}`}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+            <CardContent>
+              {(!products || products.length === 0) ? (
+                <div className="text-center py-12">
+                  <Package className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
+                  <p className="text-sm text-muted-foreground">No products yet.</p>
+                  <Button size="sm" variant="outline" className="mt-4" onClick={() => setProductDialogOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" /> Add your first product
+                  </Button>
                 </div>
-              ))}
-              {(!products || products.length === 0) && (
-                <p className="text-sm text-muted-foreground">No products yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {(products ?? []).map((p) => (
+                    <div key={p.id} className="group relative rounded-xl border border-border bg-card p-4 hover:border-primary/40 hover:shadow-md transition-all duration-200">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold truncate">{p.name}</p>
+                          {p.category && (
+                            <p className="text-xs text-muted-foreground capitalize mt-0.5">{p.category}</p>
+                          )}
+                        </div>
+                        {p.stock <= p.lowStockAt && p.stock > 0 && (
+                          <Badge variant="warning" className="text-[9px] px-1.5 py-0 h-4 shrink-0">Low</Badge>
+                        )}
+                        {p.stock <= 0 && (
+                          <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4 shrink-0">Out</Badge>
+                        )}
+                      </div>
+                      <div className="space-y-2 mb-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">Price</span>
+                          <span className="font-semibold">{currency} {p.price.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">Stock</span>
+                          <span className={cn("font-medium", p.stock <= 0 ? "text-destructive" : p.stock <= p.lowStockAt ? "text-amber-600" : "")}>
+                            {p.stock}
+                          </span>
+                        </div>
+                        {p.margin != null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Margin</span>
+                            <span className="text-xs font-medium text-emerald-600">{p.margin}%</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 pt-3 border-t border-border/50">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 h-8 text-xs"
+                          onClick={() => openEditProduct(p)}
+                        >
+                          <Pencil className="h-3 w-3 mr-1" /> Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => {
+                            if (confirm(`Remove "${p.name}" from your catalog?`)) {
+                              deleteProduct.mutate(p.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -604,27 +738,46 @@ export default function MerchantDashboardPage() {
 
       {tab === "customers" && (
         <motion.div variants={item}>
-          <Card>
-            <CardHeader className="pb-3 flex items-center justify-between">
-              <CardTitle className="text-base">Customers</CardTitle>
-              <Button size="sm" onClick={() => setCustomerDialogOpen(true)}>
-                <Plus className="mr-1 h-3.5 w-3.5" /> Add customer
-              </Button>
+          <Card className="hover:border-primary/20 transition-all duration-200 hover:shadow-lg">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" /> Customers
+                </CardTitle>
+                <Button size="sm" onClick={() => setCustomerDialogOpen(true)} className="gap-2">
+                  <Plus className="h-4 w-4" /> Add Customer
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {(customers ?? []).map((c) => (
-                <div key={c.id} className="flex items-center justify-between rounded-lg border border-border/60 p-3 text-sm">
-                  <div>
-                    <p className="font-medium">{c.name}</p>
-                    <p className="text-xs text-muted-foreground">{c.phone ?? c.email ?? "No contact on file"}</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {currency} {c.totalSpent.toLocaleString()} · {c.orderCount} orders
-                  </p>
+            <CardContent>
+              {(!customers || customers.length === 0) ? (
+                <div className="text-center py-12">
+                  <Users className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
+                  <p className="text-sm text-muted-foreground">No customers yet.</p>
+                  <Button size="sm" variant="outline" className="mt-4" onClick={() => setCustomerDialogOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" /> Add your first customer
+                  </Button>
                 </div>
-              ))}
-              {(!customers || customers.length === 0) && (
-                <p className="text-sm text-muted-foreground">No customers yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {(customers ?? []).map((c) => (
+                    <div key={c.id} className="rounded-xl border border-border bg-card p-4 hover:border-primary/40 hover:shadow-md transition-all duration-200">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold truncate">{c.name}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{c.phone ?? c.email ?? "No contact on file"}</p>
+                        </div>
+                        <Badge variant="secondary" className="text-[10px]">{c.orderCount} order{c.orderCount !== 1 ? 's' : ''}</Badge>
+                      </div>
+                      <div className="pt-3 border-t border-border/50">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">Total spent</span>
+                          <span className="font-semibold text-primary">{currency} {c.totalSpent.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -633,29 +786,45 @@ export default function MerchantDashboardPage() {
 
       {tab === "expenses" && (
         <motion.div variants={item}>
-          <Card>
-            <CardHeader className="pb-3 flex items-center justify-between">
-              <CardTitle className="text-base">Expenses this month</CardTitle>
-              <Button size="sm" onClick={() => setExpenseDialogOpen(true)}>
-                <Plus className="mr-1 h-3.5 w-3.5" /> Log expense
-              </Button>
+          <Card className="hover:border-primary/20 transition-all duration-200 hover:shadow-lg">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Receipt className="h-4 w-4 text-primary" /> Expenses
+                </CardTitle>
+                <Button size="sm" onClick={() => setExpenseDialogOpen(true)} className="gap-2">
+                  <Plus className="h-4 w-4" /> Log Expense
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {(expenses ?? []).map((e) => (
-                <div key={e.id} className="flex items-center justify-between rounded-lg border border-border/60 p-3 text-sm">
-                  <div>
-                    <p className="font-medium">{e.title}</p>
-                    <p className="text-xs text-muted-foreground capitalize">
-                      {e.category.toLowerCase()} · {new Date(e.date).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <p className="text-sm font-medium">
-                    {currency} {e.amount.toLocaleString()}
-                  </p>
+            <CardContent>
+              {(!expenses || expenses.length === 0) ? (
+                <div className="text-center py-12">
+                  <Receipt className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
+                  <p className="text-sm text-muted-foreground">No expenses logged this month.</p>
+                  <Button size="sm" variant="outline" className="mt-4" onClick={() => setExpenseDialogOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" /> Log your first expense
+                  </Button>
                 </div>
-              ))}
-              {(!expenses || expenses.length === 0) && (
-                <p className="text-sm text-muted-foreground">No expenses logged this month.</p>
+              ) : (
+                <div className="space-y-3">
+                  {(expenses ?? []).map((e) => (
+                    <div key={e.id} className="flex items-center justify-between rounded-xl border border-border bg-card p-4 hover:border-primary/40 hover:shadow-md transition-all duration-200">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-medium">{e.title}</p>
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 capitalize">{e.category.toLowerCase()}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(e.date).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-destructive">{currency} {e.amount.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -664,39 +833,46 @@ export default function MerchantDashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <motion.div variants={item} className="lg:col-span-2">
-          <Card className="hover:border-primary/20 transition-colors">
-            <CardHeader className="pb-3 flex items-center justify-between">
+          <Card className="hover:border-primary/20 transition-all duration-200 hover:shadow-lg">
+            <CardHeader className="pb-4 flex items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
-                <Receipt className="h-4 w-4 text-primary" /> Recent activity
+                <Clock className="h-4 w-4 text-primary" /> Recent Activity
               </CardTitle>
               <div className="flex items-center gap-2">
                 <Badge variant="secondary" className="text-[11px]">
                   {dash.recentActivity.length} items
                 </Badge>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs px-2"
-                  onClick={() => setActivityDialogOpen(true)}
-                >
-                  View all
-                </Button>
+                {dash.recentActivity.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs px-2"
+                    onClick={() => setActivityDialogOpen(true)}
+                  >
+                    View all
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent>
               {dash.recentActivity.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Sales and expenses will show up here.</p>
+                <div className="text-center py-8">
+                  <Clock className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
+                  <p className="text-sm text-muted-foreground">Sales and expenses will show up here.</p>
+                </div>
               ) : (
-                <ScrollArea className="max-h-70">
+                <ScrollArea className="max-h-80">
                   <div className="space-y-2 pt-1">
                     {dash.recentActivity.map((a) => (
                       <button
                         key={a.id}
                         onClick={() => openActivityDetail(a)}
-                        className="w-full flex items-center justify-between rounded-lg border border-border/60 bg-card/60 p-2 text-left hover:border-primary/30 hover:bg-card transition-colors"
+                        className="w-full flex items-center justify-between rounded-xl border border-border/60 bg-card/60 p-3 text-left hover:border-primary/30 hover:bg-card transition-all duration-200 group"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          {activityIcon(a.type)}
+                          <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                            {activityIcon(a.type)}
+                          </div>
                           <div className="min-w-0">
                             <p className="text-sm font-medium truncate">{a.title}</p>
                             <p className="text-xs text-muted-foreground truncate">
@@ -716,24 +892,31 @@ export default function MerchantDashboardPage() {
         </motion.div>
 
         <motion.div variants={item} className="space-y-4">
-          <Card className="border-primary/20 bg-primary/5 hover:border-primary/30 transition-colors">
+          <Card className="border-primary/20 bg-gradient-to-br from-primary/10 to-primary/5 hover:border-primary/30 hover:shadow-md transition-all duration-200">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" /> Insight
+                <Sparkles className="h-4 w-4 text-primary" /> AI Insight
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-xs text-muted-foreground">{dash.insight}</CardContent>
+            <CardContent className="text-sm text-muted-foreground leading-relaxed">{dash.insight}</CardContent>
           </Card>
           {dash.topProducts.length > 0 && (
-            <Card className="hover:border-primary/20 transition-colors">
+            <Card className="hover:border-primary/20 transition-all duration-200 hover:shadow-md">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Top sellers</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Target className="h-4 w-4 text-primary" /> Top Sellers
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-3">
                 {dash.topProducts.map((p, i) => (
-                  <div key={p.name} className="flex items-center justify-between text-xs">
-                    <span>{i + 1}. {p.name}</span>
-                    <span className="text-muted-foreground">{p.units} sold</span>
+                  <div key={p.name} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
+                        {i + 1}
+                      </div>
+                      <span className="text-sm font-medium truncate max-w-[120px]">{p.name}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground font-medium">{p.units} sold</span>
                   </div>
                 ))}
               </CardContent>

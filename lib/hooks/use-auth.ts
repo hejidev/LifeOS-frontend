@@ -1,4 +1,3 @@
-// lib/hooks/use-auth.ts
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, setAccessToken } from "@/lib/api/client";
 import { useAuthStore } from "../stores/auth-store";
@@ -23,7 +22,8 @@ export function useLogin() {
       if (data.requires2FA) return;
 
       setAccessToken(data.accessToken);
-      // Cookies are set by the backend with proper SameSite/secure settings
+      document.cookie = "lifeos_authed=1; path=/; SameSite=Strict";
+      document.cookie = `lifeos_role=${data.user.role}; path=/; SameSite=Strict`;
       queryClient.setQueryData(["me"], { user: data.user });
 
       authStoreLogin({
@@ -44,7 +44,8 @@ export function useLogout() {
     mutationFn: () => api.post("/auth/logout"),
     onSuccess: () => {
       setAccessToken(null);
-      // Cookies are cleared by the backend
+      document.cookie = "lifeos_authed=; path=/; max-age=0";
+      document.cookie = "lifeos_role=; path=/; max-age=0";
       queryClient.setQueryData(["me"], null);
       authStoreLogout();
     },
