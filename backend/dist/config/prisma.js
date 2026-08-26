@@ -9,5 +9,5 @@ const pool = new pg_1.Pool({ connectionString: env_1.env.DATABASE_URL });
 const adapter = new adapter_pg_1.PrismaPg(pool);
 exports.prisma = new client_1.PrismaClient({
     adapter,
-    log: env_1.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+    log: ["warn", "error"],
 });

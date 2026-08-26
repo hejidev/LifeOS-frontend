@@ -37,8 +37,8 @@ exports.getProductsPaged = exports.deleteExpense = exports.createExpense = expor
 const errors_1 = require("../lib/errors");
 const businessService = __importStar(require("../services/business.service"));
 exports.getDashboard = (0, errors_1.asyncHandler)(async (req, res) => {
-    const range = req.query.range ?? "today";
-    const dashboard = await businessService.getDashboard(req.user.id, range);
+    const { range, from, to } = req.query;
+    const dashboard = await businessService.getDashboard(req.user.id, { range, from, to });
     return res.json(dashboard);
 });
 exports.getProfile = (0, errors_1.asyncHandler)(async (req, res) => {

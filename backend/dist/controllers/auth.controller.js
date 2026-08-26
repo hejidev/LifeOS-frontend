@@ -139,9 +139,9 @@ exports.logout = (0, errors_1.asyncHandler)(async (req, res) => {
     const token = req.cookies?.[REFRESH_COOKIE];
     if (token)
         await authService.endSession(token);
-    res.clearCookie(REFRESH_COOKIE, { path: "/", secure: isProd, sameSite: isProd ? "none" : "lax" });
-    res.clearCookie("lifeos_authed", { path: "/", secure: isProd, sameSite: isProd ? "none" : "lax" });
-    res.clearCookie("lifeos_role", { path: "/", secure: isProd, sameSite: isProd ? "none" : "lax" });
+    res.clearCookie(REFRESH_COOKIE, REFRESH_COOKIE_OPTIONS);
+    res.clearCookie("lifeos_authed", FLAG_COOKIE_OPTIONS);
+    res.clearCookie("lifeos_role", FLAG_COOKIE_OPTIONS);
     return res.status(204).send();
 });
 exports.me = (0, errors_1.asyncHandler)(async (req, res) => {
@@ -160,6 +160,6 @@ exports.verifyLoginCode = (0, errors_1.asyncHandler)(async (req, res) => {
         });
     }
     const { accessToken, refreshToken } = await authService.issueSession(user.id, user.role, user.sessionVersion);
-    sendRefreshCookie(res, refreshToken);
+    setSessionCookies(res, refreshToken, user.role);
     return res.status(200).json({ accessToken, user: authService.sanitizeUser(user) });
 });
