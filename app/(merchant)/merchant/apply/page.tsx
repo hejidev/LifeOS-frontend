@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useApplyMerchant, useUploadMerchantId } from "@/lib/hooks/use-life-data";
+import Link from "next/link";
 
 const CATEGORIES = [
   { value: "RETAIL", label: "Retail" }, { value: "FOOD_BEVERAGE", label: "Food & Beverage" },
@@ -136,6 +137,7 @@ export default function MerchantApplyPage() {
         <motion.div variants={item} className="text-center mb-10">
           <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl gradient-bg shadow-lg shadow-primary/20 mb-4">
             <Store className="h-6 w-6 text-white" />
+            {/* <Link href={'/'}>Back Home</Link> */}
           </div>
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Become a merchant</h1>
           <p className="text-muted-foreground mt-2 max-w-md mx-auto">Tell us about your business and verify your identity to unlock the full merchant dashboard.</p>

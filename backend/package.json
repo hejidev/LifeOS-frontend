@@ -13,8 +13,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.1",
-    "@prisma/adapter-pg": "^5.20.0",
-    "@prisma/client": "^5.20.0",
+    "@prisma/adapter-pg": "5.22.0",
+    "@prisma/client": "5.22.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/ioredis": "^4.28.10",
     "bcrypt": "^5.1.1",
@@ -36,6 +36,7 @@
     "papaparse": "^5.5.4",
     "pdf-parse": "^2.4.5",
     "pg": "^8.13.1",
+    "prisma": "5.22.0",
     "resend": "^6.17.2",
     "socket.io": "^4.8.1",
     "stripe": "^22.3.2",
@@ -58,7 +59,6 @@
     "@types/papaparse": "^5.5.2",
     "@types/pdf-parse": "^1.1.5",
     "@types/pg": "^8.20.0",
-    "prisma": "^5.20.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.6.3"

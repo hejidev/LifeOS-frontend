@@ -17,6 +17,7 @@ import type {
 } from "@/types/life";
 import { useMemo, useState } from "react";
 import { useAuthStore } from "../stores/auth-store";
+import { DashboardRangeValue } from "@/components/merchant/dashboard-range-selector";
 
 export function useTodayOverview() {
   return useQuery({
@@ -938,10 +939,17 @@ type Range = "today" | "week" | "month";
 
 // ─── Dashboard ────────────────────────────────────────────────────────────
  
-export function useBusinessDashboard(range: Range = "today") {
-  return useQuery<SmallBusinessSummary>({
-    queryKey: ["businessDashboard", range],
-    queryFn: () => api.get(`/business/dashboard?range=${range}`),
+export function useBusinessDashboard(value: DashboardRangeValue) {
+  const qs = new URLSearchParams();
+  if (value.mode === "custom") {
+    qs.set("from", value.from.toISOString());
+    qs.set("to", new Date(value.to.getTime() + 24 * 60 * 60 * 1000).toISOString());
+  } else {
+    qs.set("range", value.range);
+  }
+  return useQuery({
+    queryKey: ["businessDashboard", value],
+    queryFn: () => api.get(`/business/dashboard?${qs.toString()}`),
     staleTime: 1000 * 30,
   });
 }

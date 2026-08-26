@@ -68,12 +68,10 @@ import {
   useCreateBizExpense,
   useDeleteBizExpense,
   useBizSales,
-  useBusinessProducts,
-  useBusinessSales,
-  useBusinessExpenses
 } from "@/lib/hooks/use-life-data";
 import type { BizExpense, BizProduct, BizSale, BusinessActivity } from "@/types/life";
 import { cn } from "@/lib/utils";
+import { DashboardRangeSelector, type DashboardRangeValue } from "@/components/merchant/dashboard-range-selector";
 
 const container = {
   hidden: { opacity: 0 },
@@ -142,13 +140,19 @@ function activityIcon(type: BusinessActivity["type"]) {
 }
 
 export default function MerchantDashboardPage() {
-  const [range, setRange] = useState<"today" | "week" | "month">("today");
-  const { data: dash, isLoading, isError, error } = useBusinessDashboard(range);
+  const [rangeValue, setRangeValue] = useState<DashboardRangeValue>({ mode: "preset", range: "today" });
+  const rangePreset = rangeValue.mode === "preset" ? rangeValue.range : "month";
+  const supportedRangePreset = rangePreset === "year" ? "month" : rangePreset;
+  const rangeLabel =
+    rangeValue.mode === "preset"
+      ? rangeValue.range
+      : `${rangeValue.from.toLocaleDateString()} – ${rangeValue.to.toLocaleDateString()}`;
+  const { data: dash, isLoading, isError, error } = useBusinessDashboard(rangeValue);
   const { data: products } = useBizProducts(true);
   const { data: customers } = useBizCustomers();
   const { data: expenses } = useBizExpenses("month");
-  const { data: expensesForRange } = useBizExpenses(range);
-  const { data: sales } = useBizSales(range);
+  const { data: expensesForRange } = useBizExpenses(supportedRangePreset);
+  const { data: sales } = useBizSales(supportedRangePreset);
 
   const createProduct = useCreateBizProduct();
   const updateProduct = useUpdateBizProduct();
@@ -256,7 +260,7 @@ export default function MerchantDashboardPage() {
 
   const lowStock = dash?.lowStockProducts ?? [];
 
-  const metric = (id: string) => dash?.metrics.find((m) => m.id === id);
+  const metric = (id: string) => (dash?.metrics ?? []).find((m: { id: string }) => m.id === id);
 
   const [activityDialogOpen, setActivityDialogOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<BizExpense | null>(null);
@@ -319,80 +323,112 @@ export default function MerchantDashboardPage() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={item} className="flex items-center justify-between flex-wrap gap-4">
+      <motion.div variants={item} className="flex items-center justify-between flex-wrap gap-3">
         <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-primary/20 to-primary/5 rounded-xl border border-primary/20">
-              <Building2 className="h-6 w-6 text-primary" />
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg border border-primary/20">
+              <Building2 className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">{dash.businessName}</h1>
-              <p className="text-muted-foreground text-sm">Point of Sale Dashboard</p>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">{dash.businessName}</h1>
+              <p className="text-muted-foreground text-xs sm:text-sm">Point of Sale Dashboard</p>
             </div>
           </div>
         </div>
-        <Tabs value={range} onValueChange={(v) => setRange(v as any)} className="bg-muted/50 p-1 rounded-lg">
+        {/* <Tabs value={range} onValueChange={(v) => setRange(v as any)} className="bg-muted/50 p-1 rounded-lg">
           <TabsList className="bg-transparent h-9">
             <TabsTrigger value="today" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Today</TabsTrigger>
             <TabsTrigger value="week" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Week</TabsTrigger>
             <TabsTrigger value="month" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Month</TabsTrigger>
           </TabsList>
-        </Tabs>
+        </Tabs> */}
+        <DashboardRangeSelector value={rangeValue} onChange={setRangeValue} />
       </motion.div>
 
       {/* Stats row */}
-      <motion.div variants={item} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <motion.div variants={item} className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { id: "revenue", icon: DollarSign, color: "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20", textColor: "text-emerald-700" },
-          { id: "orders", icon: Receipt, color: "from-blue-500/10 to-blue-600/5 border-blue-500/20", textColor: "text-blue-700" },
-          { id: "customers", icon: Users, color: "from-purple-500/10 to-purple-600/5 border-purple-500/20", textColor: "text-purple-700" },
-          { id: "profit", icon: BarChart3, color: "from-amber-500/10 to-amber-600/5 border-amber-500/20", textColor: "text-amber-700" },
-        ].map(({ id, icon: Icon, color, textColor }) => {
+          { id: "revenue", icon: DollarSign, color: "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20", textColor: "text-emerald-700", bgColor: "bg-emerald-500" },
+          { id: "orders", icon: Receipt, color: "from-blue-500/10 to-blue-600/5 border-blue-500/20", textColor: "text-blue-700", bgColor: "bg-blue-500" },
+          { id: "customers", icon: Users, color: "from-purple-500/10 to-purple-600/5 border-purple-500/20", textColor: "text-purple-700", bgColor: "bg-purple-500" },
+          { id: "profit", icon: BarChart3, color: "from-amber-500/10 to-amber-600/5 border-amber-500/20", textColor: "text-amber-700", bgColor: "bg-amber-500" },
+        ].map(({ id, icon: Icon, color, textColor, bgColor }) => {
           const m = metric(id);
           const negative = m?.change?.startsWith("-");
           return (
-            <Card key={id} className={`bg-gradient-to-br ${color} hover:shadow-md transition-all duration-200`}>
-              <CardHeader className="pb-2 flex items-center justify-between">
-                <CardTitle className={`text-xs font-medium ${textColor}`}>{m?.label ?? id}</CardTitle>
-                <div className={`p-2 rounded-lg bg-white/50`}>
-                  <Icon className={`h-4 w-4 ${textColor}`} />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">{m?.value ?? "—"}</p>
-                {m?.change && (
-                  <p
-                    className={cn(
-                      "text-[11px] mt-2 flex items-center gap-1 font-medium",
-                      negative ? "text-red-600" : "text-emerald-600"
-                    )}
+            <motion.div
+              key={id}
+              whileHover={{ scale: 1.02, y: -2 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            >
+              <Card className={`bg-gradient-to-br ${color} hover:shadow-lg transition-all duration-300 overflow-hidden relative group`}>
+                <div className={`absolute top-0 right-0 w-20 h-20 ${bgColor}/5 roundedfull blur-2xl group-hover:${bgColor}/10 transition-all duration-300`} />
+                <CardHeader className="pb-2 flex items-center justify-between relative z-10">
+                  <CardTitle className={`text-[10px] sm:text-xs font-medium ${textColor}`}>{m?.label ?? id}</CardTitle>
+                  <motion.div 
+                    whileHover={{ rotate: 360 }}
+                    transition={{ duration: 0.6 }}
+                    className={`p-1.5 sm:p-2 rounded-xl bg-white/60 group-hover:bg-white/80 transition-all duration-300 shadow-sm`}
                   >
-                    {negative ? <ArrowDownRight className="h-3 w-3" /> : <ArrowUpRight className="h-3 w-3" />}
-                    {m.change}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+                    <Icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${textColor}`} />
+                  </motion.div>
+                </CardHeader>
+                <CardContent className="relative z-10">
+                  <motion.p 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.1 }}
+                    className="text-xl sm:text-2xl font-bold"
+                  >
+                    {m?.value ?? "—"}
+                  </motion.p>
+                  {m?.change && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
+                      className={cn(
+                        "text-[11px] mt-2 flex items-center gap-1 font-medium",
+                        negative ? "text-red-600" : "text-emerald-600"
+                      )}
+                    >
+                      {negative ? <ArrowDownRight className="h-3 w-3" /> : <ArrowUpRight className="h-3 w-3" />}
+                      {m.change}
+                    </motion.div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
           );
         })}
       </motion.div>
 
       {lowStock.length > 0 && (
-        <motion.div variants={item}>
-          <Card className="border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-orange-500/5">
-            <CardContent className="p-4 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-500/20 rounded-lg">
-                  <AlertTriangle className="h-5 w-5 text-amber-600" />
-                </div>
+        <motion.div variants={item} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+          <Card className="border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-amber-500/10 hover:shadow-lg transition-all duration-300 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-500/10 to-transparent animate-pulse" />
+            <CardContent className="p-3 sm:p-4 flex items-center justify-between gap-3 sm:gap-4 relative z-10">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <motion.div 
+                  animate={{ rotate: [0, -10, 10, -10, 0] }}
+                  transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 2 }}
+                  className="p-1.5 sm:p-2 bg-amber-500/20 rounded-xl shadow-sm"
+                >
+                  <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" />
+                </motion.div>
                 <div>
-                  <p className="font-semibold text-amber-900 text-sm">Low Stock Alert</p>
-                  <p className="text-xs text-amber-700 mt-0.5">
+                  <p className="font-semibold text-amber-900 text-xs sm:text-sm">Low Stock Alert</p>
+                  <p className="text-[10px] sm:text-xs text-amber-700 mt-0.5">
                     {lowStock.length} product{lowStock.length > 1 ? 's' : ''} need restocking
                   </p>
                 </div>
               </div>
-              <Button size="sm" variant="outline" className="border-amber-500/30 text-amber-700 hover:bg-amber-500/10" onClick={() => setTab("products")}>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="border-amber-500/30 text-amber-700 hover:bg-amber-500/10 h-8 sm:h-9 text-xs shadow-sm hover:shadow transition-all duration-200" 
+                onClick={() => setTab("products")}
+              >
                 View Products
               </Button>
             </CardContent>
@@ -402,36 +438,36 @@ export default function MerchantDashboardPage() {
 
       <motion.div variants={item}>
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
-          <TabsList className="grid grid-cols-4 w-full bg-muted/50 p-1 rounded-lg h-11">
-            <TabsTrigger value="sell" className="data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2">
-              <ShoppingCart className="h-4 w-4" /> Sell
+          <TabsList className="grid grid-cols-4 w-full bg-muted/50 p-1 rounded-xl h-10 sm:h-12 shadow-sm">
+            <TabsTrigger value="sell" className="data-[state=active]:bg-background data-[state=active]:shadow-md gap-1.5 sm:gap-2 text-xs sm:text-sm rounded-lg transition-all duration-200">
+              <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Sell
             </TabsTrigger>
-            <TabsTrigger value="products" className="data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2">
-              <Package className="h-4 w-4" /> Products
+            <TabsTrigger value="products" className="data-[state=active]:bg-background data-[state=active]:shadow-md gap-1.5 sm:gap-2 text-xs sm:text-sm rounded-lg transition-all duration-200">
+              <Package className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Products
             </TabsTrigger>
-            <TabsTrigger value="customers" className="data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2">
-              <Users className="h-4 w-4" /> Customers
+            <TabsTrigger value="customers" className="data-[state=active]:bg-background data-[state=active]:shadow-md gap-1.5 sm:gap-2 text-xs sm:text-sm rounded-lg transition-all duration-200">
+              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Customers
             </TabsTrigger>
-            <TabsTrigger value="expenses" className="data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2">
-              <Receipt className="h-4 w-4" /> Expenses
+            <TabsTrigger value="expenses" className="data-[state=active]:bg-background data-[state=active]:shadow-md gap-1.5 sm:gap-2 text-xs sm:text-sm rounded-lg transition-all duration-200">
+              <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Expenses
             </TabsTrigger>
           </TabsList>
         </Tabs>
       </motion.div>
 
       {tab === "sell" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           <motion.div variants={item} className="lg:col-span-2">
             <Card className="hover:border-primary/20 transition-all duration-200 hover:shadow-lg">
-              <CardHeader className="pb-4">
+              <CardHeader className="pb-3 sm:pb-4">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Package className="h-4 w-4 text-primary" /> Product Catalog
+                  <CardTitle className="text-xs sm:text-sm flex items-center gap-2">
+                    <Package className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-primary" /> Product Catalog
                   </CardTitle>
                   {productSearchQuery && (
-                    <Button size="sm" variant="ghost" onClick={() => setProductSearchQuery("")} className="h-8 text-xs">
-                      <X className="h-3 w-3 mr-1" /> Clear
-                </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setProductSearchQuery("")} className="h-7 sm:h-8 text-[10px] sm:text-xs">
+                      <X className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-1" /> Clear
+                    </Button>
                   )}
                 </div>
               </CardHeader>
@@ -442,7 +478,7 @@ export default function MerchantDashboardPage() {
                     placeholder="Search products by name..."
                     value={productSearchQuery}
                     onChange={(e) => setProductSearchQuery(e.target.value)}
-                    className="pl-10 h-10"
+                    className="pl-9 sm:pl-10 h-9 sm:h-10 text-sm"
                   />
                 </div>
                 {!products || products.length === 0 ? (
@@ -460,40 +496,71 @@ export default function MerchantDashboardPage() {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {filteredProducts.map((p) => (
-                      <button
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
+                    {filteredProducts.map((p, index) => (
+                      <motion.button
                         key={p.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: index * 0.05 }}
                         onClick={() => addToCart(p)}
                         disabled={p.stock <= 0}
-                        className="group text-left rounded-xl border border-border bg-card p-4 hover:border-primary/40 hover:shadow-md transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none relative overflow-hidden"
+                        whileHover={{ scale: 1.03, y: -2 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="group text-left rounded-xl border border-border bg-card p-3 sm:p-4 hover:border-primary/40 hover:shadow-lg transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none relative overflow-hidden"
                       >
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/0 via-transparent to-primary/0 group-hover:from-primary/5 group-hover:to-primary/5 transition-all duration-300" />
                         {p.stock <= p.lowStockAt && p.stock > 0 && (
-                          <div className="absolute top-2 right-2">
+                          <motion.div 
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="absolute top-2 right-2 z-10"
+                          >
                             <Badge variant="warning" className="text-[9px] px-1.5 py-0 h-4">Low</Badge>
-                          </div>
+                          </motion.div>
                         )}
-                        <div className="space-y-3">
+                        {p.stock <= 0 && (
+                          <motion.div 
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="absolute top-2 right-2 z-10"
+                          >
+                            <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4">Out</Badge>
+                          </motion.div>
+                        )}
+                        <div className="space-y-2 sm:space-y-3 relative z-10">
                           <div>
-                            <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">{p.name}</p>
+                            <p className="text-xs sm:text-sm font-semibold truncate group-hover:text-primary transition-colors">{p.name}</p>
                             {p.category && (
-                              <p className="text-[10px] text-muted-foreground mt-0.5 capitalize">{p.category}</p>
+                              <p className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5 capitalize">{p.category}</p>
                             )}
                           </div>
                           <div className="flex items-end justify-between">
                             <div>
-                              <p className="text-xs text-muted-foreground">Price</p>
-                              <p className="text-lg font-bold">{currency} {p.price.toLocaleString()}</p>
+                              <p className="text-[10px] sm:text-xs text-muted-foreground">Price</p>
+                              <motion.p 
+                                className="text-sm sm:text-lg font-bold"
+                                initial={{ y: 5, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                transition={{ delay: 0.1 }}
+                              >
+                                {currency} {p.price.toLocaleString()}
+                              </motion.p>
                             </div>
-                            <Badge
-                              variant={p.stock <= 0 ? "destructive" : p.stock <= p.lowStockAt ? "warning" : "secondary"}
-                              className="text-[10px] px-2 py-0.5"
+                            <motion.div
+                              whileHover={{ scale: 1.1 }}
+                              transition={{ type: "spring", stiffness: 400 }}
                             >
-                              {p.stock > 0 ? `${p.stock}` : "0"}
-                            </Badge>
+                              <Badge
+                                variant={p.stock <= 0 ? "destructive" : p.stock <= p.lowStockAt ? "warning" : "secondary"}
+                                className="text-[10px] px-2 py-0.5"
+                              >
+                                {p.stock > 0 ? `${p.stock}` : "0"}
+                              </Badge>
+                            </motion.div>
                           </div>
                         </div>
-                      </button>
+                      </motion.button>
                     ))}
                   </div>
                 )}
@@ -502,61 +569,90 @@ export default function MerchantDashboardPage() {
           </motion.div>
 
           <motion.div variants={item}>
-            <Card className="hover:border-primary/20 transition-all duration-200 hover:shadow-lg sticky top-4">
-              <CardHeader className="pb-4">
+            <Card className="hover:border-primary/20 transition-all duration-300 hover:shadow-xl border-2 border-transparent hover:border-primary/30">
+              <CardHeader className="pb-3 sm:pb-4">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <ShoppingCart className="h-4 w-4 text-primary" /> Shopping Cart
+                  <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+                    <motion.div
+                      animate={{ rotate: [0, 5, -5, 0] }}
+                      transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                    >
+                      <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
+                    </motion.div>
+                    Shopping Cart
                   </CardTitle>
-                  <Badge variant="secondary" className="text-xs">{cart.length} item{cart.length !== 1 ? 's' : ''}</Badge>
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 500 }}
+                  >
+                    <Badge variant="secondary" className="text-[10px] sm:text-xs">{cart.length} item{cart.length !== 1 ? 's' : ''}</Badge>
+                  </motion.div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 {cart.length === 0 ? (
-                  <div className="text-center py-8">
-                    <ShoppingCart className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
-                    <p className="text-sm text-muted-foreground">Tap a product to add it here.</p>
+                  <div className="text-center py-6 sm:py-8">
+                    <ShoppingCart className="h-8 w-8 sm:h-10 sm:w-10 mx-auto text-muted-foreground/30 mb-2 sm:mb-3" />
+                    <p className="text-xs sm:text-sm text-muted-foreground">Tap a product to add it here.</p>
                   </div>
                 ) : (
                   <>
-                    <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
-                      {cart.map((l) => (
-                        <div key={`${l.productId}-${l.name}`} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/30 border border-border/50">
+                    <div className="space-y-2 sm:space-y-3 max-h-48 sm:max-h-64 overflow-y-auto pr-2">
+                      {cart.map((l, index) => (
+                        <motion.div 
+                          key={`${l.productId}-${l.name}`}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className="flex items-center justify-between gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl bg-muted/30 border border-border/50 hover:bg-muted/50 hover:border-primary/20 transition-all duration-200"
+                        >
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{l.name}</p>
-                            <p className="text-xs text-muted-foreground">{currency} {l.unitPrice.toLocaleString()} each</p>
+                            <p className="text-xs sm:text-sm font-medium truncate">{l.name}</p>
+                            <p className="text-[10px] sm:text-xs text-muted-foreground">{currency} {l.unitPrice.toLocaleString()} each</p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => updateQty(l.productId, l.name, -1)}
+                            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-6 w-6 sm:h-7 sm:w-7"
+                                onClick={() => updateQty(l.productId, l.name, -1)}
+                              >
+                                <Minus className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                              </Button>
+                            </motion.div>
+                            <motion.span 
+                              key={l.quantity}
+                              initial={{ scale: 1.2 }}
+                              animate={{ scale: 1 }}
+                              className="w-5 sm:w-6 text-center text-xs sm:text-sm font-bold"
                             >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <span className="w-6 text-center text-sm font-medium">{l.quantity}</span>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => updateQty(l.productId, l.name, 1)}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
+                              {l.quantity}
+                            </motion.span>
+                            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-6 w-6 sm:h-7 sm:w-7"
+                                onClick={() => updateQty(l.productId, l.name, 1)}
+                              >
+                                <Plus className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                              </Button>
+                            </motion.div>
                           </div>
-                          <div className="text-right min-w-[70px]">
-                            <p className="text-sm font-semibold">{currency} {(l.unitPrice * l.quantity).toLocaleString()}</p>
+                          <div className="text-right min-w-[50px] sm:min-w-[70px]">
+                            <p className="text-xs sm:text-sm font-semibold">{currency} {(l.unitPrice * l.quantity).toLocaleString()}</p>
                           </div>
-                        </div>
+                        </motion.div>
                       ))}
                     </div>
 
                     <div className="space-y-3 pt-3 border-t border-border/60">
-                      <div className="space-y-2">
-                        <Label className="text-xs font-medium">Customer (optional)</Label>
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <Label className="text-[10px] sm:text-xs font-medium">Customer (optional)</Label>
                         <Select value={customerId} onValueChange={setCustomerId}>
-                          <SelectTrigger className="h-9 text-sm">
+                          <SelectTrigger className="h-8 sm:h-9 text-xs sm:text-sm">
                             <SelectValue placeholder="Walk-in customer" />
                           </SelectTrigger>
                           <SelectContent>
@@ -568,24 +664,24 @@ export default function MerchantDashboardPage() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-2">
-                          <Label className="text-xs font-medium">Discount</Label>
+                      <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                        <div className="space-y-1.5 sm:space-y-2">
+                          <Label className="text-[10px] sm:text-xs font-medium">Discount</Label>
                           <div className="relative">
                             <Input
                               type="number"
-                              className="h-9 text-sm"
+                              className="h-8 sm:h-9 text-xs sm:text-sm"
                               value={discount}
                               onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))}
                               placeholder="0"
                             />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{currency}</span>
+                            <span className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 text-[10px] sm:text-xs text-muted-foreground">{currency}</span>
                           </div>
                         </div>
-                        <div className="space-y-2">
-                          <Label className="text-xs font-medium">Payment</Label>
+                        <div className="space-y-1.5 sm:space-y-2">
+                          <Label className="text-[10px] sm:text-xs font-medium">Payment</Label>
                           <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                            <SelectTrigger className="h-9 text-sm">
+                            <SelectTrigger className="h-8 sm:h-9 text-xs sm:text-sm">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -599,8 +695,8 @@ export default function MerchantDashboardPage() {
                       </div>
                     </div>
 
-                    <div className="space-y-2 pt-3 border-t border-border/60">
-                      <div className="flex items-center justify-between text-sm">
+                    <div className="space-y-1.5 sm:space-y-2 pt-2 sm:pt-3 border-t border-border/60">
+                      <div className="flex items-center justify-between text-xs sm:text-sm">
                         <span className="text-muted-foreground">Subtotal</span>
                         <span className="font-medium">{currency} {subtotal.toLocaleString()}</span>
                       </div>
@@ -610,32 +706,57 @@ export default function MerchantDashboardPage() {
                           <span className="font-medium text-emerald-600">-{currency} {discount.toLocaleString()}</span>
                         </div>
                       )}
-                      <div className="flex items-center justify-between pt-2">
-                        <span className="text-base font-semibold">Total</span>
-                        <span className="text-xl font-bold">{currency} {total.toLocaleString()}</span>
+                      <div className="flex items-center justify-between pt-1.5 sm:pt-2">
+                        <span className="text-sm sm:text-base font-semibold">Total</span>
+                        <span className="text-lg sm:text-xl font-bold">{currency} {total.toLocaleString()}</span>
                       </div>
                     </div>
 
-                    <Button className="w-full h-11 text-base font-medium" disabled={cart.length === 0 || createSale.isPending} onClick={handleCheckout}>
-                      {createSale.isPending ? (
-                        <span className="flex items-center gap-2">
-                          <RotateCcw className="h-4 w-4 animate-spin" /> Processing...
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-2">
-                          <Zap className="h-4 w-4" /> Complete Sale
-                        </span>
-                      )}
-                    </Button>
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                      className="w-full"
+                    >
+                      <Button 
+                        className="w-full h-10 sm:h-11 text-sm sm:text-base font-medium bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg hover:shadow-xl transition-all duration-300" 
+                        disabled={cart.length === 0 || createSale.isPending} 
+                        onClick={handleCheckout}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        {createSale.isPending ? (
+                          <span className="flex items-center gap-2">
+                            <motion.div
+                              animate={{ rotate: 360 }}
+                              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                            >
+                              <RotateCcw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                            </motion.div>
+                            Processing...
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-2">
+                            <motion.div
+                              animate={{ scale: [1, 1.1, 1] }}
+                              transition={{ duration: 1.5, repeat: Infinity }}
+                            >
+                              <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                            </motion.div>
+                            Complete Sale
+                          </span>
+                        )}
+                      </Button>
+                    </motion.div>
 
                     {lastSale && (
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full text-xs"
+                        className="w-full text-[10px] sm:text-xs h-8 sm:h-9"
                         onClick={() => setReceiptOpen(true)}
                       >
-                        <Receipt className="mr-1.5 h-3.5 w-3.5" />
+                        <Receipt className="mr-1 h-3 w-3 sm:mr-1.5 sm:h-3.5 sm:w-3.5" />
                         View last receipt · {lastSale.receiptNumber}
                       </Button>
                     )}
@@ -863,7 +984,7 @@ export default function MerchantDashboardPage() {
               ) : (
                 <ScrollArea className="max-h-80">
                   <div className="space-y-2 pt-1">
-                    {dash.recentActivity.map((a) => (
+                    {dash.recentActivity.map((a: BusinessActivity) => (
                       <button
                         key={a.id}
                         onClick={() => openActivityDetail(a)}
@@ -908,7 +1029,7 @@ export default function MerchantDashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {dash.topProducts.map((p, i) => (
+                {dash.topProducts.map((p: { name: string; units: number }, i: number) => (
                   <div key={p.name} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
@@ -928,7 +1049,7 @@ export default function MerchantDashboardPage() {
       <Dialog open={activityDialogOpen} onOpenChange={setActivityDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>All activity · {range}</DialogTitle>
+            <DialogTitle>All activity · {rangeLabel}</DialogTitle>
           </DialogHeader>
           {allActivity.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">No sales or expenses in this period yet.</p>
