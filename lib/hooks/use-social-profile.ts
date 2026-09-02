@@ -1,4 +1,3 @@
-// lib/hooks/use-social-profile.ts
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getMySocialProfile, createMySocialProfile } from "../api/social-profile";
 
