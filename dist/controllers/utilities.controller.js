@@ -33,9 +33,13 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.translateText = exports.getExchangeRates = void 0;
+exports.getMySocialProfile = exports.createSocialProfile = exports.translateText = exports.getExchangeRates = void 0;
+exports.getPublicSocialProfile = getPublicSocialProfile;
 const errors_1 = require("../lib/errors");
 const utilitiesService = __importStar(require("../services/utilities.service"));
+const socialProfileService = __importStar(require("../services/social-profile.service"));
+const socialProfileViewService = __importStar(require("../services/social-profile-view.service"));
+const prisma_1 = require("../config/prisma");
 exports.getExchangeRates = (0, errors_1.asyncHandler)(async (req, res) => {
     const base = req.query.base ?? "USD";
     const data = await utilitiesService.getExchangeRates(base);
@@ -45,4 +49,42 @@ exports.translateText = (0, errors_1.asyncHandler)(async (req, res) => {
     const { text, targetLanguage } = req.body;
     const translated = await utilitiesService.translateText(text, targetLanguage);
     return res.json({ translated });
+});
+exports.createSocialProfile = (0, errors_1.asyncHandler)(async (req, res) => {
+    const userId = req.user.id;
+    const profile = await socialProfileService.createSocialProfile({
+        userId,
+        ...req.body,
+    });
+    return res.status(201).json(profile);
+});
+async function getPublicSocialProfile(slug, viewData) {
+    const profile = await prisma_1.prisma.socialProfile.findFirst({
+        where: {
+            slug: slug.toLowerCase(),
+            isPublic: true,
+        },
+        include: {
+            links: {
+                where: {
+                    enabled: true,
+                },
+                orderBy: {
+                    sortOrder: "asc",
+                },
+            },
+        },
+    });
+    if (!profile) {
+        throw new Error("Social profile not found");
+    }
+    await socialProfileViewService.createProfileView({
+        profileId: profile.id,
+        ...viewData,
+    });
+    return profile;
+}
+exports.getMySocialProfile = (0, errors_1.asyncHandler)(async (req, res) => {
+    const profile = await socialProfileService.getSocialProfileByUserId(req.user.id);
+    return res.json(profile); // null if the user hasn't created one yet — that's fine
 });

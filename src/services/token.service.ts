@@ -48,7 +48,9 @@ export async function issueRefreshToken(userId: string, sessionVersion: number, 
 
 export async function rotateRefreshToken(rawToken: string) {
   const hashed = hashToken(rawToken);
+  console.log("[token-service] Rotating token, hashed length:", hashed.length);
   const stored = await redis.get(`refresh:${hashed}`);
+  console.log("[token-service] Token found in Redis:", !!stored);
   if (!stored) return null;
 
   const { userId, family, sessionVersion } = JSON.parse(stored) as {
@@ -56,9 +58,12 @@ export async function rotateRefreshToken(rawToken: string) {
     family: string;
     sessionVersion?: number;
   };
+  console.log("[token-service] Token data - userId:", userId, "family:", family, "sessionVersion:", sessionVersion);
   const currentValidHash = await redis.get(`refresh:family:${family}`);
+  console.log("[token-service] Current valid hash matches:", currentValidHash === hashed);
 
   if (currentValidHash !== hashed) {
+    console.log("[token-service] Reuse detected, revoking family");
     await revokeFamily(family);
     return "REUSE_DETECTED" as const;
   }

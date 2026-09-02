@@ -4,8 +4,8 @@ import type { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import * as businessService from "../services/business.service";
 
 export const getDashboard = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const range = (req.query.range as "today" | "week" | "month") ?? "today";
-  const dashboard = await businessService.getDashboard(req.user!.id, range);
+  const { range, from, to } = req.query as { range?: string; from?: string; to?: string };
+  const dashboard = await businessService.getDashboard(req.user!.id, { range, from, to });
   return res.json(dashboard);
 });
 

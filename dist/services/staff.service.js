@@ -33,7 +33,7 @@ async function createStaff(userId, data) {
     const bizProfileId = await getBizProfileId(userId);
     const pinHash = await bcrypt_1.default.hash(data.pin, 10);
     const staff = await prisma_1.prisma.bizStaff.create({
-        data: { bizProfileId, name: data.name, email: data.email, phone: data.phone, role: data.role, pinHash },
+        data: { bizProfileId, name: data.name, email: data.email, phone: data.phone, address: data.address, age: data.age, sex: data.sex, tribe: data.tribe, religion: data.religion, role: data.role, pinHash },
     });
     return serializeStaff(staff);
 }
@@ -49,6 +49,11 @@ async function updateStaff(userId, staffId, data) {
             ...(data.name && { name: data.name }),
             ...(data.email !== undefined && { email: data.email }),
             ...(data.phone !== undefined && { phone: data.phone }),
+            ...(data.address !== undefined && { address: data.address }),
+            ...(data.age !== undefined && { age: data.age }),
+            ...(data.sex !== undefined && { sex: data.sex }),
+            ...(data.tribe !== undefined && { tribe: data.tribe }),
+            ...(data.religion !== undefined && { religion: data.religion }),
             ...(data.role && { role: data.role }),
             ...(data.status && { status: data.status }),
             ...(pinHash && { pinHash }),

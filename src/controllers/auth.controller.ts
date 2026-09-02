@@ -19,7 +19,7 @@ const REFRESH_COOKIE_OPTIONS = {
 const FLAG_COOKIE_OPTIONS = {
   httpOnly: false,
   secure: isProd,
-  sameSite: "lax" as const,
+  sameSite: isProd ? ("none" as const) : ("lax" as const),
   path: "/",
   maxAge: 30 * 24 * 60 * 60 * 1000,
 };
@@ -68,12 +68,18 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 
 export const refresh = asyncHandler(async (req: Request, res: Response) => {
   const token = req.cookies?.[REFRESH_COOKIE];
+  console.log("[refresh] Token present:", !!token, "Token length:", token?.length);
   if (!token) throw new AppError("Not authenticated", 401);
 
-  const { accessToken, refreshToken, user } = await authService.refreshSession(token);
-  setSessionCookies(res, refreshToken, user.role);
-
-  return res.status(200).json({ accessToken, user });
+  try {
+    const { accessToken, refreshToken, user } = await authService.refreshSession(token);
+    console.log("[refresh] Session refreshed for user:", user.id);
+    setSessionCookies(res, refreshToken, user.role);
+    return res.status(200).json({ accessToken, user });
+  } catch (err: any) {
+    console.error("[refresh] Error:", err.message);
+    throw err;
+  }
 });
 
 export const verifyTwoFactor = asyncHandler(async (req: Request, res: Response) => {
@@ -113,9 +119,9 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
 export const logout = asyncHandler(async (req: Request, res: Response) => {
   const token = req.cookies?.[REFRESH_COOKIE];
   if (token) await authService.endSession(token);
-  res.clearCookie(REFRESH_COOKIE, { path: "/" });
-  res.clearCookie("lifeos_authed", { path: "/" });
-  res.clearCookie("lifeos_role", { path: "/" });
+  res.clearCookie(REFRESH_COOKIE, REFRESH_COOKIE_OPTIONS);
+  res.clearCookie("lifeos_authed", FLAG_COOKIE_OPTIONS);
+  res.clearCookie("lifeos_role", FLAG_COOKIE_OPTIONS);
   return res.status(204).send();
 });
 
@@ -143,6 +149,7 @@ export const verifyLoginCode = asyncHandler(async (req: Request, res: Response) 
     user.role,
     user.sessionVersion
   );
-  sendRefreshCookie(res, refreshToken);
+  setSessionCookies(res, refreshToken, user.role);
   return res.status(200).json({ accessToken, user: authService.sanitizeUser(user) });
+
 });

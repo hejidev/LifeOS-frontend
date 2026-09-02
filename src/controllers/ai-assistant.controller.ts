@@ -1,52 +1,171 @@
+// import type { Response } from "express";
+// import { asyncHandler } from "../lib/errors";
+// import type { AuthenticatedRequest } from "../middlewares/auth.middleware";
+// import * as aiContextService from "../services/ai-context.service";
+// import * as aiAssistantService from "../services/ai-assistant.service";
+
+// function extractAnthropicErrorMessage(err: any): string {
+//   const raw = err?.message ?? "";
+//   const match = raw.match(/^\d+\s+(\{.*\})$/s);
+//   if (match) {
+//     try {
+//       const parsed = JSON.parse(match[1]);
+//       if (parsed?.error?.message) return parsed.error.message;
+//     } catch {}
+//   }
+//   return raw || "Failed to generate a reply";
+// }
+
+// export const getContext = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+//   const context = await aiContextService.getAIContext(req.user!.id);
+//   return res.json(context);
+// });
+
+// export const getFocusSuggestions = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+//   const suggestions = await aiContextService.getFocusSuggestions(req.user!.id);
+//   return res.json({ suggestions });
+// });
+
+// export const streamReply = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+//   const { message } = req.body;
+//   let wroteAnything = false;
+
+//   try {
+//     res.setHeader("Content-Type", "text/plain; charset=utf-8");
+//     res.setHeader("Cache-Control", "no-cache");
+//     res.setHeader("X-Accel-Buffering", "no");
+
+//     await aiAssistantService.streamAssistantReply(req.user!.id, req.user!.name ?? "there", message, (chunk) => {
+//       wroteAnything = true;
+//       res.write(chunk);
+//     });
+//     res.end();
+//   } catch (err: any) {
+//     const cleanMessage = extractAnthropicErrorMessage(err);
+//     console.error("[ai-assistant] stream failed:", cleanMessage);
+//     if (!wroteAnything && !res.headersSent) {
+//       res.status(typeof err?.status === "number" ? err.status : 502).json({ error: cleanMessage });
+//     } else {
+//       res.end();
+//     }
+//   }
+// });
+
 import type { Response } from "express";
+
 import { asyncHandler } from "../lib/errors";
 import type { AuthenticatedRequest } from "../middlewares/auth.middleware";
+
 import * as aiContextService from "../services/ai-context.service";
 import * as aiAssistantService from "../services/ai-assistant.service";
 
-function extractAnthropicErrorMessage(err: any): string {
-  const raw = err?.message ?? "";
-  const match = raw.match(/^\d+\s+(\{.*\})$/s);
-  if (match) {
-    try {
-      const parsed = JSON.parse(match[1]);
-      if (parsed?.error?.message) return parsed.error.message;
-    } catch {}
+function extractGeminiErrorMessage(err: any): string {
+  if (!err) {
+    return "Failed to generate a reply";
   }
-  return raw || "Failed to generate a reply";
+
+  const message =
+    err?.message ||
+    err?.error?.message ||
+    err?.response?.data?.error?.message ||
+    "";
+
+  if (typeof message === "string" && message.trim()) {
+    return message;
+  }
+
+  return "Failed to generate a reply";
 }
 
-export const getContext = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const context = await aiContextService.getAIContext(req.user!.id);
-  return res.json(context);
-});
+/**
+ * GET /api/ai-assistant/context
+ */
+export const getContext = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const context = await aiContextService.getAIContext(
+      req.user!.id
+    );
 
-export const getFocusSuggestions = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const suggestions = await aiContextService.getFocusSuggestions(req.user!.id);
-  return res.json({ suggestions });
-});
+    return res.json(context);
+  }
+);
 
-export const streamReply = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { message } = req.body;
-  let wroteAnything = false;
+/**
+ * GET /api/ai-assistant/focus-suggestions
+ */
+export const getFocusSuggestions = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const suggestions =
+      await aiContextService.getFocusSuggestions(
+        req.user!.id
+      );
 
-  try {
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("X-Accel-Buffering", "no");
+    return res.json({ suggestions });
+  }
+);
 
-    await aiAssistantService.streamAssistantReply(req.user!.id, req.user!.name ?? "there", message, (chunk) => {
-      wroteAnything = true;
-      res.write(chunk);
-    });
-    res.end();
-  } catch (err: any) {
-    const cleanMessage = extractAnthropicErrorMessage(err);
-    console.error("[ai-assistant] stream failed:", cleanMessage);
-    if (!wroteAnything && !res.headersSent) {
-      res.status(typeof err?.status === "number" ? err.status : 502).json({ error: cleanMessage });
-    } else {
+/**
+ * POST /api/ai-assistant/chat
+ */
+export const streamReply = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const { message } = req.body;
+
+    if (!message || typeof message !== "string" || !message.trim()) {
+      return res.status(400).json({
+        error: "Message is required",
+      });
+    }
+
+    let wroteAnything = false;
+
+    try {
+      res.setHeader(
+        "Content-Type",
+        "text/plain; charset=utf-8"
+      );
+
+      res.setHeader(
+        "Cache-Control",
+        "no-cache, no-transform"
+      );
+
+      res.setHeader(
+        "X-Accel-Buffering",
+        "no"
+      );
+
+      await aiAssistantService.streamAssistantReply(
+        req.user!.id,
+        req.user!.name ?? "there",
+        message.trim(),
+        (chunk: string) => {
+          wroteAnything = true;
+          res.write(chunk);
+        }
+      );
+
+      res.end();
+    } catch (err: any) {
+      const cleanMessage =
+        extractGeminiErrorMessage(err);
+
+      console.error(
+        "[ai-assistant] stream failed:",
+        cleanMessage
+      );
+
+      if (!wroteAnything && !res.headersSent) {
+        return res.status(
+          typeof err?.status === "number"
+            ? err.status
+            : 502
+        ).json({
+          error: cleanMessage,
+        });
+      }
+
       res.end();
     }
   }
-});
+);

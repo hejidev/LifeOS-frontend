@@ -265,37 +265,51 @@ export async function deleteExpense(userId: string, id: string) {
 
 // ── Dashboard ───────────────────────────────────────────────────────────
 
-export async function getDashboard(userId: string, range: "today" | "week" | "month" = "today") {
+function resolveRange(params: { range?: string; from?: string; to?: string }): { start: Date; end: Date } {
+  if (params.from) {
+    const start = new Date(params.from);
+    const end = params.to ? new Date(params.to) : new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    return { start, end };
+  }
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  switch (params.range) {
+    case "week": {
+      const d = new Date(now);
+      const day = d.getDay() === 0 ? 7 : d.getDay();
+      return { start: new Date(d.getFullYear(), d.getMonth(), d.getDate() - day + 1), end };
+    }
+    case "month":
+      return { start: new Date(now.getFullYear(), now.getMonth(), 1), end };
+    case "year":
+      return { start: new Date(now.getFullYear(), 0, 1), end };
+    case "today":
+    default:
+      return { start: new Date(now.getFullYear(), now.getMonth(), now.getDate()), end };
+  }
+}
+
+export async function getDashboard(userId: string, params: { range?: string; from?: string; to?: string }) {
   const profile = await getOrCreateProfile(userId);
-  const start = rangeStart(range);
-  const prevStart = rangeStart(range === "today" ? "week" : range); // rough comparison window
+  const { start, end } = resolveRange(params);
+  const windowMs = end.getTime() - start.getTime();
+  const prevStart = new Date(start.getTime() - windowMs);
 
   const [sales, prevSales, customers, products, expenses] = await Promise.all([
-    prisma.bizSale.findMany({ where: { userId, createdAt: { gte: start }, status: "PAID" }, include: { items: true, customer: true } }),
-    prisma.bizSale.findMany({
-      where: {
-        userId,
-        status: "PAID",
-        createdAt: {
-          gte: new Date(start.getTime() - (Date.now() - start.getTime())),
-          lt: start,
-        },
-      },
-    }),
+    prisma.bizSale.findMany({ where: { userId, createdAt: { gte: start, lt: end }, status: "PAID" }, include: { items: true, customer: true } }),
+    prisma.bizSale.findMany({ where: { userId, status: "PAID", createdAt: { gte: prevStart, lt: start } } }),
     prisma.bizCustomer.count({ where: { userId } }),
     prisma.bizProduct.findMany({ where: { userId, active: true } }),
-    prisma.bizExpense.findMany({ where: { userId, date: { gte: start } } }),
+    prisma.bizExpense.findMany({ where: { userId, date: { gte: start, lt: end } } }),
   ]);
 
   const revenue = sales.reduce((sum, s) => sum + num(s.total), 0);
   const prevRevenue = prevSales.reduce((sum, s) => sum + num(s.total), 0);
-  const revenueChange =
-    prevRevenue > 0 ? Math.round(((revenue - prevRevenue) / prevRevenue) * 100) : null;
+  const revenueChange = prevRevenue > 0 ? Math.round(((revenue - prevRevenue) / prevRevenue) * 100) : null;
 
   const totalExpenses = expenses.reduce((sum, e) => sum + num(e.amount), 0);
   const lowStock = products.filter((p) => p.stock <= p.lowStockAt);
 
-  // top products by units sold in range
   const unitsByProduct = new Map<string, { name: string; units: number; revenue: number }>();
   for (const s of sales) {
     for (const it of s.items) {
@@ -309,53 +323,21 @@ export async function getDashboard(userId: string, range: "today" | "week" | "mo
   const topProducts = [...unitsByProduct.values()].sort((a, b) => b.units - a.units).slice(0, 5);
 
   const metrics = [
-    {
-      id: "revenue",
-      label: "Revenue",
-      value: `${profile.currency} ${revenue.toLocaleString()}`,
-      change:
-        revenueChange == null ? undefined : `${revenueChange >= 0 ? "+" : ""}${revenueChange}% vs prior period`,
-    },
+    { id: "revenue", label: "Revenue", value: `${profile.currency} ${revenue.toLocaleString()}`, change: revenueChange == null ? undefined : `${revenueChange >= 0 ? "+" : ""}${revenueChange}% vs prior period` },
     { id: "orders", label: "Orders", value: `${sales.length}`, change: undefined },
     { id: "customers", label: "Customers", value: `${customers}`, change: undefined },
-    {
-      id: "profit",
-      label: "Net (rev - exp)",
-      value: `${profile.currency} ${(revenue - totalExpenses).toLocaleString()}`,
-      change: undefined,
-    },
+    { id: "profit", label: "Net (rev - exp)", value: `${profile.currency} ${(revenue - totalExpenses).toLocaleString()}`, change: undefined },
   ];
 
   const recentActivity = [
-    ...sales.slice(0, 8).map((s) => ({
-      id: s.id,
-      title: s.customer?.name ? `Sale to ${s.customer.name}` : `Sale ${s.receiptNumber}`,
-      type: "order" as const,
-      amount: num(s.total),
-      currency: profile.currency,
-      date: s.createdAt.toISOString(),
-      status: s.status,
-    })),
-    ...expenses.slice(0, 5).map((e) => ({
-      id: e.id,
-      title: e.title,
-      type: "expense" as const,
-      amount: num(e.amount),
-      currency: profile.currency,
-      date: e.date.toISOString(),
-      status: undefined,
-    })),
-  ]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 10);
+    ...sales.slice(0, 8).map((s) => ({ id: s.id, title: s.customer?.name ? `Sale to ${s.customer.name}` : `Sale ${s.receiptNumber}`, type: "order" as const, amount: num(s.total), currency: profile.currency, date: s.createdAt.toISOString(), status: s.status })),
+    ...expenses.slice(0, 5).map((e) => ({ id: e.id, title: e.title, type: "expense" as const, amount: num(e.amount), currency: profile.currency, date: e.date.toISOString(), status: undefined })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 10);
 
   let insight = "Log a few sales to start seeing trends here.";
   if (sales.length > 0) {
     if (lowStock.length > 0) {
-      insight = `${lowStock.length} product${lowStock.length > 1 ? "s are" : " is"} running low on stock — ${lowStock
-        .slice(0, 3)
-        .map((p) => p.name)
-        .join(", ")}.`;
+      insight = `${lowStock.length} product${lowStock.length > 1 ? "s are" : " is"} running low on stock — ${lowStock.slice(0, 3).map((p) => p.name).join(", ")}.`;
     } else if (topProducts[0]) {
       insight = `"${topProducts[0].name}" is your top seller this period with ${topProducts[0].units} units sold.`;
     } else if (revenueChange != null) {

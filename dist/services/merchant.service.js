@@ -30,6 +30,7 @@ async function getApplicationStatus(userId) {
     const profile = await prisma_1.prisma.bizProfile.findUnique({ where: { userId } });
     if (!profile)
         return { status: "NONE" };
+    const billingInterval = profile.billingInterval;
     return {
         status: profile.status,
         businessName: profile.businessName,
@@ -40,6 +41,7 @@ async function getApplicationStatus(userId) {
         idVerifiedAt: profile.idVerifiedAt?.toISOString(),
         planTier: profile.planTier,
         planStatus: profile.planStatus,
+        billingInterval,
         currentPeriodEnd: profile.currentPeriodEnd?.toISOString(),
     };
 }
