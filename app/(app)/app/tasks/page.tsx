@@ -164,24 +164,22 @@ export default function TasksPage() {
       animate="show"
       className="space-y-6"
     >
-      {/* Premium header */}
       <motion.div variants={item} className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <CheckSquare className="h-6 w-6 text-primary" />
             Tasks
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-[10px] sm:text-xl">
             {format(today, "EEEE, MMMM d, yyyy")} · {filtered.length} tasks ·
             Stay ahead of your priorities
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" /> New task
+        <Button onClick={() => setCreateOpen(true)} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl">
+          <Plus className=" h-3 w-3 sm:w-4 sm:h-4" /> New task
         </Button>
       </motion.div>
 
-      {/* Filters + view toggle */}
       <motion.div
         variants={item}
         className="flex flex-col sm:flex-row gap-3 items-start sm:items-center"
@@ -210,7 +208,7 @@ export default function TasksPage() {
             <Badge
               key={s}
               variant={statusFilter === s ? "default" : "outline"}
-              className="cursor-pointer text-xs capitalize"
+              className="cursor-pointer text-[10px] sm:text-sm capitalize"
               onClick={() => setStatusFilter(s as TaskStatus | "all")}
             >
               {s === "all" ? "All statuses" : s.replace("_", " ")}
@@ -233,9 +231,7 @@ export default function TasksPage() {
         </Tabs>
       </motion.div>
 
-      {/* Main grid: list/board + focus/AI suggestions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* List or board */}
         <motion.div variants={item} className="lg:col-span-2 space-y-4">
           {view === "list" ? (
             <Card className="hover:border-primary/20 transition-colors">
@@ -393,7 +389,6 @@ export default function TasksPage() {
           )}
         </motion.div>
 
-        {/* Focus / AI suggestions */}
         <motion.div variants={item} className="space-y-4">
           <Card className="hover:border-primary/20 transition-colors">
             <CardHeader className="pb-3">
@@ -456,7 +451,6 @@ export default function TasksPage() {
         </motion.div>
       </div>
 
-      {/* Inline create dialog (premium) */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -513,7 +507,6 @@ export default function TasksPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Detail sheet + full create dialog */}
       <TaskDetailSheet
         task={selectedTask || urlTask || null}
         open={!!(selectedTask || urlTask)}

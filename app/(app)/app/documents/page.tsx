@@ -5,6 +5,9 @@ import { motion } from "framer-motion";
 import {
   ShieldCheck, Plus, Search, Folder, Lock,
   Tag, FileText, Sparkles, Trash2, Archive, Link2, Upload,
+  X,
+  AlertCircle,
+  HardDrive,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +39,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 const emptyForm = {
   title: "",
   category: "OTHER" as typeof CATEGORIES[number],
+  type: "OTHER" as "PDF" | "IMAGE" | "VIDEO" | "AUDIO" | "OTHER",
   fileUrl: "",
   fileName: "",
   tags: "",
@@ -130,30 +134,32 @@ export default function DocumentsPage() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={item} className="flex items-center justify-between">
+      <motion.div variants={item} className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <ShieldCheck className="h-6 w-6 text-primary" /> Document Center
+          <h1 className="text-xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
+            <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-primary" /> Documents
           </h1>
-          <p className="text-muted-foreground mt-1">Secure vault for IDs, certificates, and important files.</p>
+          <p className="text-muted-foreground mt-1 text-xs sm:text-sm">Secure vault for your important documents and files.</p>
         </div>
-        <Button onClick={() => setUploadOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Add document
+        <Button onClick={() => setUploadOpen(true)} className="text-xs sm:text-sm">
+          <Plus className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" /> Add document
         </Button>
       </motion.div>
 
       {stats && (
-        <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           {[
-            { label: "Total", value: stats.totalDocuments },
-            { label: "Active", value: stats.activeDocuments },
-            { label: "Archived", value: stats.archivedDocuments },
-            { label: "Expired", value: stats.expiredDocuments },
-            { label: "Expiring soon", value: stats.expiringSoon },
+            { label: "Total documents", value: stats.totalDocuments, icon: FileText },
+            { label: "Expiring soon", value: stats.expiringSoon, icon: AlertCircle },
+            { label: "Archived", value: stats.archivedDocuments, icon: Archive },
+            { label: "Storage used", value: "--", icon: HardDrive },
           ].map((s) => (
             <Card key={s.label} className="hover:border-primary/20 transition-colors">
-              <CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{s.label}</CardTitle></CardHeader>
-              <CardContent><p className="text-xl font-semibold">{s.value}</p></CardContent>
+              <CardHeader className="pb-2 flex items-center justify-between">
+                <CardTitle className="text-[10px] sm:text-xs text-muted-foreground">{s.label}</CardTitle>
+                <s.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
+              </CardHeader>
+              <CardContent><p className="text-lg sm:text-xl font-semibold">{s.value}</p></CardContent>
             </Card>
           ))}
         </motion.div>
@@ -162,16 +168,16 @@ export default function DocumentsPage() {
       <motion.div variants={item} className="flex flex-col md:flex-row gap-3 items-start md:items-center flex-wrap">
         <div className="relative w-full md:max-w-sm">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search by title or tag..." className="pl-8" value={search}
+          <Input placeholder="Search by title or tag..." className="pl-8 text-xs sm:text-sm" value={search}
             onChange={(e) => setSearch(e.target.value)} />
         </div>
         <div className="flex flex-wrap gap-2 items-center">
           <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
           <Button size="sm" variant={categoryFilter === "all" ? "default" : "outline"}
-            onClick={() => setCategoryFilter("all")}>All</Button>
+            onClick={() => setCategoryFilter("all")} className="text-xs sm:text-sm">All</Button>
           {CATEGORIES.map((cat) => (
             <Button key={cat} size="sm" variant={categoryFilter === cat ? "default" : "outline"}
-              onClick={() => setCategoryFilter(cat)}>{CATEGORY_LABELS[cat]}</Button>
+              onClick={() => setCategoryFilter(cat)} className="text-xs sm:text-sm">{CATEGORY_LABELS[cat]}</Button>
           ))}
         </div>
       </motion.div>
@@ -179,59 +185,33 @@ export default function DocumentsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <motion.div variants={item} className="lg:col-span-2">
           <Card className="hover:border-primary/20 transition-colors">
-            <CardHeader className="pb-3 flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4 text-primary" /> All Documents
-              </CardTitle>
-              <Badge variant="secondary" className="text-[11px]">{filtered.length} items</Badge>
+            <CardHeader className="pb-3 flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-sm sm:text-base">Your documents</CardTitle>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-32 sm:w-48 text-xs sm:text-sm" />
+                <select className="h-8 sm:h-9 rounded-lg border border-input bg-background px-3 text-xs sm:text-sm" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+                  <option value="all">All categories</option>
+                  {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
             </CardHeader>
             <CardContent>
               {filtered.length === 0 ? (
-                <div className="text-center py-6 space-y-3">
-                  <p className="text-sm text-muted-foreground">No documents yet.</p>
-                  <Button size="sm" onClick={() => setUploadOpen(true)}>
-                    <Plus className="mr-1 h-3 w-3" /> Add document
-                  </Button>
-                </div>
+                <p className="text-xs sm:text-sm text-muted-foreground text-center py-4">No documents found.</p>
               ) : (
-                <ScrollArea className="max-h-[420px]">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                    {filtered.map((doc) => (
-                      <button
-                        key={doc.id}
-                        type="button"
-                        onClick={() => setSelectedId(doc.id)}
-                        className={cn(
-                          "group rounded-lg border border-border/60 bg-card/60 p-3 text-left transition-colors hover:border-primary/40 hover:bg-card",
-                          selected?.id === doc.id && "border-primary/60 bg-card"
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 space-y-1">
-                            <p className="text-sm font-medium truncate">{doc.title}</p>
-                            <Badge variant="outline" className="text-[10px]">
-                              {CATEGORY_LABELS[doc.category.toUpperCase()] ?? doc.category}
-                            </Badge>
-                          </div>
-                          <Lock className="h-4 w-4 text-primary shrink-0" />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
+                  {filtered.map((doc) => (
+                    <div key={doc.id} className="rounded-lg border border-border/60 bg-card/60 p-2 sm:p-3 cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setSelectedId(doc.id)}>
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs sm:text-sm font-medium truncate">{doc.title}</p>
+                          <p className="text-[10px] sm:text-xs text-muted-foreground">{doc.category}</p>
                         </div>
-                        {doc.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {doc.tags.map((tag) => (
-                              <Badge key={tag} variant="outline" className="text-[10px] flex items-center gap-1">
-                                <Tag className="h-3 w-3" />{tag}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                        <p className="text-[11px] text-muted-foreground mt-2">
-                          Added {format(new Date(doc.createdAt), "MMM d, yyyy")}
-                          {doc.expiresAt && ` · Expires ${format(new Date(doc.expiresAt), "MMM d, yyyy")}`}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                </ScrollArea>
+                      </div>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Added {format(new Date(doc.createdAt), "MMM d, yyyy")}</p>
+                    </div>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -239,172 +219,97 @@ export default function DocumentsPage() {
 
         <motion.div variants={item} className="space-y-4">
           <Card className="hover:border-primary/20 transition-colors">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-primary" /> Document Detail
-              </CardTitle>
+            <CardHeader className="pb-3 flex items-center justify-between">
+              <CardTitle className="text-sm sm:text-base">{selected?.title}</CardTitle>
+              <Button size="sm" variant="ghost" onClick={() => setSelectedId(null)} className="h-7 w-7 sm:h-auto sm:w-auto">
+                <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              </Button>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              {selected ? (
-                <>
-                  <div>
-                    <p className="font-medium">{selected.title}</p>
-                    <span className="text-xs text-muted-foreground mt-0.5">
-                      {CATEGORY_LABELS[selected.category.toUpperCase()] ?? selected.category}
-                      {" · "}<Badge variant="outline" className="text-[10px]">{selected.status}</Badge>
-                    </span>
-                  </div>
-                  <div className="space-y-1 text-xs text-muted-foreground">
-                    <p>Added: {format(new Date(selected.createdAt), "MMM d, yyyy")}</p>
-                    {selected.expiresAt && <p>Expires: {format(new Date(selected.expiresAt), "MMM d, yyyy")}</p>}
-                    {selected.fileName && <p>File: {selected.fileName}</p>}
-                    {selected.fileSize && <p>Size: ~{Math.round(selected.fileSize / 1024)} KB</p>}
-                  </div>
-                  {selected.summary && <p className="text-xs text-muted-foreground">{selected.summary}</p>}
-                  {selected.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {selected.tags.map((t) => <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>)}
-                    </div>
-                  )}
-                  {selected.fileUrl && (
-                    <a href={selected.fileUrl} target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-primary hover:underline flex items-center gap-1">
-                      <Link2 className="h-3 w-3" /> View file
-                    </a>
-                  )}
-                  <div className="flex gap-2 pt-2 flex-wrap">
-                    {selected.status === "ACTIVE" && (
-                      <Button size="sm" variant="outline"
-                        onClick={() => updateDoc.mutate({ id: selected.id, data: { status: "ARCHIVED" } })}>
-                        <Archive className="h-3 w-3 mr-1" /> Archive
-                      </Button>
-                    )}
-                    <Button size="sm" variant="destructive"
-                      onClick={() => { deleteDoc.mutate(selected.id); setSelectedId(null); }}
-                      disabled={deleteDoc.isPending}>
-                      <Trash2 className="h-3 w-3 mr-1" /> Delete
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">Select a document to see details.</p>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-1 sm:gap-2">
+                <Badge variant="outline" className="text-[10px] sm:text-xs">{selected?.category}</Badge>
+                {selected?.expiresAt && <Badge variant="secondary" className="text-[10px] sm:text-xs">Expires {format(new Date(selected.expiresAt), "MMM d, yyyy")}</Badge>}
+              </div>
+              {selected?.fileUrl && (
+                <div className="rounded-lg border border-border/60 bg-card/60 p-3 sm:p-4">
+                  <p className="text-xs sm:text-sm font-medium mb-2">File</p>
+                  <a href={selected.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs sm:text-sm text-primary hover:underline">{selected.fileName}</a>
+                </div>
               )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-primary/20 bg-primary/5 hover:border-primary/30 transition-colors">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" /> AI Insights
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-xs text-muted-foreground space-y-2">
-              <p>Future AI features will surface expiry alerts, suggest task creation for renewals, and summarize long contracts.</p>
+              {selected?.tags?.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {selected.tags.map((tag: string) => <Badge key={tag} variant="secondary" className="text-[9px] sm:text-[10px]">{tag}</Badge>)}
+                </div>
+              )}
+              <div className="flex gap-2 flex-col sm:flex-row">
+                <Button size="sm" variant="outline" onClick={() => updateDoc.mutate({ id: selected?.id, data: { status: "ARCHIVED" } })} className="text-xs sm:text-sm">
+                  <Archive className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5" /> Archive
+                </Button>
+                <Button size="sm" variant="destructive" onClick={() => deleteDoc.mutate(selected?.id)} className="text-xs sm:text-sm">
+                  <Trash2 className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5" /> Delete
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </motion.div>
       </div>
 
       <Dialog open={uploadOpen} onOpenChange={(open) => (open ? setUploadOpen(true) : resetDialog())}>
-        <DialogContent className="max-w-md transition-colors h-[450px] sm:h-[550px] flex flex-col">
-          <DialogHeader className="shrink-0 flex justify-between items-start"><DialogTitle className="mt-2 sm:mt-0">Add document</DialogTitle></DialogHeader>
-          <form onSubmit={handleCreate} className="flex flex-col flex-1 min-h-0">
-            <ScrollArea className="flex-1 max-h-full pr-1">
-              <div className="space-y-4 pt-2 pb-2">
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant={mode === "link" ? "default" : "outline"}
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => { setMode("link"); setPickedFile(null); }}
-                  >
-                    <Link2 className="mr-1 h-3 w-3" /> Link
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={mode === "upload" ? "default" : "outline"}
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => setMode("upload")}
-                  >
-                    <Upload className="mr-1 h-3 w-3" /> Upload file
-                  </Button>
-                </div>
-
-                <div className="space-y-1">
-                  <Label>Title</Label>
-                  <Input placeholder="e.g. International Passport" value={form.title}
-                    onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} required />
-                </div>
-
-                <div className="space-y-1">
-                  <Label>Category</Label>
-                  <select className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
-                    value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as any }))}>
-                    {CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
-                  </select>
-                </div>
-
-                {mode === "link" ? (
-                  <div className="space-y-1" key="link-field">
-                    <Label>File URL</Label>
-                    <Input
-                      key="url-input"
-                      placeholder="https://..."
-                      value={form.fileUrl}
-                      onChange={(e) => setForm((f) => ({ ...f, fileUrl: e.target.value }))}
-                      required
-                    />
-                  </div>
-                ) : (
-                  <div className="space-y-1" key="upload-field">
-                    <Label>File</Label>
-                    <Input
-                      key="file-input"
-                      type="file"
-                      accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-                      onChange={handleFileSelect}
-                      required
-                    />
-                    {pickedFile && (
-                      <p className="text-[11px] text-muted-foreground">
-                        {pickedFile.name} · {(pickedFile.size / 1024).toFixed(0)} KB
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                <div className="space-y-1">
-                  <Label>Tags (comma separated)</Label>
-                  <Input placeholder="ID, Travel, Official" value={form.tags}
-                    onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} />
-                </div>
-                <div className="space-y-1">
-                  <Label>Summary (optional)</Label>
-                  <Textarea placeholder="Brief description of this document..." value={form.summary} rows={2}
-                    onChange={(e) => setForm((f) => ({ ...f, summary: e.target.value }))} />
-                </div>
-                <div className="space-y-1">
-                  <Label>Expiry date (optional)</Label>
-                  <Input type="date" value={form.expiresAt}
-                    onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))} />
-                </div>
-
-                {uploadFile.error && <p className="text-xs text-destructive">{(uploadFile.error as Error).message}</p>}
-                {createDoc.error && <p className="text-xs text-destructive">{(createDoc.error as Error).message}</p>}
-              </div>
-            </ScrollArea>
-
-            <div className="flex justify-end gap-2 pt-3 border-t border-border mt-2 shrink-0">
-              <Button type="button" variant="outline" onClick={resetDialog}>Cancel</Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (uploadFile.isPending ? "Uploading..." : "Saving...") : "Save document"}
-              </Button>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle className="text-sm sm:text-base">Add document</DialogTitle></DialogHeader>
+          <form onSubmit={handleCreate} className="space-y-4 pt-2">
+          <ScrollArea className="space-y-3 max-h-[60vh]">
+            <div className="space-y-1">
+              <Label className="text-[10px] sm:text-xs">Title</Label>
+              <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} required className="text-xs sm:text-sm" />
             </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </motion.div>
+            <div className="space-y-1">
+              <Label className="text-[10px] sm:text-xs">Category</Label>
+              <select className="flex h-8 sm:h-9 w-full rounded-lg border border-input bg-background px-3 text-xs sm:text-sm" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as any }))}>
+                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] sm:text-xs">Type</Label>
+              <select className="flex h-8 sm:h-9 w-full rounded-lg border border-input bg-background px-3 text-xs sm:text-sm" value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as any }))}>
+                {["PDF", "IMAGE", "VIDEO", "AUDIO", "OTHER"].map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] sm:text-xs">Expiry date (optional)</Label>
+              <Input type="date" value={form.expiresAt} onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))} className="text-xs sm:text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] sm:text-xs">Tags (comma-separated)</Label>
+              <Input placeholder="e.g. insurance, important" value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} className="text-xs sm:text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] sm:text-xs">File upload</Label>
+              <Input type="file" onChange={handleFileSelect} className="text-xs sm:text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] sm:text-xs">Or link URL</Label>
+              <Input placeholder="https://..." value={form.fileUrl} onChange={(e) => setForm((f) => ({ ...f, fileUrl: e.target.value }))} className="text-xs sm:text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] sm:text-xs">Summary (optional)</Label>
+              <Textarea placeholder="Brief description of this document..." value={form.summary} rows={2} className="text-xs sm:text-sm"
+                onChange={(e) => setForm((f) => ({ ...f, summary: e.target.value }))} />
+            </div>
+
+            {uploadFile.error && <p className="text-xs text-destructive">{(uploadFile.error as Error).message}</p>}
+            {createDoc.error && <p className="text-xs text-destructive">{(createDoc.error as Error).message}</p>}
+          </ScrollArea>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-border mt-2 shrink-0">
+            <Button type="button" variant="outline" onClick={resetDialog}>Cancel</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (uploadFile.isPending ? "Uploading..." : "Saving...") : "Save document"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+    </motion.div >
   );
 }

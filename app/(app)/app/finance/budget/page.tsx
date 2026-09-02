@@ -52,7 +52,6 @@ export default function BudgetPage() {
   const [catForm, setCatForm] = useState({ name: "", type: "EXPENSE" as "INCOME" | "EXPENSE", color: "" });
   const [accountForm, setAccountForm] = useState({ name: "", type: "BANK", currency: "USD", initialBalance: "" });
 
-  // Budget form with dynamic category limit items
   const [budgetForm, setBudgetForm] = useState({
     name: "Monthly Budget",
     period: "MONTHLY",
@@ -112,20 +111,20 @@ export default function BudgetPage() {
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
       <motion.div variants={item} className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
             <TrendingUp className="h-6 w-6 text-primary" /> Budget Planner
           </h1>
-          <p className="text-muted-foreground mt-1">Manage categories, accounts, and monthly budget limits.</p>
+          <p className="text-muted-foreground mt-1 text-[10px] sm:text-xl">Manage categories, accounts, and monthly budget limits.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setAccountOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Account
+        <div className="flex gap-2 flex-col sm:flex-row">
+          <Button variant="outline" onClick={() => setAccountOpen(true)} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl">
+            <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Account
           </Button>
-          <Button variant="outline" onClick={() => setCatOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Category
+          <Button variant="outline" onClick={() => setCatOpen(true)} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl">
+            <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Category
           </Button>
-          <Button onClick={() => setBudgetOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Budget
+          <Button onClick={() => setBudgetOpen(true)} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl">
+            <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Budget
           </Button>
         </div>
       </motion.div>
@@ -157,16 +156,16 @@ export default function BudgetPage() {
                 <div className="text-center py-6 space-y-3">
                   <p className="text-sm text-muted-foreground">No budget yet.</p>
                   <div className="flex gap-2 justify-center">
-                    <Button size="sm" variant="outline" onClick={() => setCatOpen(true)}>
+                    <Button size="sm" variant="outline" onClick={() => setCatOpen(true)} className="text-[10px] sm:text-sm">
                       <Plus className="mr-1 h-3 w-3" /> Category first
                     </Button>
-                    <Button size="sm" onClick={() => setBudgetOpen(true)}>
+                    <Button size="sm" onClick={() => setBudgetOpen(true)} className="text-[10px] sm:text-sm">
                       <Plus className="mr-1 h-3 w-3" /> Then budget
                     </Button>
                   </div>
                 </div>
               ) : (
-                <ScrollArea className="max-h-[360px]">
+                <ScrollArea className="max-h-90">
                   <div className="space-y-3 pt-1">
                     {categoryBreakdown.map((cat) => {
                       const pct = cat.budget > 0 ? Math.min((cat.spent / cat.budget) * 100, 100) : 0;
@@ -229,10 +228,9 @@ export default function BudgetPage() {
         </motion.div>
       </div>
 
-      {/* Add Category Dialog */}
       <Dialog open={catOpen} onOpenChange={setCatOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Add category</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5">
+          <DialogHeader><DialogTitle className="text-start">Add category</DialogTitle></DialogHeader>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -274,10 +272,9 @@ export default function BudgetPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Account Dialog */}
       <Dialog open={accountOpen} onOpenChange={setAccountOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Add account</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5">
+          <DialogHeader><DialogTitle className="text-start">Add account</DialogTitle></DialogHeader>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -329,25 +326,24 @@ export default function BudgetPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Create Budget Dialog */}
       <Dialog open={budgetOpen} onOpenChange={setBudgetOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Create budget</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5">
+          <DialogHeader><DialogTitle className="text-start">Create budget</DialogTitle></DialogHeader>
           <form onSubmit={handleBudgetSubmit} className="space-y-4 pt-2">
             <div className="space-y-1">
               <Label>Budget name</Label>
-              <Input value={budgetForm.name} onChange={(e) => setBudgetForm((f) => ({ ...f, name: e.target.value }))} required />
+              <Input value={budgetForm.name} onChange={(e) => setBudgetForm((f) => ({ ...f, name: e.target.value }))} required className="text-sm" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Start date</Label>
                 <Input type="date" value={budgetForm.startDate}
-                  onChange={(e) => setBudgetForm((f) => ({ ...f, startDate: e.target.value }))} required />
+                  onChange={(e) => setBudgetForm((f) => ({ ...f, startDate: e.target.value }))} required className="text-[10px] sm:text-sm"/>
               </div>
               <div className="space-y-1">
                 <Label>End date</Label>
                 <Input type="date" value={budgetForm.endDate}
-                  onChange={(e) => setBudgetForm((f) => ({ ...f, endDate: e.target.value }))} required />
+                  onChange={(e) => setBudgetForm((f) => ({ ...f, endDate: e.target.value }))} required className="text-[10px] sm:text-sm"/>
               </div>
             </div>
             <div className="space-y-1">
@@ -355,11 +351,11 @@ export default function BudgetPage() {
               <Input type="number" step="0.01" min="0" placeholder="0.00" value={budgetForm.totalLimit}
                 onChange={(e) => setBudgetForm((f) => ({ ...f, totalLimit: e.target.value }))} required />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1 sm:space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Category limits</Label>
-                <Button type="button" size="sm" variant="ghost" onClick={addBudgetItem}>
-                  <Plus className="h-3 w-3 mr-1" /> Add
+                <Button type="button" size="sm" variant="ghost" onClick={addBudgetItem} className="text-xs">
+                  <Plus className="h-1 w-1 sm:h-3 sm:w-3 mr-1" /> Add
                 </Button>
               </div>
               {budgetForm.items.length === 0 && (
@@ -368,7 +364,7 @@ export default function BudgetPage() {
               {budgetForm.items.map((item, idx) => (
                 <div key={idx} className="flex gap-2 items-center">
                   <select
-                    className="flex h-9 flex-1 rounded-lg border border-input bg-background px-3 text-sm"
+                    className="flex h-8 sm:h-9 flex-1 rounded-lg border border-input bg-background px-2 sm:px-3 text-[10px] sm:text-sm"
                     value={item.categoryId}
                     onChange={(e) => updateBudgetItem(idx, "categoryId", e.target.value)}
                   >
@@ -382,7 +378,7 @@ export default function BudgetPage() {
                     step="0.01"
                     min="0"
                     placeholder="Limit"
-                    className="w-28"
+                    className="w-23 sm:w-28 h-8 sm:h-9 text-[13px] sm:text-sm"
                     value={item.limitAmount}
                     onChange={(e) => updateBudgetItem(idx, "limitAmount", e.target.value)}
                   />
@@ -392,8 +388,8 @@ export default function BudgetPage() {
               ))}
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setBudgetOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createBudget.isPending}>
+              <Button type="button" variant="outline" onClick={() => setBudgetOpen(false)} className="text-[10px] sm:text-sm">Cancel</Button>
+              <Button type="submit" disabled={createBudget.isPending} className="text-[10px] sm:text-sm">
                 {createBudget.isPending ? "Saving..." : "Create budget"}
               </Button>
             </div>

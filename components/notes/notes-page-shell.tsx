@@ -12,7 +12,6 @@ export function NotesPageShell() {
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
       <motion.div variants={item}>
-        {/* Full-height notes app UI from NotesContent */}
         <NotesContent />
       </motion.div>
     </motion.div>

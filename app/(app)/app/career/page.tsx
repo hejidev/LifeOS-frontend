@@ -126,11 +126,13 @@ export default function CareerPage() {
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <Briefcase className="h-6 w-6 text-primary" /> Career
           </h1>
-          <p className="text-muted-foreground mt-1">Track goals, skills, and achievements toward your career growth.</p>
+          <p className="text-muted-foreground mt-1 text-[10px] sm:text-xl">Track goals, skills, and achievements toward your career growth.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={openCreateSkill}><Plus className="mr-2 h-4 w-4" /> Skill</Button>
-          <Button onClick={openCreateGoal}><Plus className="mr-2 h-4 w-4" /> Goal</Button>
+        <div className="flex gap-2 flex-col sm:flex-row">
+          <Button variant="outline" onClick={openCreateSkill} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl ml-2">
+          <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Skill</Button>
+          <Button onClick={openCreateGoal} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl ml-2">
+          <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Goal</Button>
         </div>
       </motion.div>
 
@@ -164,7 +166,7 @@ export default function CareerPage() {
                   <Button size="sm" onClick={openCreateGoal}><Plus className="mr-1 h-3 w-3" /> Add goal</Button>
                 </div>
               ) : (
-                <ScrollArea className="max-h-[420px]">
+                <ScrollArea className="max-h-105">
                   <div className="space-y-3 pt-1">
                     {goals.map((g: any) => {
                       const cfg = GOAL_STATUS_CONFIG[g.status] ?? GOAL_STATUS_CONFIG.NOT_STARTED;
@@ -268,11 +270,11 @@ export default function CareerPage() {
       </div>
 
       <Dialog open={goalOpen} onOpenChange={setGoalOpen}>
-        <DialogContent className="max-w-sm max-h-[90vh] flex flex-col">
-          <DialogHeader className="shrink-0"><DialogTitle>{editingGoalId ? "Edit goal" : "Add career goal"}</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5 mt-3 max-h-[90vh] flex flex-col gap-1">
+          <DialogHeader className="shrink-0"><DialogTitle className="text-start mb-0">{editingGoalId ? "Edit goal" : "Add career goal"}</DialogTitle></DialogHeader>
           <form onSubmit={handleGoalSubmit} className="flex flex-col flex-1 min-h-0">
             <ScrollArea className="flex-1 max-h-[60vh] pr-3">
-              <div className="space-y-4 pt-2 pb-2">
+              <div className="space-y-2 pt-2 pb-2">
                 <div className="space-y-1">
                   <Label>Title</Label>
                   <Input value={goalForm.title} onChange={(e) => setGoalForm((f) => ({ ...f, title: e.target.value }))} required />
@@ -316,7 +318,7 @@ export default function CareerPage() {
       </Dialog>
 
       <Dialog open={skillOpen} onOpenChange={setSkillOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5">
           <DialogHeader><DialogTitle>{editingSkillId ? "Edit skill" : "Add skill"}</DialogTitle></DialogHeader>
           <form onSubmit={handleSkillSubmit} className="space-y-4 pt-2">
             <div className="space-y-1">
@@ -346,7 +348,7 @@ export default function CareerPage() {
       </Dialog>
 
       <Dialog open={achievementOpen} onOpenChange={setAchievementOpen}>
-        <DialogContent className="max-w-sm max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5 mt-3 max-h-[90vh] flex flex-col">
           <DialogHeader className="shrink-0"><DialogTitle>Add achievement</DialogTitle></DialogHeader>
           <form onSubmit={handleAchievementSubmit} className="flex flex-col flex-1 min-h-0">
             <ScrollArea className="flex-1 max-h-[60vh] pr-3">

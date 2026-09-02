@@ -168,7 +168,7 @@ export default function StaffPage() {
 
       {/* Stats Cards */}
       <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+        <Card className="bg-linear-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
           <CardContent className="pt-4 sm:pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -181,7 +181,7 @@ export default function StaffPage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+        <Card className="bg-linear-to-br from-green-500/10 to-green-600/5 border-green-500/20">
           <CardContent className="pt-4 sm:pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -194,7 +194,7 @@ export default function StaffPage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-red-500/10 to-red-600/5 border-red-500/20">
+        <Card className="bg-linear-to-br from-red-500/10 to-red-600/5 border-red-500/20">
           <CardContent className="pt-4 sm:pt-6">
             <div className="flex items-center justify-between">
               <div>

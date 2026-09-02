@@ -16,7 +16,7 @@ import type {
   UserRole,
 } from "@/types/life";
 import { useMemo, useState } from "react";
-import { useAuthStore } from "../stores/auth-store";
+// import { useAuthStore } from "../stores/auth-store";
 import { DashboardRangeValue } from "@/components/merchant/dashboard-range-selector";
 
 export function useTodayOverview() {

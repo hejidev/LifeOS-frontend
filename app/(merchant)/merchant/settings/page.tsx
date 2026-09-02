@@ -38,7 +38,6 @@ export default function MerchantSettingsPage() {
   const setPaused = useSetStorePaused();
   const { data: staff = [] } = useMerchantStaff();
   const { data: status } = useMerchantStatus();
-  useQuery({ queryKey: ["merchantStatus"], queryFn: () => api.get("/merchant/status").then((d) => d.status), throwOnError: false });
 
   const [profileForm, setProfileForm] = useState({ businessName: "", currency: "", description: "" });
   const [notifForm, setNotifForm] = useState({ notifyLowStock: true, notifyNewSale: false, notifyDailySummary: false });

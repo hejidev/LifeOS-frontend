@@ -127,29 +127,27 @@ export default function PasswordVaultPage() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={item} className="flex items-center justify-between">
+      <motion.div variants={item} className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <KeyRound className="h-6 w-6 text-primary" /> Password Vault
-          </h1>
-          <p className="text-muted-foreground mt-1">Store logins securely — passwords are encrypted and never shown until you reveal them.</p>
+          <h1 className="text-xl sm:text-3xl font-bold tracking-tight flex items-center gap-2"><KeyRound className="h-5 w-5 sm:h-6 sm:w-6 text-primary" /> Password Vault</h1>
+          <p className="text-muted-foreground mt-1 text-xs sm:text-sm">Secure vault for your login credentials and passwords.</p>
         </div>
-        <Button onClick={openCreate}><Plus className="mr-2 h-4 w-4" /> Add credential</Button>
+        <Button onClick={openCreate} className="text-xs sm:text-sm"><Plus className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" /> Add credential</Button>
       </motion.div>
 
-      <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         {[
-          { label: "Vault items", value: stats.totalItems, icon: KeyRound },
-          { label: "Weak", value: stats.weakCount, icon: ShieldCheck },
-          { label: "Reused", value: stats.reusedCount, icon: Lock },
-          { label: "Not updated 6mo+", value: stats.oldPasswords, icon: RefreshCw },
+          { label: "Total items", value: stats.totalItems, icon: KeyRound },
+          { label: "Weak passwords", value: stats.weakCount, icon: ShieldCheck },
+          { label: "Reused passwords", value: stats.reusedCount, icon: RefreshCw },
+          { label: "Old passwords", value: stats.oldPasswords, icon: RefreshCw },
         ].map((s) => (
           <Card key={s.label} className="hover:border-primary/20 transition-colors">
             <CardHeader className="pb-2 flex items-center justify-between">
-              <CardTitle className="text-xs text-muted-foreground">{s.label}</CardTitle>
-              <s.icon className="h-4 w-4 text-primary" />
+              <CardTitle className="text-[10px] sm:text-xs text-muted-foreground">{s.label}</CardTitle>
+              <s.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
             </CardHeader>
-            <CardContent><p className="text-xl font-semibold">{s.value}</p></CardContent>
+            <CardContent><p className="text-lg sm:text-xl font-semibold">{s.value}</p></CardContent>
           </Card>
         ))}
       </motion.div>
@@ -157,60 +155,34 @@ export default function PasswordVaultPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <motion.div variants={item} className="lg:col-span-2">
           <Card className="hover:border-primary/20 transition-colors">
-            <CardHeader className="pb-3 flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2"><KeyRound className="h-4 w-4 text-primary" /> Saved credentials</CardTitle>
-              <Badge variant="secondary" className="text-[11px]">{items.length} items</Badge>
+            <CardHeader className="pb-3 flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-sm sm:text-base">Your credentials</CardTitle>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Input placeholder="Search..." value={""} onChange={(e) => {}} className="w-32 sm:w-48 text-xs sm:text-sm" />
+                <select className="h-8 sm:h-9 rounded-lg border border-input bg-background px-3 text-xs sm:text-sm" value={""} onChange={(e) => {}}>
+                  <option value="all">All categories</option>
+                  {Object.keys(CATEGORY_LABELS).map((c) => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
+                </select>
+              </div>
             </CardHeader>
             <CardContent>
               {items.length === 0 ? (
-                <div className="text-center py-6 space-y-3">
-                  <p className="text-sm text-muted-foreground">Your vault is empty.</p>
-                  <Button size="sm" onClick={openCreate}><Plus className="mr-1 h-3 w-3" /> Add credential</Button>
-                </div>
+                <p className="text-xs sm:text-sm text-muted-foreground text-center py-4">No credentials found.</p>
               ) : (
-                <ScrollArea className="max-h-[460px]">
-                  <div className="space-y-2 pt-1">
-                    {items.map((vaultItem: any) => {
-                      const Icon = CATEGORY_ICONS[vaultItem.category] ?? Lock;
-                      const isRevealed = Boolean(revealedPasswords[vaultItem.id]);
-                      return (
-                        <div key={vaultItem.id} className="rounded-lg border border-border/60 bg-card/60 p-3 space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <Icon className="h-4 w-4 text-primary shrink-0" />
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1">
-                                  <p className="text-sm font-medium truncate">{vaultItem.label}</p>
-                                  {vaultItem.favorite && <Star className="h-3 w-3 text-amber-400 fill-amber-400 shrink-0" />}
-                                </div>
-                                <p className="text-xs text-muted-foreground truncate">
-                                  {vaultItem.username || "No username"}{vaultItem.url ? ` · ${vaultItem.url}` : ""}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1 shrink-0">
-                              {strengthBadge(vaultItem.strengthLabel)}
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(vaultItem)}><Pencil className="h-3.5 w-3.5" /></Button>
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => deleteItem.mutate(vaultItem.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                            </div>
-                          </div>
-                          {vaultItem.hasPassword && (
-                            <div className="flex items-center gap-2">
-                              <code className="flex-1 text-xs bg-muted/50 rounded px-2 py-1.5 truncate">
-                                {isRevealed ? revealedPasswords[vaultItem.id] : "••••••••••••"}
-                              </code>
-                              <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => toggleReveal(vaultItem.id)}>
-                                {isRevealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                              </Button>
-                              <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => copyPassword(vaultItem.id)}><Copy className="h-3.5 w-3.5" /></Button>
-                              {copiedId === vaultItem.id && <span className="text-[10px] text-emerald-500">Copied</span>}
-                            </div>
-                          )}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
+                  {items.map((vaultItem: any) => (
+                    <div key={vaultItem.id} className="rounded-lg border border-border/60 bg-card/60 p-2 sm:p-3 cursor-pointer hover:border-primary/40 transition-colors" onClick={() => openEdit(vaultItem)}>
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs sm:text-sm font-medium truncate">{vaultItem.label}</p>
+                          <p className="text-[10px] sm:text-xs text-muted-foreground">{vaultItem.username}</p>
                         </div>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
+                        <Badge variant="outline" className="text-[9px] sm:text-[10px] shrink-0">{vaultItem.category}</Badge>
+                      </div>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Added {new Date(vaultItem.createdAt).toLocaleDateString()}</p>
+                    </div>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -225,33 +197,33 @@ export default function PasswordVaultPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-sm max-h-[90vh] flex flex-col">
-          <DialogHeader className="shrink-0"><DialogTitle>{editingId ? "Edit credential" : "Add credential"}</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5 max-h-[90vh] flex flex-col">
+          <DialogHeader className="shrink-0"><DialogTitle className="text-start">{editingId ? "Edit credential" : "Add credential"}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-            <ScrollArea className="flex-1 max-h-[60vh] pr-3">
+          <ScrollArea className="flex-1 max-h-full pr-1">
               <div className="space-y-4 pt-2 pb-2">
                 <div className="space-y-1">
-                  <Label>Label</Label>
-                  <Input placeholder="e.g. Google, Chase Bank" value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} required />
+                  <Label className="text-[10px] sm:text-xs">Label</Label>
+                  <Input placeholder="e.g. Google, Chase Bank" value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} required className="text-xs sm:text-sm" />
                 </div>
                 <div className="space-y-1">
-                  <Label>Category</Label>
-                  <select className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}>
+                  <Label className="text-[10px] sm:text-xs">Category</Label>
+                  <select className="flex h-8 sm:h-9 w-full rounded-lg border border-input bg-background px-3 text-xs sm:text-sm" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}>
                     {Object.keys(CATEGORY_LABELS).map((c) => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label>Username / email</Label>
-                  <Input value={form.username} onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} />
+                  <Label className="text-[10px] sm:text-xs">Username / email</Label>
+                  <Input value={form.username} onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} className="text-xs sm:text-sm" />
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <Label>{editingId ? "New password (leave blank to keep current)" : "Password"}</Label>
+                    <Label className="text-[10px] sm:text-xs">{editingId ? "New password (leave blank to keep current)" : "Password"}</Label>
                     <button type="button" className="text-[11px] text-primary hover:underline flex items-center gap-1" onClick={() => setForm((f) => ({ ...f, password: generatePassword() }))}>
                       <RefreshCw className="h-3 w-3" /> Generate
                     </button>
                   </div>
-                  <Input type="text" value={form.password} placeholder="••••••••" onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
+                  <Input type="text" value={form.password} placeholder="••••••••" onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className="text-xs sm:text-sm" />
                   {form.password && (
                     <div className="space-y-1 pt-1">
                       <div className="h-1.5 rounded-full bg-muted overflow-hidden">
@@ -262,6 +234,8 @@ export default function PasswordVaultPage() {
                   )}
                 </div>
                 <div className="space-y-1">
+                  <Label className="text-[10px] sm:text-xs">URL (optional)</Label>
+                  <Input placeholder="https://..." value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} className="text-xs sm:text-sm" />
                   <Label>URL (optional)</Label>
                   <Input placeholder="https://..." value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} />
                 </div>

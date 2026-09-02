@@ -83,15 +83,15 @@ export default function FinancePage() {
                     <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
                         <Wallet className="h-6 w-6 text-primary" /> Finance
                     </h1>
-                    <p className="text-muted-foreground mt-1">Track income, spending, savings, and budget health.</p>
+                    <p className="text-muted-foreground mt-1 text-[10px] sm:text-xl">Track income, spending, savings, and budget health.</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-col sm:flex-row">
                     <Button variant="outline" asChild>
-                        <Link href="/app/finance/budget">
+                        <Link href="/app/finance/budget" className="p-1 w-30">
                             <TrendingUp className="mr-2 h-4 w-4" /> Budget
                         </Link>
                     </Button>
-                    <Button onClick={() => setTxOpen(true)}>
+                    <Button onClick={() => setTxOpen(true)} className="p-1 w-30 sm:w-40 text-[10px] sm:text-sm">
                         <Plus className="mr-2 h-4 w-4" /> Add transaction
                     </Button>
                 </div>
@@ -165,7 +165,7 @@ export default function FinancePage() {
                                     </Button>
                                 </div>
                             ) : (
-                                <ScrollArea className="max-h-[360px]">
+                                <ScrollArea className="max-h-90">
                                     <div className="space-y-3 pt-1">
                                         {categoryBreakdown.map((cat) => {
                                             const pct = cat.budget > 0 ? Math.min((cat.spent / cat.budget) * 100, 100) : 0;
@@ -213,7 +213,7 @@ export default function FinancePage() {
                             {transactions.length === 0 ? (
                                 <p className="text-sm text-muted-foreground">No transactions yet.</p>
                             ) : (
-                                <ScrollArea className="max-h-[240px]">
+                                <ScrollArea className="max-h-60">
                                     <div className="space-y-2">
                                         {transactions.map((tx) => (
                                             <div key={tx.id} className="flex items-center justify-between rounded-lg border border-border/60 bg-card/60 p-2 group">

@@ -70,35 +70,35 @@ export default function AIImageToolsPage() {
     return (
         <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
             <motion.div variants={item}>
-                <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2"><ImageIcon className="h-6 w-6 text-primary" /> AI Image Tools</h1>
-                <p className="text-muted-foreground mt-1">Background removal, upscaling, generative edits, and format conversion.</p>
+                <h1 className="text-xl sm:text-3xl font-bold tracking-tight flex items-center gap-2"><ImageIcon className="h-5 w-5 sm:h-6 sm:w-6 text-primary" /> AI Image Tools</h1>
+                <p className="text-muted-foreground mt-1 text-xs sm:text-sm">Background removal, upscaling, generative edits, and format conversion.</p>
             </motion.div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
                 <motion.div variants={item} className="lg:col-span-2 space-y-4">
                     <Card className="hover:border-primary/20 transition-colors">
-                        <CardContent className="pt-6">
+                        <CardContent className="pt-4 sm:pt-6">
                             {!uploaded ? (
-                                <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-border rounded-xl py-16 cursor-pointer hover:border-primary/40 transition-colors">
-                                    <Upload className="h-8 w-8 text-muted-foreground" />
-                                    <p className="text-sm text-muted-foreground">{uploadImage.isPending ? "Uploading..." : "Click to upload an image"}</p>
+                                <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-border rounded-xl py-12 sm:py-16 cursor-pointer hover:border-primary/40 transition-colors">
+                                    <Upload className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
+                                    <p className="text-xs sm:text-sm text-muted-foreground">{uploadImage.isPending ? "Uploading..." : "Click to upload an image"}</p>
                                     <input type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
                                 </label>
                             ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                                     <div className="space-y-2">
-                                        <p className="text-xs text-muted-foreground">Original</p>
-                                        <img src={uploaded.url} alt="Original" className="w-full rounded-lg border border-border/60" />
+                                        <p className="text-[10px] sm:text-xs text-muted-foreground">Original</p>
+                                        <img src={uploaded.url} alt="Original" className="w-full rounded-lg border border_border/60" />
                                     </div>
                                     <div className="space-y-2">
-                                        <p className="text-xs text-muted-foreground">Result</p>
-                                        <div className="w-full rounded-lg border border-border/60 min-h-37.5 flex items-center justify-center bg-card/40">
-                                            {isBusy ? <p className="text-sm text-muted-foreground">Processing...</p> :
+                                        <p className="text-[10px] sm:text-xs text-muted-foreground">Result</p>
+                                        <div className="w-full rounded-lg border border-border/60 min-h-[150px] sm:min-h-[150px] flex items-center justify-center bg-card/40">
+                                            {isBusy ? <p className="text-xs sm:text-sm text-muted-foreground">Processing...</p> :
                                                 resultUrl ? <img src={resultUrl} alt="Result" className="w-full rounded-lg" /> :
-                                                    <p className="text-sm text-muted-foreground">Apply a tool to see the result</p>}
+                                                    <p className="text-xs sm:text-sm text-muted-foreground">Apply a tool to see the result</p>}
                                         </div>
                                         {resultUrl && (
-                                            <Button size="sm" variant="outline" asChild>
+                                            <Button size="sm" variant="outline" asChild className="text-xs sm:text-sm">
                                                 <a href={resultUrl} download target="_blank" rel="noopener noreferrer"><Download className="mr-1 h-3 w-3" /> Download</a>
                                             </Button>
                                         )}
@@ -110,42 +110,42 @@ export default function AIImageToolsPage() {
 
                     {uploaded && (
                         <Card className="hover:border-primary/20 transition-colors">
-                            <CardHeader className="pb-3"><CardTitle className="text-base">Quick tools</CardTitle></CardHeader>
-                            <CardContent className="flex flex-wrap gap-2">
+                            <CardHeader className="pb-3"><CardTitle className="text-sm sm:text-base">Quick tools</CardTitle></CardHeader>
+                            <CardContent className="flex flex-wrap gap-1 sm:gap-2">
                                 {TOOLS.map((t) => (
-                                    <Button key={t.key} size="sm" variant="outline" onClick={() => runTool(t.key)} disabled={isBusy}>{t.label}</Button>
+                                    <Button key={t.key} size="sm" variant="outline" onClick={() => runTool(t.key)} disabled={isBusy} className="text-[10px] sm:text-xs h-7 sm:h-8">{t.label}</Button>
                                 ))}
                                 {FORMATS.map((f) => (
-                                    <Button key={f} size="sm" variant="outline" onClick={() => runFormat(f)} disabled={isBusy}>To {f.toUpperCase()}</Button>
+                                    <Button key={f} size="sm" variant="outline" onClick={() => runFormat(f)} disabled={isBusy} className="text-[10px] sm:text-xs h-7 sm:h-8">To {f.toUpperCase()}</Button>
                                 ))}
                             </CardContent>
                         </Card>
                     )}
                 </motion.div>
 
-                <motion.div variants={item} className="space-y-4">
+                <motion.div variants={item} className="space-y-3 sm:space-y-4">
                     <Card className="border-primary/20 bg-primary/5 hover:border-primary/30 transition-colors">
-                        <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Wand2 className="h-4 w-4 text-primary" /> Generative edit</CardTitle></CardHeader>
+                        <CardHeader className="pb-3"><CardTitle className="text-sm sm:text-base flex items-center gap-2"><Wand2 className="h-4 w-4 text-primary" /> Generative edit</CardTitle></CardHeader>
                         <CardContent className="space-y-3">
                             <div className="flex gap-2">
-                                <Button size="sm" variant={genMode === "remove" ? "default" : "outline"} className="flex-1" onClick={() => setGenMode("remove")}><Eraser className="mr-1 h-3 w-3" /> Remove</Button>
-                                <Button size="sm" variant={genMode === "fill" ? "default" : "outline"} className="flex-1" onClick={() => setGenMode("fill")}><Sparkles className="mr-1 h-3 w-3" /> Fill</Button>
+                                <Button size="sm" variant={genMode === "remove" ? "default" : "outline"} className="flex-1 text-xs sm:text-sm" onClick={() => setGenMode("remove")}><Eraser className="mr-1 h-3 w-3" /> Remove</Button>
+                                <Button size="sm" variant={genMode === "fill" ? "default" : "outline"} className="flex-1 text-xs sm:text-sm" onClick={() => setGenMode("fill")}><Sparkles className="mr-1 h-3 w-3" /> Fill</Button>
                             </div>
 
                             {billing && !billing.isPaid && (
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-[10px] sm:text-xs text-muted-foreground">
                                     {Math.max(0, billing.freeUsesPerTool - billing.usage.AI_WRITING)} free uses left
                                 </p>
                             )}
 
                             <div className="space-y-1">
-                                <Label className="text-xs">{genMode === "remove" ? "What to remove" : "What to generate"}</Label>
-                                <Input placeholder={genMode === "remove" ? "e.g. the person in the background" : "e.g. a sunset sky"} value={genPrompt} onChange={(e) => setGenPrompt(e.target.value)} />
+                                <Label className="text-[10px] sm:text-xs">{genMode === "remove" ? "What to remove" : "What to generate"}</Label>
+                                <Input placeholder={genMode === "remove" ? "e.g. the person in the background" : "e.g. a sunset sky"} value={genPrompt} onChange={(e) => setGenPrompt(e.target.value)} className="text-xs sm:text-sm" />
                             </div>
-                            <Button size="sm" className="w-full" onClick={runGenerative} disabled={!uploaded || isBusy || !genPrompt.trim()}>
+                            <Button size="sm" className="w-full text-xs sm:text-sm" onClick={runGenerative} disabled={!uploaded || isBusy || !genPrompt.trim()}>
                                 {isBusy ? "Working..." : "Apply"}
                             </Button>
-                            <p className="text-[11px] text-muted-foreground">Requires Cloudinary's Generative AI add-on to be enabled on your account.</p>
+                            <p className="text-[10px] sm:text-[11px] text-muted-foreground">Requires Cloudinary's Generative AI add-on to be enabled on your account.</p>
                         </CardContent>
                     </Card>
                 </motion.div>

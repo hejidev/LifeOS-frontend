@@ -59,17 +59,17 @@ export default function FileConverterPage() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={item} className="flex items-center justify-between">
+      <motion.div variants={item} className="flex items-center justify-between flex-col sm:flex-row">
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2"><FileCog className="h-6 w-6 text-primary" /> File Converter</h1>
           <p className="text-muted-foreground mt-1">Convert between formats — instant for text, universal for everything else.</p>
         </div>
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-          <TabsList>
-            <TabsTrigger value="quick">JSON/CSV/YAML</TabsTrigger>
-            <TabsTrigger value="pdf">PDF → Text</TabsTrigger>
-            <TabsTrigger value="docx">DOCX → Text</TabsTrigger>
-            <TabsTrigger value="universal">Universal</TabsTrigger>
+          <TabsList className="mt-5 -py-10">
+            <TabsTrigger className="text-[7px] sm:text-sm" value="quick">JSON/CSV/YAML</TabsTrigger>
+            <TabsTrigger className="text-[8px] sm:text-sm" value="pdf">PDF → Text</TabsTrigger>
+            <TabsTrigger className="text-[8px] sm:text-sm" value="docx">DOCX → Text</TabsTrigger>
+            <TabsTrigger className="text-[8px] sm:text-sm" value="universal">Universal</TabsTrigger>
           </TabsList>
         </Tabs>
       </motion.div>

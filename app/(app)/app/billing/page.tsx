@@ -40,21 +40,21 @@ export default function BillingPage() {
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
       <motion.div variants={item}>
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2"><CreditCard className="h-6 w-6 text-primary" /> Billing</h1>
-        <p className="text-muted-foreground mt-1">Manage your subscription and see your tool usage.</p>
+        <h1 className="text-xl sm:text-3xl font-bold tracking-tight flex items-center gap-2"><CreditCard className="h-5 w-5 sm:h-6 sm:w-6 text-primary" /> Billing</h1>
+        <p className="text-muted-foreground mt-1 text-xs sm:text-sm">Manage your subscription and see your tool usage.</p>
       </motion.div>
 
       <motion.div variants={item}>
         <Card className="hover:border-primary/20 transition-colors">
-          <CardHeader className="pb-3"><CardTitle className="text-base">Current plan</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-sm sm:text-base">Current plan</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-2xl font-bold capitalize">{b.tier.toLowerCase()}</p>
+            <p className="text-xl sm:text-2xl font-bold capitalize">{b.tier.toLowerCase()}</p>
             {b.isPaid ? (
               <>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[10px] sm:text-xs text-muted-foreground">
                   Billed {b.billingInterval === "YEAR" ? "yearly" : "monthly"} - {b.cancelAtPeriodEnd ? "cancels" : "renews"} on {new Date(b.currentPeriodEnd).toLocaleDateString()}
                 </p>
-                <Button size="sm" variant="outline" onClick={handleManage} disabled={portal.isPending}>
+                <Button size="sm" variant="outline" onClick={handleManage} disabled={portal.isPending} className="text-xs sm:text-sm">
                   {portal.isPending ? "Loading..." : "Manage subscription"}
                 </Button>
               </>
@@ -62,8 +62,8 @@ export default function BillingPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
                 {["AI_WRITING", "AI_IMAGE", "FILE_CONVERTER"].map((tool) => (
                   <div key={tool} className="rounded-lg border border-border/60 bg-card/60 p-2 text-center">
-                    <p className="text-xs text-muted-foreground">{tool.replace("_", " ")}</p>
-                    <p className="text-sm font-semibold">{Math.max(0, b.freeUsesPerTool - b.usage[tool])} left</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">{tool.replace("_", " ")}</p>
+                    <p className="text-xs sm:text-sm font-semibold">{Math.max(0, b.freeUsesPerTool - b.usage[tool])} left</p>
                   </div>
                 ))}
               </div>
@@ -75,15 +75,15 @@ export default function BillingPage() {
       {!b.isPaid && (
         <motion.div variants={item} className="flex justify-center">
           <div className="inline-flex rounded-full border border-border bg-card p-1">
-            <button onClick={() => setInterval("month")} className={cn("rounded-full px-4 py-1.5 text-sm font-semibold transition-colors", interval === "month" ? "gradient-bg text-white" : "text-muted-foreground hover:text-foreground")}>Monthly</button>
-            <button onClick={() => setInterval("year")} className={cn("rounded-full px-4 py-1.5 text-sm font-semibold transition-colors flex items-center gap-1.5", interval === "year" ? "gradient-bg text-white" : "text-muted-foreground hover:text-foreground")}>
-              Yearly <span className="text-[10px] opacity-80">Save ~20%</span>
+            <button onClick={() => setInterval("month")} className={cn("rounded-full px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold transition-colors", interval === "month" ? "gradient-bg text-white" : "text-muted-foreground hover:text-foreground")}>Monthly</button>
+            <button onClick={() => setInterval("year")} className={cn("rounded-full px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold transition-colors flex items-center gap-1.5", interval === "year" ? "gradient-bg text-white" : "text-muted-foreground hover:text-foreground")}>
+              Yearly <span className="text-[9px] sm:text-[10px] opacity-80">Save ~20%</span>
             </button>
           </div>
         </motion.div>
       )}
 
-      <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
         {Object.entries(b.plans).map(([key, plan]: [string, any]) => {
           const meta = PLAN_META[key] ?? PLAN_META.STARTER;
           const Icon = meta.icon;
@@ -109,22 +109,22 @@ export default function BillingPage() {
                 </span>
               )}
               <CardHeader className="pb-3">
-                <div className={cn("mb-2 flex h-8 w-8 items-center justify-center rounded-lg", meta.iconBg)}>
-                  <Icon className={cn("h-4 w-4", meta.iconColor)} />
+                <div className={cn("mb-2 flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg", meta.iconBg)}>
+                  <Icon className={cn("h-3.5 w-3.5 sm:h-4 sm:w-4", meta.iconColor)} />
                 </div>
-                <CardTitle className="text-base">{plan.name}</CardTitle>
-                <p className="text-2xl font-bold">{priceLabel}</p>
+                <CardTitle className="text-sm sm:text-base">{plan.name}</CardTitle>
+                <p className="text-xl sm:text-2xl font-bold">{priceLabel}</p>
               </CardHeader>
               <CardContent className="space-y-3">
-                <p className="text-xs text-muted-foreground">{plan.description}</p>
-                <ul className="text-xs space-y-1">
-                  <li className="flex items-center gap-1"><Check className="h-3 w-3 text-emerald-500" /> Unlimited AI Writing</li>
-                  <li className="flex items-center gap-1"><Check className="h-3 w-3 text-emerald-500" /> Unlimited Image Tools</li>
-                  <li className="flex items-center gap-1"><Check className="h-3 w-3 text-emerald-500" /> Unlimited File Conversion</li>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">{plan.description}</p>
+                <ul className="text-[10px] sm:text-xs space-y-1">
+                  <li className="flex items-center gap-1"><Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-500" /> Unlimited AI Writing</li>
+                  <li className="flex items-center gap-1"><Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-500" /> Unlimited Image Tools</li>
+                  <li className="flex items-center gap-1"><Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-500" /> Unlimited File Conversion</li>
                 </ul>
                 <Button
                   size="sm"
-                  className="w-full"
+                  className="w-full text-xs sm:text-sm"
                   variant={isCurrent ? "outline" : "default"}
                   disabled={isCurrent || checkout.isPending}
                   onClick={() => handleUpgrade(key as any)}

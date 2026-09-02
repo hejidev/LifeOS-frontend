@@ -74,23 +74,23 @@ export default function AIWritingPage() {
     return (
         <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
             <motion.div variants={item}>
-                <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2"><PenTool className="h-6 w-6 text-primary" /> AI Writing</h1>
-                <p className="text-muted-foreground mt-1">Generate, rewrite, and polish text — streamed live from Claude.</p>
+                <h1 className="text-xl sm:text-3xl font-bold tracking-tight flex items-center gap-2"><PenTool className="h-5 w-5 sm:h-6 sm:w-6 text-primary" /> AI Writing</h1>
+                <p className="text-muted-foreground mt-1 text-xs sm:text-sm">Generate, rewrite, and polish text — streamed live from Claude.</p>
             </motion.div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
                 <motion.div variants={item} className="lg:col-span-2 space-y-4">
                     <Card className="hover:border-primary/20 transition-colors">
                         <CardHeader className="pb-3">
                             <div className="flex flex-wrap gap-1">
                                 {MODES.map((m) => (
-                                    <Button key={m.key} type="button" size="sm" variant={mode === m.key ? "default" : "outline"} onClick={() => setMode(m.key)}>
+                                    <Button key={m.key} type="button" size="sm" variant={mode === m.key ? "default" : "outline"} onClick={() => setMode(m.key)} className="text-[10px] sm:text-xs h-7 sm:h-8">
                                         {m.label}
                                     </Button>
                                 ))}
 
                                 {billing && !billing.isPaid && (
-                                    <p className="text-xs text-muted-foreground">
+                                    <p className="text-[10px] sm:text-xs text-muted-foreground">
                                         {Math.max(0, billing.freeUsesPerTool - billing.usage.AI_WRITING)} free uses left
                                     </p>
                                 )}
@@ -98,37 +98,37 @@ export default function AIWritingPage() {
                         </CardHeader>
                         <CardContent className="space-y-3">
                             {mode === "TONE_CHANGE" && (
-                                <select className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" value={tone} onChange={(e) => setTone(e.target.value)}>
+                                <select className="flex h-8 sm:h-9 w-full rounded-lg border border-input bg-background px-3 text-xs sm:text-sm" value={tone} onChange={(e) => setTone(e.target.value)}>
                                     {TONES.map((t) => <option key={t} value={t}>{t}</option>)}
                                 </select>
                             )}
                             {mode === "TRANSLATE" && (
-                                <select className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" value={language} onChange={(e) => setLanguage(e.target.value)}>
+                                <select className="flex h-8 sm:h-9 w-full rounded-lg border border-input bg-background px-3 text-xs sm:text-sm" value={language} onChange={(e) => setLanguage(e.target.value)}>
                                     {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
                                 </select>
                             )}
-                            <Textarea rows={6} placeholder="Paste or write your text here..." value={input} onChange={(e) => setInput(e.target.value)} />
-                            <Button onClick={handleGenerate} disabled={isStreaming || !input.trim()}>
-                                {isStreaming ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...</> : <><Sparkles className="mr-2 h-4 w-4" /> Generate</>}
+                            <Textarea rows={4} placeholder="Paste or write your text here..." value={input} onChange={(e) => setInput(e.target.value)} className="text-xs sm:text-sm" />
+                            <Button onClick={handleGenerate} disabled={isStreaming || !input.trim()} className="text-xs sm:text-sm">
+                                {isStreaming ? <><Loader2 className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" /> Generating...</> : <><Sparkles className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" /> Generate</>}
                             </Button>
-                            {error && <p className="text-xs text-destructive">{error}</p>}
+                            {error && <p className="text-[10px] sm:text-xs text-destructive">{error}</p>}
                         </CardContent>
                     </Card>
 
                     {(output || isStreaming) && (
                         <Card className="hover:border-primary/20 transition-colors">
                             <CardHeader className="pb-3 flex items-center justify-between">
-                                <CardTitle className="text-base">Output</CardTitle>
-                                <Badge variant="secondary" className="text-[11px]">{wordCount} words</Badge>
+                                <CardTitle className="text-sm sm:text-base">Output</CardTitle>
+                                <Badge variant="secondary" className="text-[10px] sm:text-[11px]">{wordCount} words</Badge>
                             </CardHeader>
                             <CardContent className="space-y-3">
-                                <div className="whitespace-pre-wrap text-sm rounded-lg border border-border/60 bg-card/60 p-4 min-h-[100px]">
-                                    {output}{isStreaming && <span className="inline-block w-1.5 h-4 bg-primary ml-0.5 animate-pulse" />}
+                                <div className="whitespace-pre-wrap text-xs sm:text-sm rounded-lg border border-border/60 bg-card/60 p-3 sm:p-4 min-h-[80px] sm:min-h-[100px]">
+                                    {output}{isStreaming && <span className="inline-block w-1.5 h-3 sm:h-4 bg-primary ml-0.5 animate-pulse" />}
                                 </div>
                                 {!isStreaming && output && (
                                     <div className="flex gap-2 flex-wrap">
-                                        <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(output)}><Copy className="mr-1 h-3 w-3" /> Copy</Button>
-                                        <Button size="sm" variant="outline" onClick={() => setSaveOpen(true)}><Save className="mr-1 h-3 w-3" /> Save</Button>
+                                        <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(output)} className="text-xs sm:text-sm"><Copy className="mr-1 h-3 w-3" /> Copy</Button>
+                                        <Button size="sm" variant="outline" onClick={() => setSaveOpen(true)} className="text-xs sm:text-sm"><Save className="mr-1 h-3 w-3" /> Save</Button>
                                     </div>
                                 )}
                             </CardContent>
@@ -138,19 +138,19 @@ export default function AIWritingPage() {
 
                 <motion.div variants={item}>
                     <Card className="hover:border-primary/20 transition-colors">
-                        <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><FileText className="h-4 w-4 text-primary" /> History</CardTitle></CardHeader>
+                        <CardHeader className="pb-3"><CardTitle className="text-sm sm:text-base flex items-center gap-2"><FileText className="h-4 w-4 text-primary" /> History</CardTitle></CardHeader>
                         <CardContent>
                             {documents.length === 0 ? (
-                                <p className="text-sm text-muted-foreground text-center py-4">No saved documents yet.</p>
+                                <p className="text-xs sm:text-sm text-muted-foreground text-center py-4">No saved documents yet.</p>
                             ) : (
-                                <ScrollArea className="max-h-[500px]">
+                                <ScrollArea className="max-h-[400px] sm:max-h-[500px]">
                                     <div className="space-y-2">
                                         {documents.map((d: any) => (
-                                            <div key={d.id} className="rounded-lg border border-border/60 bg-card/60 p-3 space-y-1">
-                                                <p className="text-sm font-medium truncate">{d.title}</p>
-                                                <p className="text-[11px] text-muted-foreground">{d.mode.replace("_", " ").toLowerCase()} · {new Date(d.createdAt).toLocaleDateString()}</p>
+                                            <div key={d.id} className="rounded-lg border border-border/60 bg-card/60 p-2 sm:p-3 space-y-1">
+                                                <p className="text-xs sm:text-sm font-medium truncate">{d.title}</p>
+                                                <p className="text-[10px] sm:text-[11px] text-muted-foreground">{d.mode.replace("_", " ").toLowerCase()} · {new Date(d.createdAt).toLocaleDateString()}</p>
                                                 <div className="flex gap-1 pt-1">
-                                                    <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => handleSendToNotes(d.id)}>To Notes</Button>
+                                                    <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px] sm:text-[11px]" onClick={() => handleSendToNotes(d.id)}>To Notes</Button>
                                                     <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:text-destructive ml-auto" onClick={() => deleteDoc.mutate(d.id)}><Trash2 className="h-3 w-3" /></Button>
                                                 </div>
                                             </div>
@@ -158,7 +158,7 @@ export default function AIWritingPage() {
                                     </div>
                                 </ScrollArea>
                             )}
-                            {savedMsg && <p className="text-xs text-emerald-500 mt-2">{savedMsg}</p>}
+                            {savedMsg && <p className="text-[10px] sm:text-xs text-emerald-500 mt-2">{savedMsg}</p>}
                         </CardContent>
                     </Card>
                 </motion.div>

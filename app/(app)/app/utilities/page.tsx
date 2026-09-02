@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useExchangeRates, useTranslateText } from "@/lib/hooks/use-life-data";
 import { LANGUAGES } from "@/lib/data/languages";
+import { useMySocialProfile, useCreateSocialProfile } from "@/lib/hooks/use-social-profile";
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
@@ -37,6 +38,31 @@ function hexToRgb(hex: string) {
     return { r, g, b };
 }
 
+const SOCIAL_PLATFORMS = [
+    { value: "instagram", label: "Instagram" },
+    { value: "twitter", label: "X (Twitter)" },
+    { value: "tiktok", label: "TikTok" },
+    { value: "facebook", label: "Facebook" },
+    { value: "youtube", label: "YouTube" },
+    { value: "linkedin", label: "LinkedIn" },
+    { value: "snapchat", label: "Snapchat" },
+    { value: "pinterest", label: "Pinterest" },
+    { value: "threads", label: "Threads" },
+    { value: "whatsapp", label: "WhatsApp" },
+    { value: "telegram", label: "Telegram" },
+    { value: "discord", label: "Discord" },
+    { value: "twitch", label: "Twitch" },
+    { value: "github", label: "GitHub" },
+    { value: "spotify", label: "Spotify" },
+    { value: "reddit", label: "Reddit" },
+    { value: "website", label: "Website" },
+    { value: "email", label: "Email" },
+    { value: "phone", label: "Phone" },
+    { value: "other", label: "Other" },
+] as const;
+
+type ProfileLinkRow = { platform: string; customPlatform: string; url: string; label: string };
+
 export default function UtilitiesPage() {
     const [tool, setTool] = useState<Tool>("currency");
 
@@ -46,6 +72,53 @@ export default function UtilitiesPage() {
 
     const [qrText, setQrText] = useState("");
     const [qrImage, setQrImage] = useState<string | null>(null);
+    const { data: socialProfile, isLoading: socialProfileLoading } = useMySocialProfile();
+    const createSocialProfile = useCreateSocialProfile();
+
+    const [profileForm, setProfileForm] = useState({
+        slug: "",
+        displayName: "",
+        bio: "",
+        isPublic: true,
+    });
+    const [profileLinks, setProfileLinks] = useState<ProfileLinkRow[]>([
+        { platform: "instagram", customPlatform: "", url: "", label: "" },
+    ]);
+
+    function addLinkRow() {
+        if (profileLinks.length >= 30) return;
+        setProfileLinks((prev) => [...prev, { platform: "instagram", customPlatform: "", url: "", label: "" }]);
+    }
+
+    function removeLinkRow(index: number) {
+        setProfileLinks((prev) => prev.filter((_, i) => i !== index));
+    }
+
+    function updateLinkRow(index: number, patch: Partial<ProfileLinkRow>) {
+        setProfileLinks((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
+    }
+
+    function handleCreateProfile() {
+        const links = profileLinks
+            .filter((l) => l.url.trim())
+            .map((l, i) => ({
+                platform: l.platform === "other" ? l.customPlatform.trim() : l.platform,
+                url: l.url.trim(),
+                label: l.label.trim() || undefined,
+                enabled: true,
+                sortOrder: i,
+            }));
+
+        if (links.length === 0) return;
+
+        createSocialProfile.mutate({
+            slug: profileForm.slug.trim().toLowerCase(),
+            displayName: profileForm.displayName.trim(),
+            bio: profileForm.bio.trim() || undefined,
+            isPublic: profileForm.isPublic,
+            links,
+        });
+    }
 
     const [pwLength, setPwLength] = useState(16);
     const [password, setPassword] = useState("");
@@ -89,6 +162,31 @@ export default function UtilitiesPage() {
         setQrImage(dataUrl);
     }
 
+    //   async function handleSocialQrGenerate(slug: string) {
+    //     const publicUrl = `${window.location.origin}/connect/${slug}`;
+
+    //     const dataUrl = await QRCode.toDataURL(publicUrl, {
+    //       width: 500,
+    //       margin: 2,
+    //       errorCorrectionLevel: "H",
+    //     });
+
+    //     setQrImage(dataUrl);
+    //   }
+
+    async function handleSocialQrGenerate(slug: string) {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+        const publicUrl = `${baseUrl}/connect/${slug}`;
+
+        const dataUrl = await QRCode.toDataURL(publicUrl, {
+            width: 500,
+            margin: 2,
+            errorCorrectionLevel: "H",
+        });
+
+        setQrImage(dataUrl);
+    }
+
     const rgb = hexToRgb(colorHex);
 
     return (
@@ -101,13 +199,13 @@ export default function UtilitiesPage() {
             <motion.div variants={item}>
                 <Tabs value={tool} onValueChange={(v) => setTool(v as Tool)}>
                     <TabsList className="flex-wrap h-auto">
-                        {TOOLS.map((t) => <TabsTrigger key={t} value={t} className="capitalize">{t}</TabsTrigger>)}
+                        {TOOLS.map((t) => <TabsTrigger key={t} value={t} className="gap-0 flex capitalize text-xs sm:text-lg">{t}</TabsTrigger>)}
                     </TabsList>
                 </Tabs>
             </motion.div>
 
             <motion.div variants={item}>
-                <Card className="hover:border-primary/20 transition-colors max-w-2xl">
+                <Card className="hover:border-primary/20 transition-colors max-w-8xl">
                     <CardContent className="pt-6 space-y-4">
                         {tool === "currency" && (
                             <div className="space-y-3">
@@ -141,7 +239,7 @@ export default function UtilitiesPage() {
                                         onChange={(e) => setTranslateInput(e.target.value)}
                                     />
                                     <div className="flex gap-2">
-                                        <select className="h-10 flex-1 rounded-lg border border-input bg-background px-2 text-sm" value={targetLang} onChange={(e) => setTargetLang(e.target.value)}>
+                                        <select className="h-10 flex-1 rounded-lg border border-input bg-background px-2 text-[10px] sm:text-sm" value={targetLang} onChange={(e) => setTargetLang(e.target.value)}>
                                             {LANGUAGES.map((l) => <option key={l.name} value={l.name}>{l.name}</option>)}
                                         </select>
                                         <Button onClick={handleTranslate} disabled={translateText.isPending || !translateInput.trim()}>
@@ -182,13 +280,184 @@ export default function UtilitiesPage() {
                         )}
 
                         {tool === "qr" && (
-                            <div className="space-y-3">
-                                <Input placeholder="Text or URL to encode" value={qrText} onChange={(e) => setQrText(e.target.value)} />
-                                <Button onClick={handleQrGenerate} disabled={!qrText.trim()}>Generate QR</Button>
+                            <div className="space-y-6">
+                                {/* Normal QR */}
+                                <div className="space-y-3">
+                                    <p className="text-sm font-medium">Text or URL QR</p>
+
+                                    <Input
+                                        placeholder="Text or URL to encode"
+                                        value={qrText}
+                                        onChange={(e) => setQrText(e.target.value)}
+                                    />
+
+                                    <Button
+                                        onClick={handleQrGenerate}
+                                        disabled={!qrText.trim()}
+                                    >
+                                        Generate QR
+                                    </Button>
+                                </div>
+
+                                {/* Social Profile QR */}
+                                <div className="border-t pt-6 space-y-3">
+                                    <div>
+                                        <p className="text-sm font-medium">
+                                            Social Profile QR
+                                        </p>
+
+                                        <p className="text-xs text-muted-foreground">
+                                            Put all your social media links behind one QR code — great for a printed business card.
+                                        </p>
+                                    </div>
+
+                                    {socialProfile ? (
+                                        <div className="rounded-lg border p-4 space-y-3">
+                                            <div>
+                                                <p className="font-medium">
+                                                    {socialProfile.displayName}
+                                                </p>
+
+                                                <p className="text-sm text-muted-foreground">
+                                                    /connect/{socialProfile.slug}
+                                                </p>
+
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    {socialProfile.links?.length ?? 0} link{socialProfile.links?.length !== 1 ? "s" : ""} attached
+                                                </p>
+                                            </div>
+
+                                            <Button
+                                                onClick={() =>
+                                                    handleSocialQrGenerate(socialProfile.slug)
+                                                }
+                                            >
+                                                Generate Social QR
+                                            </Button>
+                                        </div>
+                                    ) : socialProfileLoading ? (
+                                        <p className="text-sm text-muted-foreground">Loading your social profile...</p>
+                                    ) : (
+                                        <div className="space-y-4 rounded-lg border p-4">
+                                            <p className="text-sm font-medium">Create your social profile</p>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                <Input
+                                                    placeholder="Username (e.g. john-store)"
+                                                    value={profileForm.slug}
+                                                    onChange={(e) => setProfileForm((f) => ({ ...f, slug: e.target.value }))}
+                                                />
+                                                <Input
+                                                    placeholder="Display name (e.g. John's Store)"
+                                                    value={profileForm.displayName}
+                                                    onChange={(e) => setProfileForm((f) => ({ ...f, displayName: e.target.value }))}
+                                                />
+                                            </div>
+                                            <Input
+                                                placeholder="Short bio (optional)"
+                                                value={profileForm.bio}
+                                                onChange={(e) => setProfileForm((f) => ({ ...f, bio: e.target.value }))}
+                                            />
+
+                                            <div className="space-y-2">
+                                                <p className="text-xs font-medium text-muted-foreground">
+                                                    Links ({profileLinks.length}/30)
+                                                </p>
+
+                                                {profileLinks.map((link, i) => (
+                                                    <div key={i} className="flex flex-wrap gap-2 items-center rounded-lg border border-border/60 p-2">
+                                                        <select
+                                                            className="h-9 rounded-lg border border-input bg-background px-2 text-xs"
+                                                            value={link.platform}
+                                                            onChange={(e) => updateLinkRow(i, { platform: e.target.value })}
+                                                        >
+                                                            {SOCIAL_PLATFORMS.map((p) => (
+                                                                <option key={p.value} value={p.value}>{p.label}</option>
+                                                            ))}
+                                                        </select>
+
+                                                        {link.platform === "other" && (
+                                                            <Input
+                                                                placeholder="Platform name"
+                                                                className="h-9 w-32 text-xs"
+                                                                value={link.customPlatform}
+                                                                onChange={(e) => updateLinkRow(i, { customPlatform: e.target.value })}
+                                                            />
+                                                        )}
+
+                                                        <Input
+                                                            placeholder="URL (https://...)"
+                                                            className="h-9 flex-1 min-w-[160px] text-xs"
+                                                            value={link.url}
+                                                            onChange={(e) => updateLinkRow(i, { url: e.target.value })}
+                                                        />
+
+                                                        <Input
+                                                            placeholder="Label (optional)"
+                                                            className="h-9 w-28 text-xs"
+                                                            value={link.label}
+                                                            onChange={(e) => updateLinkRow(i, { label: e.target.value })}
+                                                        />
+
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-9 w-9 p-0 text-destructive"
+                                                            onClick={() => removeLinkRow(i)}
+                                                            disabled={profileLinks.length === 1}
+                                                        >
+                                                            ×
+                                                        </Button>
+                                                    </div>
+                                                ))}
+
+                                                <Button size="sm" variant="outline" onClick={addLinkRow} disabled={profileLinks.length >= 30}>
+                                                    + Add another link
+                                                </Button>
+                                            </div>
+
+                                            <Button
+                                                onClick={handleCreateProfile}
+                                                disabled={
+                                                    createSocialProfile.isPending ||
+                                                    !profileForm.slug.trim() ||
+                                                    !profileForm.displayName.trim() ||
+                                                    !profileLinks.some((l) => l.url.trim())
+                                                }
+                                            >
+                                                {createSocialProfile.isPending ? "Creating..." : "Create profile & QR"}
+                                            </Button>
+
+                                            {createSocialProfile.isError && (
+                                                <p className="text-xs text-destructive">
+                                                    {(createSocialProfile.error as Error).message}
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* QR Result */}
                                 {qrImage && (
-                                    <div className="space-y-2">
-                                        <img src={qrImage} alt="QR code" className="rounded-lg border border-border/60" />
-                                        <Button size="sm" variant="outline" asChild><a href={qrImage} download="qrcode.png">Download</a></Button>
+                                    <div className="space-y-3">
+                                        <img
+                                            src={qrImage}
+                                            alt="QR code"
+                                            className="rounded-lg border border-border/60"
+                                        />
+
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            asChild
+                                        >
+                                            <a
+                                                href={qrImage}
+                                                download="social-profile-qrcode.png"
+                                            >
+                                                Download QR
+                                            </a>
+                                        </Button>
                                     </div>
                                 )}
                             </div>
@@ -238,7 +507,7 @@ export default function UtilitiesPage() {
                                 <textarea rows={8} className="w-full rounded-lg border border-input bg-background p-3 text-xs font-mono" placeholder="Paste JSON..." value={jsonInput} onChange={(e) => setJsonInput(e.target.value)} />
                                 <Button onClick={() => { try { setJsonResult(JSON.stringify(JSON.parse(jsonInput), null, 2)); setJsonError(""); } catch (e: any) { setJsonError(e.message); setJsonResult(""); } }}>Format</Button>
                                 {jsonError && <p className="text-xs text-destructive">{jsonError}</p>}
-                                {jsonResult && <pre className="text-xs font-mono whitespace-pre-wrap rounded-lg border border-border/60 bg-card/60 p-3 max-h-[300px] overflow-auto">{jsonResult}</pre>}
+                                {jsonResult && <pre className="text-xs font-mono whitespace-pre-wrap rounded-lg border border-border/60 bg-card/60 p-3 max-h-75 overflow-auto">{jsonResult}</pre>}
                             </div>
                         )}
 

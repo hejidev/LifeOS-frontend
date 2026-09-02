@@ -55,16 +55,20 @@ export function AIAssistantContent() {
   const c = context as any;
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] gap-4">
+    <div className="flex h-[calc(100vh-8rem)] gap-2 sm:gap-4 flex-col xl:flex-row">
       <div className="flex-1 flex flex-col rounded-xl border border-border overflow-hidden">
-        <div className="p-4 border-b border-border">
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" /> AI Assistant
-          </h1>
-          <p className="text-sm text-muted-foreground">Context-aware — I can see your tasks, notes, and finances</p>
-        </div>
-
-        <ScrollArea className="flex-1 p-4">
+        <motion.div className="flex items-center justify-between p-3 sm:p-4">
+          <div>
+            <h1 className="text-lg sm:text-3xl font-bold tracking-tight flex items-center gap-2">
+              <Sparkles className="h-4 w-4 sm:h-6 sm:w-6 text-primary" />
+              AI Assistant
+            </h1>
+            <p className="text-muted-foreground mt-1 text-[10px] sm:text-sm">
+              Ask questions, get help, and explore ideas.
+            </p>
+          </div>
+        </motion.div>
+        <ScrollArea className="flex-1 p-2 sm:p-4">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center py-12">
               <div className="h-16 w-16 rounded-2xl gradient-bg flex items-center justify-center mb-4">
@@ -74,16 +78,16 @@ export function AIAssistantContent() {
               <p className="text-sm text-muted-foreground mb-6 max-w-sm">
                 I can see your tasks, budget, and notes to give personalized advice.
               </p>
-              <div className="flex flex-wrap gap-2 justify-center">
+              <div className="flex flex-wrap gap-1 sm:gap-2 justify-center">
                 {suggestedPrompts.map((prompt) => (
-                  <Button key={prompt} variant="outline" size="sm" onClick={() => handleSend(prompt)}>
+                  <Button key={prompt} variant="outline" size="sm" onClick={() => handleSend(prompt)} className="text-[10px] sm:text-xs h-7 sm:h-8">
                     {prompt}
                   </Button>
                 ))}
               </div>
             </div>
           ) : (
-            <div className="space-y-4 max-w-2xl mx-auto">
+            <div className="space-y-3 sm:space-y-4 max-w-2xl mx-auto">
               {messages.map((msg) => (
                 <motion.div
                   key={msg.id}
@@ -91,18 +95,18 @@ export function AIAssistantContent() {
                   animate={{ opacity: 1, y: 0 }}
                   className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <div className={`max-w-[85%] rounded-xl px-4 py-3 text-sm ${msg.role === "user" ? "gradient-bg text-white" : "bg-card border border-border"}`}>
+                  <div className={`max-w-[90%] sm:max-w-[85%] rounded-xl px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm ${msg.role === "user" ? "gradient-bg text-white" : "bg-card border border-border"}`}>
                     <div className="whitespace-pre-wrap">
                       {msg.content}
                       {msg.role === "assistant" && isStreaming && msg.id === messages[messages.length - 1].id && (
-                        <span className="inline-block w-1.5 h-4 bg-current ml-0.5 animate-pulse align-middle" />
+                        <span className="inline-block w-1.5 h-3 sm:h-4 bg-current ml-0.5 animate-pulse align-middle" />
                       )}
                     </div>
                   </div>
                 </motion.div>
               ))}
               {isStreaming && messages[messages.length - 1]?.content === "" && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="relative">
                   <Loader2 className="h-4 w-4 animate-spin" /> Thinking...
                 </div>
               )}
@@ -111,16 +115,16 @@ export function AIAssistantContent() {
           )}
         </ScrollArea>
 
-        <div className="p-4 border-t border-border">
+        <div className="p-2 sm:p-4 border-t border-border">
           <form onSubmit={(e) => { e.preventDefault(); handleSend(input); }} className="flex gap-2">
-            <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask anything about your day..." disabled={isStreaming} />
-            <Button type="submit" disabled={isStreaming || !input.trim()}><Send className="h-4 w-4" /></Button>
+            <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask anything about your day..." disabled={isStreaming} className="text-xs sm:text-sm" />
+            <Button type="submit" disabled={isStreaming || !input.trim()} className="h-8 sm:h-auto"><Send className="h-3 w-3 sm:h-4 sm:w-4" /></Button>
           </form>
-          {error && <p className="text-xs text-destructive mt-2 text-center">{error}</p>}
+          {error && <p className="text-[10px] sm:text-xs text-destructive mt-2 text-center">{error}</p>}
         </div>
       </div>
 
-      <div className="w-80 shrink-0 space-y-4 hidden xl:block">
+      <div className="w-full xl:w-80 shrink-0 space-y-3 sm:space-y-4 hidden xl:block">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /> Context Panel</CardTitle>

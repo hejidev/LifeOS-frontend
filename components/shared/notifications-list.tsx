@@ -40,13 +40,13 @@ export function NotificationsList() {
   const unreadCount = (notifications as any[]).filter((n) => !n.read).length;
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-4 sm:space-y-6 max-w-2xl">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Bell className="h-5 w-5 text-primary" /> Notifications</h1>
-          <p className="text-muted-foreground text-sm mt-1">{unreadCount} unread</p>
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2"><Bell className="h-4 w-4 sm:h-5 sm:w-5 text-primary" /> Notifications</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1">{unreadCount} unread</p>
         </div>
-        {unreadCount > 0 && <Button size="sm" variant="outline" onClick={() => markAllRead.mutate()}><CheckCheck className="mr-1 h-3.5 w-3.5" /> Mark all read</Button>}
+        {unreadCount > 0 && <Button size="sm" variant="outline" onClick={() => markAllRead.mutate()} className="text-xs sm:text-sm"><CheckCheck className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5" /> Mark all read</Button>}
       </div>
 
       <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
@@ -54,26 +54,26 @@ export function NotificationsList() {
       </Tabs>
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground text-center py-10">Loading...</p>
+        <p className="text-xs sm:text-sm text-muted-foreground text-center py-10">Loading...</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-10">Nothing here.</p>
+        <p className="text-xs sm:text-sm text-muted-foreground text-center py-10">Nothing here.</p>
       ) : (
         Object.entries(grouped).map(([label, items]) =>
           items.length === 0 ? null : (
             <div key={label} className="space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+              <p className="text-[10px] sm:text-xs font-semibold text-muted-foreground">{label}</p>
               {items.map((n) => (
                 <Card key={n.id} className={cn("hover:border-primary/20 transition-colors", !n.read && "border-primary/30 bg-primary/5")}>
-                  <CardContent className="py-3 flex items-start gap-3">
-                    <div className={cn("h-2 w-2 rounded-full mt-2 shrink-0", TYPE_COLORS[n.type] ?? "bg-muted-foreground")} />
+                  <CardContent className="py-2.5 sm:py-3 flex items-start gap-2 sm:gap-3">
+                    <div className={cn("h-2 w-2 rounded-full mt-1.5 sm:mt-2 shrink-0", TYPE_COLORS[n.type] ?? "bg-muted-foreground")} />
                     <Link href={n.actionUrl ?? "#"} className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{n.title}</p>
-                      <p className="text-xs text-muted-foreground">{n.message}</p>
-                      <p className="text-[10px] text-muted-foreground mt-1">{new Date(n.createdAt).toLocaleString()}</p>
+                      <p className="text-xs sm:text-sm font-medium">{n.title}</p>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">{n.message}</p>
+                      <p className="text-[9px] sm:text-[10px] text-muted-foreground mt-1">{new Date(n.createdAt).toLocaleString()}</p>
                     </Link>
                     <div className="flex gap-1 shrink-0">
-                      {!n.read && <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => markRead.mutate(n.id)}><Check className="h-3.5 w-3.5" /></Button>}
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => deleteNotif.mutate(n.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      {!n.read && <Button size="sm" variant="ghost" className="h-6 w-6 sm:h-7 sm:w-7 p-0" onClick={() => markRead.mutate(n.id)}><Check className="h-3 w-3 sm:h-3.5 sm:w-3.5" /></Button>}
+                      <Button size="sm" variant="ghost" className="h-6 w-6 sm:h-7 sm:w-7 p-0 text-destructive hover:text-destructive" onClick={() => deleteNotif.mutate(n.id)}><Trash2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" /></Button>
                     </div>
                   </CardContent>
                 </Card>

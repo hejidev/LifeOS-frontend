@@ -58,18 +58,21 @@ model User {
   habits            Habit[]
   healthLogs        HealthLog[]
   messages          Message[]
-  notes             Note[]
-  notifications     Notification[]
-  skills            Skill[]
-  studyMaterials    StudyMaterial[]
-  studySessions     StudySession[]
-  studySubjects     StudySubject[]
-  subscription      Subscription?
-  tasks             Task[]
-  toolUsage         ToolUsage[]
-  transactions      Transaction[]
-  vaultItems        VaultItem[]
-  writingDocuments  WritingDocument[]
+
+  socialProfile SocialProfile?
+
+  notes            Note[]
+  notifications    Notification[]
+  skills           Skill[]
+  studyMaterials   StudyMaterial[]
+  studySessions    StudySession[]
+  studySubjects    StudySubject[]
+  subscription     Subscription?
+  tasks            Task[]
+  toolUsage        ToolUsage[]
+  transactions     Transaction[]
+  vaultItems       VaultItem[]
+  writingDocuments WritingDocument[]
 
   @@index([email])
 }
@@ -1271,4 +1274,59 @@ enum ContactSubmissionStatus {
   NEW
   READ
   RESOLVED
+}
+
+model SocialProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  slug        String  @unique
+  displayName String
+  bio         String?
+  avatar      String?
+  isPublic    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  links SocialLink[]
+  views SocialProfileView[]
+
+  @@index([slug])
+}
+
+model SocialLink {
+  id        String @id @default(cuid())
+  profileId String
+
+  platform  String
+  url       String
+  label     String?
+  enabled   Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model SocialProfileView {
+  id        String @id @default(cuid())
+  profileId String
+
+  userAgent String?
+  referrer  String?
+  country   String?
+  device    String?
+
+  createdAt DateTime @default(now())
+
+  profile SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([createdAt])
 }

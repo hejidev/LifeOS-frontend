@@ -228,14 +228,14 @@ export default function StudyPage() {
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <BookOpen className="h-6 w-6 text-primary" /> Study
           </h1>
-          <p className="text-muted-foreground mt-1">Track materials, subjects, and study sessions.</p>
+          <p className="text-muted-foreground mt-1 text-[10px] sm:text-xl">Track materials, subjects, and study sessions.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setSubjectOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Subject
+        <div className="flex gap-2 flex-col sm:flex-row">
+          <Button variant="outline" onClick={() => setSubjectOpen(true)} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl">
+          <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Subject
           </Button>
-          <Button onClick={openCreateMaterial}>
-            <Plus className="mr-2 h-4 w-4" /> Material
+          <Button onClick={openCreateMaterial}className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl">
+          <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Material
           </Button>
         </div>
       </motion.div>
@@ -264,17 +264,17 @@ export default function StudyPage() {
         </div>
         <Tabs value={statusFilter} onValueChange={setStatusFilter} className="md:ml-auto">
           <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="PLANNED">Planned</TabsTrigger>
-            <TabsTrigger value="IN_PROGRESS">In progress</TabsTrigger>
-            <TabsTrigger value="COMPLETED">Completed</TabsTrigger>
+            <TabsTrigger value="all" className="text-[12px] sm:text-sm">All</TabsTrigger>
+            <TabsTrigger value="PLANNED" className="text-[11px] sm:text-sm">Planned</TabsTrigger>
+            <TabsTrigger value="IN_PROGRESS" className="text-[11px] sm:text-sm">In progress</TabsTrigger>
+            <TabsTrigger value="COMPLETED" className="text-[11px] sm:text-sm">Completed</TabsTrigger>
           </TabsList>
         </Tabs>
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <motion.div variants={item} className="lg:col-span-2">
-          <Card className="hover:border-primary/20 transition-colors h-[500px] flex flex-col">
+          <Card className="hover:border-primary/20 transition-colors h-125 flex flex-col">
             <CardHeader className="pb-3 flex items-center justify-between shrink-0">
               <CardTitle className="text-base flex items-center gap-2">
                 <FileText className="h-4 w-4 text-primary" /> Study Materials
@@ -489,9 +489,9 @@ export default function StudyPage() {
       </div>
 
       <Dialog open={materialOpen} onOpenChange={(open) => (open ? setMaterialOpen(true) : resetMaterialDialog())}>
-      <DialogContent className="max-w-md transition-colors h-[450px] sm:h-[550px] flex flex-col">
+      <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5 mt-6 transition-colors h-112.5 sm:h-137.5 flex flex-col">
           <DialogHeader className="shrink-0 flex justify-between items-start">
-            <DialogTitle className="mt-2 sm:mt-0">{editingMaterialId ? "Edit study material" : "Add study material"}</DialogTitle>
+            <DialogTitle className="sm:mt-0">{editingMaterialId ? "Edit study material" : "Add study material"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleMaterialSubmit} className="flex flex-col flex-1 min-h-0">
             <ScrollArea className="flex-1 h-full pr-3">
@@ -603,7 +603,7 @@ export default function StudyPage() {
               </div>
             </ScrollArea>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-border mt-2 shrink-0">
+            <div className="flex justify-end gap-2 pt-2 border-t border-border mt-1 shrink-0">
               <Button type="button" variant="outline" onClick={resetMaterialDialog}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting
@@ -615,9 +615,8 @@ export default function StudyPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Subject Dialog */}
       <Dialog open={subjectOpen} onOpenChange={setSubjectOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5 mt-6">
           <DialogHeader><DialogTitle>Add subject</DialogTitle></DialogHeader>
           <form
             onSubmit={(e) => {

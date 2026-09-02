@@ -76,14 +76,14 @@ export default function HealthPage() {
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <HeartPulse className="h-6 w-6 text-primary" /> Health
           </h1>
-          <p className="text-muted-foreground mt-1">Track sleep, activity, hydration, and habits</p>
+          <p className="text-muted-foreground mt-1 text-[10px] sm:text-xl">Track sleep, activity, hydration, and habits</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setHabitOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Add habit
+        <div className="flex gap-2 flex-col sm:flex-row">
+          <Button variant="outline" onClick={() => setHabitOpen(true)} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl ml-2">
+            <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Add habit
           </Button>
-          <Button onClick={() => setLogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Log today
+          <Button onClick={() => setLogOpen(true)} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl ml-2">
+            <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Log today
           </Button>
         </div>
       </motion.div>
@@ -122,7 +122,7 @@ export default function HealthPage() {
                   No data yet. Click &quot;Log today&quot; to add your first entry.
                 </p>
               ) : (
-                <ScrollArea className="max-h-[360px]">
+                <ScrollArea className="max-h-90">
                   <div className="space-y-3 pt-1">
                     {summary.metrics.map((m) => {
                       const trendConfig = {
@@ -214,7 +214,7 @@ export default function HealthPage() {
       </div>
 
       <Dialog open={logOpen} onOpenChange={setLogOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5">
           <DialogHeader>
             <DialogTitle>Log today&apos;s health</DialogTitle>
           </DialogHeader>
@@ -277,9 +277,8 @@ export default function HealthPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add habit dialog */}
       <Dialog open={habitOpen} onOpenChange={setHabitOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5">
           <DialogHeader>
             <DialogTitle>Add a habit</DialogTitle>
           </DialogHeader>

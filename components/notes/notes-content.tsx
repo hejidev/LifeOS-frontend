@@ -57,23 +57,19 @@ export default function NotesContent() {
   const [editContent, setEditContent] = useState("");
   const [editTitle, setEditTitle] = useState("");
 
-  // Create‑draft state for quick capture from the header or sidebar
   const [draft, setDraft] = useState<Partial<Note>>({
     title: "",
     content: "",
   });
 
-  // Selected note
   const selected = notes?.find((n) => n.id === selectedId) || notes?.[0];
 
-  // Handle URL ?id=... selection
   useEffect(() => {
     const urlId = searchParams.get("id");
     if (urlId) setSelectedId(urlId);
     else if (notes?.length && !selectedId) setSelectedId(notes[0].id);
   }, [searchParams, notes, selectedId]);
 
-  // Sync editor state when selected changes
   useEffect(() => {
     if (selected) {
       setEditTitle(selected.title);
@@ -81,7 +77,6 @@ export default function NotesContent() {
     }
   }, [selected]);
 
-  // Filter notes by folder + search
   const filtered = notes?.filter((n) => {
     const matchFolder = folder === "all" || n.folder === folder;
     const q = search.toLowerCase();
@@ -127,7 +122,6 @@ export default function NotesContent() {
   };
 
   if (isLoading || !notes) {
-    // Premium skeleton, full height
     return (
       <Skeleton className="h-[calc(100vh-8rem)] rounded-xl" />
     );
@@ -140,36 +134,35 @@ export default function NotesContent() {
       animate="show"
       className="space-y-6"
     >
-      {/* Premium header (from first NotesPage) */}
-      <motion.div variants={item} className="flex items-center justify-between">
+      <motion.div variants={item} className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <FileText className="h-6 w-6 text-primary" />
+          <h1 className="text-xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
+            <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
             Notes
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-xs sm:text-sm">
             Capture ideas, plans, and knowledge · Turn them into action
           </p>
         </div>
-        <Button onClick={handleNewNote}>
-          <Plus className="mr-2 h-4 w-4" /> New note
+        <Button onClick={handleNewNote} className="text-xs sm:text-sm">
+          <Plus className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+          New note
         </Button>
       </motion.div>
 
-      {/* Full notes app shell (from NotesContent), wrapped in motion */}
       <motion.div variants={item}>
-        <div className="flex h-[calc(100vh-8rem)] rounded-xl border border-border overflow-hidden">
-          {/* Sidebar: folders + search + quick capture */}
-          <div className="w-72 border-r border-border bg-card flex flex-col shrink-0">
-            <div className="p-3 border-b border-border space-y-2">
-              <Button size="sm" className="w-full" onClick={handleNewNote}>
-                <Plus className="h-4 w-4 mr-2" /> New Note
+        <div className="flex h-[calc(100vh-8rem)] rounded-xl border border-border overflow-hidden flex-col lg:flex-row">
+          <div className="w-full lg:w-72 border-r border-border bg-card flex flex-col shrink-0">
+            <div className="p-2 sm:p-3 border-b border-border space-y-2">
+              <Button size="sm" className="w-full text-xs sm:text-sm" onClick={handleNewNote}>
+                <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                New Note
               </Button>
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <div className="relative flex-1 min-w-37.5 sm:min-w-50">
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search notes..."
-                  className="pl-8 h-9"
+                  className="pl-9 text-xs sm:text-sm"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -177,11 +170,10 @@ export default function NotesContent() {
             </div>
 
             <ScrollArea className="flex-1">
-              {/* Folders */}
-              <div className="p-2 space-y-1">
+              <div className="p-1 sm:p-2 space-y-1">
                 <button
                   className={cn(
-                    "w-full text-left px-2 py-1 text-xs font-medium uppercase tracking-wider rounded",
+                    "w-full text-left px-2 py-1 text-[10px] sm:text-xs font-medium uppercase tracking-wider rounded",
                     folder === "all"
                       ? "text-foreground"
                       : "text-muted-foreground hover:text-foreground"
@@ -190,51 +182,35 @@ export default function NotesContent() {
                 >
                   All Notes
                 </button>
-                {/* {noteFolders.map((f) => (
-                  <button
-                    key={f}
-                    className={cn(
-                      "w-full text-left px-2 py-1 text-xs font-medium uppercase tracking-wider rounded",
-                      folder === f
-                        ? "text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                    onClick={() => setFolder(f)}
-                  >
-                    {f}
-                  </button> */}
-                {/* ))} */}
               </div>
 
               <Separator className="my-2" />
 
-              {/* Note list */}
               {filtered?.map((note) => (
                 <button
                   key={note.id}
                   className={cn(
-                    "w-full text-left px-3 py-2.5 text-sm hover:bg-accent transition-colors",
+                    "w-full text-left px-2 sm:px-3 py-2 sm:py-2.5 text-xs sm:text-sm hover:bg-accent transition-colors",
                     selectedId === note.id && "bg-accent"
                   )}
                   onClick={() => setSelectedId(note.id)}
                 >
                   <div className="flex items-center gap-1">
                     {note.pinned && (
-                      <Pin className="h-3 w-3 text-primary shrink-0" />
+                      <Pin className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-primary shrink-0" />
                     )}
                     <span className="truncate font-medium">{note.title}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground truncate mt-0.5">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">
                     {note.folder}
                   </p>
                 </button>
               ))}
             </ScrollArea>
 
-            {/* Quick capture (from first NotesPage idea) */}
-            <div className="border-t border-border p-3 space-y-2">
-              <p className="text-xs text-muted-foreground font-medium flex items-center gap-1">
-                <Sparkles className="h-3 w-3 text-primary" />
+            <div className="border-t border-border p-2 sm:p-3 space-y-2">
+              <p className="text-[10px] sm:text-xs text-muted-foreground font-medium flex items-center gap-1">
+                <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-primary" />
                 Quick Capture
               </p>
               <Input
@@ -243,7 +219,7 @@ export default function NotesContent() {
                 onChange={(e) =>
                   setDraft((d) => ({ ...d, title: e.target.value }))
                 }
-                className="text-sm"
+                className="text-xs sm:text-sm"
               />
               <Textarea
                 placeholder="Details (optional)..."
@@ -251,26 +227,24 @@ export default function NotesContent() {
                 onChange={(e) =>
                   setDraft((d) => ({ ...d, content: e.target.value }))
                 }
-                rows={3}
-                className="text-xs"
+                rows={2}
+                className="text-[10px] sm:text-xs"
               />
               <div className="flex justify-end">
-                <Button size="sm" onClick={handleCreateFromDraft}>
+                <Button size="sm" onClick={handleCreateFromDraft} className="text-xs sm:text-sm">
                   Save note
                 </Button>
               </div>
             </div>
           </div>
 
-          {/* Main editor + side panel */}
           {selected ? (
             <div className="flex-1 flex flex-col min-w-0">
-              {/* Editor header */}
-              <div className="flex items-center gap-2 p-3 border-b border-border">
+              <div className="flex items-center gap-2 p-2 sm:p-3 border-b border-border">
                 <Input
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  className="border-0 text-lg font-semibold focus-visible:ring-0 px-0"
+                  className="border-0 text-base sm:text-lg font-semibold focus-visible:ring-0 px-0"
                 />
                 <div className="flex items-center gap-1 shrink-0">
                   <Button
@@ -300,9 +274,7 @@ export default function NotesContent() {
                 </div>
               </div>
 
-              {/* Editor + preview + right panel */}
               <div className="flex flex-1 min-h-0">
-                {/* Editor / preview */}
                 <div
                   className={cn(
                     "flex-1 p-4",
@@ -313,7 +285,7 @@ export default function NotesContent() {
                     <Textarea
                       value={editContent}
                       onChange={(e) => setEditContent(e.target.value)}
-                      className="h-full min-h-[400px] border-0 resize-none focus-visible:ring-0 font-mono text-sm"
+                      className="h-full min-h-100 border-0 resize-none focus-visible:ring-0 font-mono text-sm"
                       placeholder="Start writing in markdown..."
                     />
                   ) : (
@@ -327,24 +299,23 @@ export default function NotesContent() {
                   )}
                 </div>
 
-                {/* Right panel: AI summary, tags, attachments, linked tasks */}
                 <div className="w-80 shrink-0 p-4 space-y-4 overflow-y-auto hidden lg:block">
-                  {/* AI summary */}
                   {selected.summary && (
-                    <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Sparkles className="h-4 w-4 text-primary" />
-                        <span className="text-xs font-medium text-primary">
-                          AI Summary
-                        </span>
+                    <motion.div variants={item}>
+                      <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                          <span className="text-xs font-medium text-primary">
+                            AI Summary
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {selected.summary}
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        {selected.summary}
-                      </p>
-                    </div>
+                    </motion.div>
                   )}
 
-                  {/* Tags */}
                   {selected.tags?.length > 0 && (
                     <div>
                       <p className="text-xs text-muted-foreground mb-2">
@@ -360,7 +331,6 @@ export default function NotesContent() {
                     </div>
                   )}
 
-                  {/* Attachments */}
                   {selected.attachments?.length > 0 && (
                     <div>
                       <p className="text-xs text-muted-foreground mb-2">
@@ -378,7 +348,6 @@ export default function NotesContent() {
                     </div>
                   )}
 
-                  {/* Linked tasks */}
                   {selected.linkedTaskIds?.length > 0 && (
                     <div>
                       <p className="text-xs text-muted-foreground mb-2">
@@ -406,7 +375,6 @@ export default function NotesContent() {
               </div>
             </div>
           ) : (
-            // Empty state when no selected note
             <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
               <FileText className="h-12 w-12 text-muted-foreground/30 mb-4" />
               <h3 className="font-semibold mb-2">No notes yet</h3>

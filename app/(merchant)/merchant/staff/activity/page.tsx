@@ -62,7 +62,7 @@ export default function StaffActivityPage() {
       {/* Header Section */}
       <motion.div variants={item} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg border border-primary/20">
+          <div className="p-2 bg-linear-to-br from-primary/20 to-primary/5 rounded-lg border border-primary/20">
             <Activity className="h-5 w-5 text-primary" />
           </div>
           <div>
@@ -74,7 +74,7 @@ export default function StaffActivityPage() {
 
       {/* Stats Cards */}
       <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+        <Card className="bg-linear-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
           <CardContent className="pt-4 sm:pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -87,7 +87,7 @@ export default function StaffActivityPage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+        <Card className="bg-linear-to-br from-green-500/10 to-green-600/5 border-green-500/20">
           <CardContent className="pt-4 sm:pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -100,7 +100,7 @@ export default function StaffActivityPage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
+        <Card className="bg-linear-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
           <CardContent className="pt-4 sm:pt-6">
             <div className="flex items-center justify-between">
               <div>

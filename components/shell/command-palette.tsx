@@ -51,10 +51,18 @@ export function CommandPalette() {
       <Button
         variant="outline"
         onClick={() => setOpen(true)}
-        className="w-full max-w-sm justify-between text-sm text-muted-foreground"
+        className="hidden sm:flex w-full max-w-sm justify-between text-sm text-muted-foreground"
       >
         <div className="flex items-center gap-2"><Search className="h-4 w-4" /> Search...</div>
         <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px]">⌘K</kbd>
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => setOpen(true)}
+        className="sm:hidden h-9 w-9"
+      >
+        <Search className="h-5 w-5" />
       </Button>
 
       <CommandDialog open={open} onOpenChange={setOpen}>
