@@ -57,4 +57,6 @@ router.get("/utilities/exchange-rates", utilitiesController.getExchangeRates);
 router.post("/utilities/translate", (0, validate_middleware_1.validate)(utilities_validator_1.translateSchema), utilitiesController.translateText);
 router.get("/social-profile/me", utilitiesController.getMySocialProfile);
 router.post("/utilities/social-profile", (0, validate_middleware_1.validate)(social_profile_validator_1.createSocialProfileSchema), utilitiesController.createSocialProfile);
+router.patch("/utilities/social-profile", (0, validate_middleware_1.validate)(social_profile_validator_1.updateSocialProfileSchema), utilitiesController.updateSocialProfile);
+router.delete("/utilities/social-profile", utilitiesController.deleteSocialProfile);
 exports.default = router;

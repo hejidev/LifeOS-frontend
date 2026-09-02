@@ -5,7 +5,8 @@ import { validate } from "../middlewares/validate.middleware";
 import * as utilitiesController from "../controllers/utilities.controller";
 
 import { translateSchema } from "../validators/utilities.validator";
-import { createSocialProfileSchema } from "../validators/social-profile.validator";
+import { createSocialProfileSchema, 
+  updateSocialProfileSchema, } from "../validators/social-profile.validator";
 
 const router = Router();
 
@@ -42,6 +43,17 @@ router.post(
   "/utilities/social-profile",
   validate(createSocialProfileSchema),
   utilitiesController.createSocialProfile
+);
+
+router.patch(
+  "/utilities/social-profile",
+  validate(updateSocialProfileSchema),
+  utilitiesController.updateSocialProfile
+);
+
+router.delete(
+  "/utilities/social-profile",
+  utilitiesController.deleteSocialProfile
 );
 
 export default router;

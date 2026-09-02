@@ -78,3 +78,19 @@ export const getMySocialProfile = asyncHandler(
     return res.json(profile); // null if the user hasn't created one yet — that's fine
   }
 );
+
+export const updateSocialProfile = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user!.id;
+    const profile = await socialProfileService.updateSocialProfile(userId, req.body);
+    return res.json(profile);
+  }
+);
+
+export const deleteSocialProfile = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user!.id;
+    await socialProfileService.deleteSocialProfile(userId);
+    return res.status(204).send();
+  }
+);

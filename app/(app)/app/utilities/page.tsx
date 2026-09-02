@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useExchangeRates, useTranslateText } from "@/lib/hooks/use-life-data";
 import { LANGUAGES } from "@/lib/data/languages";
-import { useMySocialProfile, useCreateSocialProfile } from "@/lib/hooks/use-social-profile";
+import { useMySocialProfile, useCreateSocialProfile, useUpdateSocialProfile, useDeleteSocialProfile } from "@/lib/hooks/use-social-profile";
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
@@ -74,6 +74,11 @@ export default function UtilitiesPage() {
     const [qrImage, setQrImage] = useState<string | null>(null);
     const { data: socialProfile, isLoading: socialProfileLoading } = useMySocialProfile();
     const createSocialProfile = useCreateSocialProfile();
+
+    const updateSocialProfile = useUpdateSocialProfile();
+    const deleteSocialProfile = useDeleteSocialProfile();
+    const [isEditingProfile, setIsEditingProfile] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
 
     const [profileForm, setProfileForm] = useState({
         slug: "",
@@ -173,6 +178,61 @@ export default function UtilitiesPage() {
         });
 
         setQrImage(dataUrl);
+    }
+
+    function startEditProfile() {
+        if (!socialProfile) return;
+        setProfileForm({
+            slug: socialProfile.slug,
+            displayName: socialProfile.displayName,
+            bio: socialProfile.bio ?? "",
+            isPublic: socialProfile.isPublic,
+        });
+        setProfileLinks(
+            socialProfile.links.map((l: any) => ({
+                platform: SOCIAL_PLATFORMS.some((p) => p.value === l.platform) ? l.platform : "other",
+                customPlatform: SOCIAL_PLATFORMS.some((p) => p.value === l.platform) ? "" : l.platform,
+                url: l.url,
+                label: l.label ?? "",
+            }))
+        );
+        setIsEditingProfile(true);
+    }
+
+    function handleUpdateProfile() {
+        const links = profileLinks
+            .filter((l) => l.url.trim())
+            .map((l, i) => ({
+                platform: l.platform === "other" ? l.customPlatform.trim() : l.platform,
+                url: l.url.trim(),
+                label: l.label.trim() || undefined,
+                enabled: true,
+                sortOrder: i,
+            }));
+
+        if (links.length === 0) return;
+
+        updateSocialProfile.mutate(
+            {
+                displayName: profileForm.displayName.trim(),
+                bio: profileForm.bio.trim() || undefined,
+                isPublic: profileForm.isPublic,
+                links,
+            },
+            { onSuccess: () => setIsEditingProfile(false) }
+        );
+    }
+
+    function handleDeleteProfile() {
+        deleteSocialProfile.mutate(undefined, {
+            onSuccess: () => {
+                setConfirmDelete(false);
+                setIsEditingProfile(false);
+                setQrImage(null);
+                setProfileForm({ slug: "", displayName: "", bio: "", isPublic: true });
+                setProfileLinks([{ platform: "instagram", customPlatform: "", url: "", label: "" }]);
+            },
+        });
     }
 
     const rgb = hexToRgb(colorHex);
@@ -287,7 +347,6 @@ export default function UtilitiesPage() {
                                     </Button>
                                 </div>
 
-                                {/* Social Profile QR */}
                                 <div className="border-t pt-6 space-y-3">
                                     <div>
                                         <p className="text-sm font-medium">
@@ -299,40 +358,65 @@ export default function UtilitiesPage() {
                                         </p>
                                     </div>
 
-                                    {socialProfile ? (
+                                    {socialProfile && !isEditingProfile ? (
                                         <div className="rounded-lg border p-4 space-y-3">
                                             <div>
-                                                <p className="font-medium">
-                                                    {socialProfile.displayName}
-                                                </p>
-
-                                                <p className="text-sm text-muted-foreground">
-                                                    /connect/{socialProfile.slug}
-                                                </p>
-
+                                                <p className="font-medium">{socialProfile.displayName}</p>
+                                                <p className="text-sm text-muted-foreground">/connect/{socialProfile.slug}</p>
                                                 <p className="text-xs text-muted-foreground mt-1">
                                                     {socialProfile.links?.length ?? 0} link{socialProfile.links?.length !== 1 ? "s" : ""} attached
                                                 </p>
                                             </div>
 
-                                            <Button
-                                                onClick={() =>
-                                                    handleSocialQrGenerate(socialProfile.slug)
-                                                }
-                                            >
-                                                Generate Social QR
-                                            </Button>
+                                            <div className="flex flex-wrap gap-2">
+                                                <Button onClick={() => handleSocialQrGenerate(socialProfile.slug)}>
+                                                    Generate Social QR
+                                                </Button>
+                                                <Button variant="outline" onClick={startEditProfile}>
+                                                    Edit
+                                                </Button>
+                                                <Button variant="outline" className="text-destructive" onClick={() => setConfirmDelete(true)}>
+                                                    Delete
+                                                </Button>
+                                            </div>
+
+                                            {confirmDelete && (
+                                                <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 space-y-2">
+                                                    <p className="text-sm">
+                                                        Delete your social profile? Your QR code will stop working and this can't be undone.
+                                                    </p>
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="destructive"
+                                                            onClick={handleDeleteProfile}
+                                                            disabled={deleteSocialProfile.isPending}
+                                                        >
+                                                            {deleteSocialProfile.isPending ? "Deleting..." : "Yes, delete it"}
+                                                        </Button>
+                                                        <Button size="sm" variant="outline" onClick={() => setConfirmDelete(false)}>
+                                                            Cancel
+                                                        </Button>
+                                                    </div>
+                                                    {deleteSocialProfile.isError && (
+                                                        <p className="text-xs text-destructive">{(deleteSocialProfile.error as Error).message}</p>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     ) : socialProfileLoading ? (
                                         <p className="text-sm text-muted-foreground">Loading your social profile...</p>
                                     ) : (
                                         <div className="space-y-4 rounded-lg border p-4">
-                                            <p className="text-sm font-medium">Create your social profile</p>
+                                            <p className="text-sm font-medium">
+                                                {isEditingProfile ? "Edit your social profile" : "Create your social profile"}
+                                            </p>
 
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                 <Input
                                                     placeholder="Username (e.g. john-store)"
                                                     value={profileForm.slug}
+                                                    disabled={isEditingProfile}
                                                     onChange={(e) => setProfileForm((f) => ({ ...f, slug: e.target.value }))}
                                                 />
                                                 <Input
@@ -341,6 +425,7 @@ export default function UtilitiesPage() {
                                                     onChange={(e) => setProfileForm((f) => ({ ...f, displayName: e.target.value }))}
                                                 />
                                             </div>
+
                                             <Input
                                                 placeholder="Short bio (optional)"
                                                 value={profileForm.bio}
@@ -404,28 +489,37 @@ export default function UtilitiesPage() {
                                                 </Button>
                                             </div>
 
-                                            <Button
-                                                onClick={handleCreateProfile}
-                                                disabled={
-                                                    createSocialProfile.isPending ||
-                                                    !profileForm.slug.trim() ||
-                                                    !profileForm.displayName.trim() ||
-                                                    !profileLinks.some((l) => l.url.trim())
-                                                }
-                                            >
-                                                {createSocialProfile.isPending ? "Creating..." : "Create profile & QR"}
-                                            </Button>
+                                            <div className="flex flex-wrap gap-2">
+                                                <Button
+                                                    onClick={isEditingProfile ? handleUpdateProfile : handleCreateProfile}
+                                                    disabled={
+                                                        (isEditingProfile ? updateSocialProfile.isPending : createSocialProfile.isPending) ||
+                                                        (!isEditingProfile && !profileForm.slug.trim()) ||
+                                                        !profileForm.displayName.trim() ||
+                                                        !profileLinks.some((l) => l.url.trim())
+                                                    }
+                                                >
+                                                    {isEditingProfile
+                                                        ? updateSocialProfile.isPending ? "Saving..." : "Save changes"
+                                                        : createSocialProfile.isPending ? "Creating..." : "Create profile & QR"}
+                                                </Button>
 
-                                            {createSocialProfile.isError && (
+                                                {isEditingProfile && (
+                                                    <Button variant="outline" onClick={() => setIsEditingProfile(false)}>
+                                                        Cancel
+                                                    </Button>
+                                                )}
+                                            </div>
+
+                                            {(isEditingProfile ? updateSocialProfile.isError : createSocialProfile.isError) && (
                                                 <p className="text-xs text-destructive">
-                                                    {(createSocialProfile.error as Error).message}
+                                                    {(isEditingProfile ? (updateSocialProfile.error as Error) : (createSocialProfile.error as Error)).message}
                                                 </p>
                                             )}
                                         </div>
                                     )}
                                 </div>
 
-                                {/* QR Result */}
                                 {qrImage && (
                                     <div className="space-y-3">
                                         <img

@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getMySocialProfile = exports.createSocialProfile = exports.translateText = exports.getExchangeRates = void 0;
+exports.deleteSocialProfile = exports.updateSocialProfile = exports.getMySocialProfile = exports.createSocialProfile = exports.translateText = exports.getExchangeRates = void 0;
 exports.getPublicSocialProfile = getPublicSocialProfile;
 const errors_1 = require("../lib/errors");
 const utilitiesService = __importStar(require("../services/utilities.service"));
@@ -87,4 +87,14 @@ async function getPublicSocialProfile(slug, viewData) {
 exports.getMySocialProfile = (0, errors_1.asyncHandler)(async (req, res) => {
     const profile = await socialProfileService.getSocialProfileByUserId(req.user.id);
     return res.json(profile); // null if the user hasn't created one yet — that's fine
+});
+exports.updateSocialProfile = (0, errors_1.asyncHandler)(async (req, res) => {
+    const userId = req.user.id;
+    const profile = await socialProfileService.updateSocialProfile(userId, req.body);
+    return res.json(profile);
+});
+exports.deleteSocialProfile = (0, errors_1.asyncHandler)(async (req, res) => {
+    const userId = req.user.id;
+    await socialProfileService.deleteSocialProfile(userId);
+    return res.status(204).send();
 });

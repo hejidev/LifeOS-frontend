@@ -18,6 +18,14 @@ interface CreateSocialProfileInput {
   links: SocialLinkInput[];
 }
 
+interface UpdateSocialProfileInput {
+  displayName: string;
+  bio?: string;
+  avatar?: string;
+  isPublic: boolean;
+  links: SocialLinkInput[];
+}
+
 export async function createSocialProfile(
   data: CreateSocialProfileInput
 ) {
@@ -70,4 +78,48 @@ export async function getSocialProfileByUserId(userId: string) {
       },
     },
   });
+}
+
+export async function updateSocialProfile(userId: string, data: UpdateSocialProfileInput) {
+  const existing = await prisma.socialProfile.findUnique({ where: { userId } });
+
+  if (!existing) {
+    throw new Error("Social profile not found");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    await tx.socialLink.deleteMany({ where: { profileId: existing.id } });
+
+    return tx.socialProfile.update({
+      where: { id: existing.id },
+      data: {
+        displayName: data.displayName,
+        bio: data.bio,
+        avatar: data.avatar,
+        isPublic: data.isPublic,
+        links: {
+          create: data.links.map((link) => ({
+            platform: link.platform,
+            url: link.url,
+            label: link.label,
+            enabled: link.enabled,
+            sortOrder: link.sortOrder,
+          })),
+        },
+      },
+      include: {
+        links: { orderBy: { sortOrder: "asc" } },
+      },
+    });
+  });
+}
+
+export async function deleteSocialProfile(userId: string) {
+  const existing = await prisma.socialProfile.findUnique({ where: { userId } });
+
+  if (!existing) {
+    throw new Error("Social profile not found");
+  }
+
+  return prisma.socialProfile.delete({ where: { id: existing.id } });
 }

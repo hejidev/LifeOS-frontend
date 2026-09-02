@@ -53,13 +53,14 @@ export default function PublicConnectPage({ params }: { params: Promise<{ slug: 
 
     fetch(`${API_URL}/public/social-profile/${encodeURIComponent(slug)}`)
       .then((res) => {
-        if (!res.ok) throw new Error("Profile not found");
+        if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
         return res.json();
       })
       .then((data) => {
         if (!cancelled) setProfile(data);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("Failed to load social profile:", err);
         if (!cancelled) setError("This profile doesn't exist or isn't public.");
       })
       .finally(() => {
