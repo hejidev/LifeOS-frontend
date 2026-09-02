@@ -162,18 +162,6 @@ export default function UtilitiesPage() {
         setQrImage(dataUrl);
     }
 
-    //   async function handleSocialQrGenerate(slug: string) {
-    //     const publicUrl = `${window.location.origin}/connect/${slug}`;
-
-    //     const dataUrl = await QRCode.toDataURL(publicUrl, {
-    //       width: 500,
-    //       margin: 2,
-    //       errorCorrectionLevel: "H",
-    //     });
-
-    //     setQrImage(dataUrl);
-    //   }
-
     async function handleSocialQrGenerate(slug: string) {
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
         const publicUrl = `${baseUrl}/connect/${slug}`;
@@ -387,7 +375,7 @@ export default function UtilitiesPage() {
 
                                                         <Input
                                                             placeholder="URL (https://...)"
-                                                            className="h-9 flex-1 min-w-[160px] text-xs"
+                                                            className="h-9 flex-1 min-w-40 text-xs"
                                                             value={link.url}
                                                             onChange={(e) => updateLinkRow(i, { url: e.target.value })}
                                                         />

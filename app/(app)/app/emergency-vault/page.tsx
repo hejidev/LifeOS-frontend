@@ -145,10 +145,10 @@ export default function EmergencyVaultPage() {
         <motion.div variants={item}>
           <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
             <TabsList>
-              <TabsTrigger value="medical">Medical</TabsTrigger>
-              <TabsTrigger value="contacts">Contacts</TabsTrigger>
-              <TabsTrigger value="sharing">Sharing</TabsTrigger>
-              <TabsTrigger value="activity">Activity</TabsTrigger>
+              <TabsTrigger value="medical" className="text-[11.5px] sm:text-sm">Medical</TabsTrigger>
+              <TabsTrigger value="contacts" className="text-[11.5px] sm:text-sm">Contacts</TabsTrigger>
+              <TabsTrigger value="sharing" className="text-[11.5px] sm:text-sm">Sharing</TabsTrigger>
+              <TabsTrigger value="activity" className="text-[11.5px] sm:text-sm">Activity</TabsTrigger>
             </TabsList>
           </Tabs>
         </motion.div>
@@ -299,7 +299,7 @@ export default function EmergencyVaultPage() {
                     {(accessLog as any[]).map((l) => (
                       <div key={l.id} className="flex items-center justify-between rounded-lg border border-border/60 bg-card/60 p-2 text-xs">
                         <span>{new Date(l.accessedAt).toLocaleString()}</span>
-                        <span className="text-muted-foreground truncate max-w-[200px]">{l.ipAddress ?? "Unknown"}</span>
+                        <span className="text-muted-foreground truncate max-w-50">{l.ipAddress ?? "Unknown"}</span>
                       </div>
                     ))}
                   </div>
@@ -325,6 +325,7 @@ export default function EmergencyVaultPage() {
           </DialogContent>
         </Dialog>
 
+
         <Dialog open={pinDialogOpen} onOpenChange={setPinDialogOpen}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Set share PIN</DialogTitle></DialogHeader>
@@ -335,6 +336,7 @@ export default function EmergencyVaultPage() {
                 <Button type="submit" disabled={setPin.isPending}>{setPin.isPending ? "Saving..." : "Save"}</Button>
               </div>
             </form>
+
           </DialogContent>
         </Dialog>
       </motion.div>

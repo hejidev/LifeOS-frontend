@@ -1,4 +1,8 @@
 "use strict";
+// import type { Response } from "express";
+// import { asyncHandler } from "../lib/errors";
+// import type { AuthenticatedRequest } from "../middlewares/auth.middleware";
+// import * as aiWritingService from "../services/ai-writing.service";
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -36,38 +40,64 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.convertToNote = exports.deleteDocument = exports.getDocuments = exports.saveDocument = exports.streamWritingHandler = void 0;
 const errors_1 = require("../lib/errors");
 const aiWritingService = __importStar(require("../services/ai-writing.service"));
+function extractGeminiErrorMessage(err) {
+    if (!err) {
+        return "Failed to generate content";
+    }
+    const message = err?.message ||
+        err?.error?.message ||
+        err?.response?.data?.error?.message ||
+        "";
+    if (typeof message === "string" && message.trim()) {
+        return message;
+    }
+    return "Failed to generate content";
+}
 exports.streamWritingHandler = (0, errors_1.asyncHandler)(async (req, res) => {
-    const { mode, input, tone, targetLanguage } = req.body;
+    const { mode, input, tone, targetLanguage, } = req.body;
+    if (!input?.trim()) {
+        return res.status(400).json({
+            error: "Input text is required",
+        });
+    }
     let wroteAnything = false;
     try {
         res.setHeader("Content-Type", "text/plain; charset=utf-8");
-        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Cache-Control", "no-cache, no-transform");
         res.setHeader("X-Accel-Buffering", "no");
-        await aiWritingService.streamWriting(mode, input, { tone, targetLanguage }, (chunk) => {
+        await aiWritingService.streamWriting(mode, input, {
+            tone,
+            targetLanguage,
+        }, (chunk) => {
             wroteAnything = true;
             res.write(chunk);
         });
         res.end();
     }
     catch (err) {
-        console.error("[ai-writing] stream failed:", err?.message ?? err);
+        const cleanMessage = extractGeminiErrorMessage(err);
+        console.error("[ai-writing] stream failed:", cleanMessage);
         if (!wroteAnything && !res.headersSent) {
-            res.status(err?.status === 401 ? 401 : 502).json({
-                error: err?.error?.message ?? err?.message ?? "Failed to generate — check backend logs for details",
+            return res.status(typeof err?.status === "number"
+                ? err.status
+                : 502).json({
+                error: cleanMessage,
             });
         }
-        else {
-            res.end();
-        }
+        res.end();
     }
 });
 exports.saveDocument = (0, errors_1.asyncHandler)(async (req, res) => {
     const doc = await aiWritingService.saveDocument(req.user.id, req.body);
-    return res.status(201).json({ document: doc });
+    return res.status(201).json({
+        document: doc,
+    });
 });
 exports.getDocuments = (0, errors_1.asyncHandler)(async (req, res) => {
     const docs = await aiWritingService.getDocuments(req.user.id);
-    return res.json({ documents: docs });
+    return res.json({
+        documents: docs,
+    });
 });
 exports.deleteDocument = (0, errors_1.asyncHandler)(async (req, res) => {
     await aiWritingService.deleteDocument(req.user.id, req.params.id);
@@ -75,5 +105,7 @@ exports.deleteDocument = (0, errors_1.asyncHandler)(async (req, res) => {
 });
 exports.convertToNote = (0, errors_1.asyncHandler)(async (req, res) => {
     const note = await aiWritingService.convertToNote(req.user.id, req.params.id);
-    return res.status(201).json({ note });
+    return res.status(201).json({
+        note,
+    });
 });
