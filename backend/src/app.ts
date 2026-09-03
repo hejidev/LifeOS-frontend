@@ -6,6 +6,7 @@ import hpp from "hpp";
 import cookieParser from "cookie-parser";
 
 import { env } from "./config/env";
+import * as utilitiesController from "./controllers/utilities.controller";
 import authRoutes from "./routes/auth.routes";
 import oauthRoutes from "./routes/oauth.routes";
 import staffAuthRoutes from "./routes/staff-auth.routes";
@@ -72,6 +73,23 @@ app.use(hpp());
 app.use(compression());
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
+
+app.get(
+  "/api/public/social-profile/:slug",
+  (req, res, next) =>
+    utilitiesController
+      .getPublicSocialProfile(req.params.slug, {
+        userAgent: req.get("user-agent") ?? undefined,
+        referrer: req.get("referer") ?? undefined,
+      })
+      .then((data) => res.json(data))
+      .catch((err) => {
+        if (err.message === "Social profile not found") {
+          return res.status(404).json({ error: err.message });
+        }
+        return next(err);
+      })
+);
 
 // Auth-layer routers — no evidence these shadow anything, left in place
 app.use("/api", authRoutes);

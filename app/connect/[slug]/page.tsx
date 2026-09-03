@@ -3,8 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ExternalLink, User } from "lucide-react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
+import { api } from "@/lib/api/client";
 
 interface PublicLink {
   platform: string;
@@ -47,17 +46,20 @@ export default function PublicConnectPage({ params }: { params: Promise<{ slug: 
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    fetch(`${API_URL}/public/social-profile/${encodeURIComponent(slug)}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
-        if (!cancelled) setProfile(data);
+    api
+      .get(`/public/social-profile/${encodeURIComponent(slug)}`)
+      .then((data: PublicProfile) => {
+        if (cancelled) return;
+        setProfile(data);
+        if (data.links.length === 1) {
+          setRedirecting(true);
+          window.location.replace(data.links[0].url);
+        }
       })
       .catch((err) => {
         console.error("Failed to load social profile:", err);
@@ -72,10 +74,12 @@ export default function PublicConnectPage({ params }: { params: Promise<{ slug: 
     };
   }, [slug]);
 
-  if (loading) {
+  if (loading || redirecting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <p className="text-sm text-muted-foreground">Loading...</p>
+        <p className="text-sm text-muted-foreground">
+          {redirecting ? "Redirecting..." : "Loading..."}
+        </p>
       </div>
     );
   }

@@ -10,23 +10,6 @@ import { createSocialProfileSchema,
 
 const router = Router();
 
-router.get(
-  "/public/social-profile/:slug",
-  (req, res, next) =>
-    utilitiesController
-      .getPublicSocialProfile(req.params.slug, {
-        userAgent: req.get("user-agent") ?? undefined,
-        referrer: req.get("referer") ?? undefined,
-      })
-      .then((data) => res.json(data))
-      .catch((err) => {
-        if (err.message === "Social profile not found") {
-          return res.status(404).json({ message: err.message });
-        }
-        return next(err);
-      })
-);
-
 router.use(requireAuth);
 
 router.get("/utilities/exchange-rates", utilitiesController.getExchangeRates);
