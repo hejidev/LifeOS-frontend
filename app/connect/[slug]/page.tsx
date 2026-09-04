@@ -40,9 +40,9 @@ const item = {
 function PageBackground() {
   return (
     <div className="pointer-events-none fixed inset-0 overflow-hidden">
-      <div className="absolute -top-32 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-[120px]" />
-      <div className="absolute bottom-0 right-0 h-[320px] w-[320px] rounded-full bg-violet-500/15 blur-[100px]" />
-      <div className="absolute top-1/3 -left-24 h-[280px] w-[280px] rounded-full bg-indigo-600/10 blur-[90px]" />
+      <div className="absolute -top-32 left-1/2 h-105 w-105 -translate-x-1/2 rounded-full bg-indigo-500/20 blur-[120px]" />
+      <div className="absolute bottom-0 right-0 h-80 w-[320px] rounded-full bg-violet-500/15 blur-[100px]" />
+      <div className="absolute top-1/3 -left-24 h-70 w-70 rounded-full bg-indigo-600/10 blur-[90px]" />
       <div
         className="absolute inset-0 opacity-[0.35]"
         style={{
@@ -195,7 +195,7 @@ export default function PublicConnectPage({ params }: { params: Promise<{ slug: 
             transition={{ type: "spring", stiffness: 260, damping: 22, delay: 0.05 }}
             className="relative mx-auto mb-5 h-fit w-fit"
           >
-            <div className="absolute -inset-1 rounded-full bg-gradient-to-br from-indigo-500/50 via-violet-500/40 to-indigo-600/30 blur-sm" />
+            <div className="absolute -inset-1 rounded-full bg-linear-to-br from-indigo-500/50 via-violet-500/40 to-indigo-600/30 blur-sm" />
             <div className="relative h-24 w-24 overflow-hidden rounded-full border-2 border-border/80 bg-muted shadow-xl shadow-black/20">
               {profile.avatar ? (
                 <img
@@ -204,7 +204,7 @@ export default function PublicConnectPage({ params }: { params: Promise<{ slug: 
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-500/20 to-violet-500/10">
+                <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-indigo-500/20 to-violet-500/10">
                   <User className="h-9 w-9 text-muted-foreground" />
                 </div>
               )}

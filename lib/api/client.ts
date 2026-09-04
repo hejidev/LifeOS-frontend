@@ -1,4 +1,5 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://lifeos-backend-cnfx.onrender.com";
+// const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://lifeos-backend-cnfx.onrender.com";
+const API_URL = ""; // requests now go through the Next.js rewrite proxy, same-origin
 
 interface RefreshResponse {
   accessToken: string;
