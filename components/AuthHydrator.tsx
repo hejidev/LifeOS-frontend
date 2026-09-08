@@ -3,7 +3,8 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { refreshAccessToken, getAccessToken } from "@/lib/api/client";
-import { useAuthStore, type UserRole } from "@/lib/stores/auth-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { UserRole } from "@/types/life";
 
 export function AuthHydrator() {
   const queryClient = useQueryClient();
