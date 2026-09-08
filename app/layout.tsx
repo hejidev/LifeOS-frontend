@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   description: "One intelligent platform to manage every aspect of your life. Free forever.",
 };
 
+<meta name="google-site-verification" content="BrG1L5uaVIMjAYAK7qbmk72MJjncX2LvmVCm2OKqfrk" />
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full dark`}>

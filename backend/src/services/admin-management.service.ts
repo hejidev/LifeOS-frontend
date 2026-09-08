@@ -3,6 +3,7 @@ import { prisma } from "../config/prisma";
 import { AppError } from "../lib/errors";
 import { logAdminAction } from "./audit.service";
 import { getIO } from "../sockets/io-instance";
+import { sendRoleChangedEmail } from "./email.service";
 
 export async function changeUserRole(actingAdminId: string, targetUserId: string, newRole: "USER" | "ADMIN" | "SUPER_ADMIN") {
   if (actingAdminId === targetUserId) {
@@ -24,6 +25,7 @@ export async function changeUserRole(actingAdminId: string, targetUserId: string
   }
 
   await logAdminAction(actingAdminId, "ROLE_CHANGED", "User", targetUserId, `Changed ${updated.email} from ${target.role} to ${newRole}`);
+  await sendRoleChangedEmail(updated.email, updated.name ?? "there", newRole);
   return updated;
 }
 

@@ -12,6 +12,7 @@ const prisma_1 = require("../config/prisma");
 const errors_1 = require("../lib/errors");
 const auth_service_1 = require("./auth.service");
 const cloudinary_1 = require("../config/cloudinary");
+const email_service_1 = require("./email.service");
 const SALT_ROUNDS = 12;
 async function getProfile(userId) {
     const user = await prisma_1.prisma.user.findUnique({ where: { id: userId } });
@@ -33,6 +34,7 @@ async function changePassword(userId, currentPassword, newPassword) {
         throw new errors_1.AppError("Current password is incorrect", 401);
     const passwordHash = await bcrypt_1.default.hash(newPassword, SALT_ROUNDS);
     await prisma_1.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    await (0, email_service_1.sendPasswordChangedEmail)(user.email, user.name ?? "there");
 }
 async function uploadAvatar(userId, fileBuffer) {
     const uploaded = await new Promise((resolve, reject) => {

@@ -43,6 +43,7 @@ const compression_1 = __importDefault(require("compression"));
 const hpp_1 = __importDefault(require("hpp"));
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const env_1 = require("./config/env");
+const utilitiesController = __importStar(require("./controllers/utilities.controller"));
 const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
 const oauth_routes_1 = __importDefault(require("./routes/oauth.routes"));
 const staff_auth_routes_1 = __importDefault(require("./routes/staff-auth.routes"));
@@ -85,6 +86,7 @@ const security_routes_1 = __importDefault(require("./routes/security.routes"));
 const contact_submission_routes_1 = __importDefault(require("./routes/contact-submission.routes"));
 const site_content_routes_1 = __importDefault(require("./routes/site-content.routes"));
 const errorHandler_middleware_1 = require("./middlewares/errorHandler.middleware");
+const cron_1 = require("./config/cron");
 const app = (0, express_1.default)();
 app.set("trust proxy", 1);
 app.use((0, helmet_1.default)());
@@ -92,7 +94,8 @@ app.use((0, cors_1.default)({
     origin: [
         env_1.env.FRONTEND_URL,
         "http://localhost:3000",
-        "https://life-os-vert-ten.vercel.app"
+        "https://life-os-vert-ten.vercel.app",
+        "https://www.lifeos.com.ng"
     ],
     credentials: true
 }));
@@ -102,6 +105,18 @@ app.use((0, cookie_parser_1.default)());
 app.use((0, hpp_1.default)());
 app.use((0, compression_1.default)());
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
+app.get("/api/public/social-profile/:slug", (req, res, next) => utilitiesController
+    .getPublicSocialProfile(req.params.slug, {
+    userAgent: req.get("user-agent") ?? undefined,
+    referrer: req.get("referer") ?? undefined,
+})
+    .then((data) => res.json(data))
+    .catch((err) => {
+    if (err.message === "Social profile not found") {
+        return res.status(404).json({ error: err.message });
+    }
+    return next(err);
+}));
 // Auth-layer routers — no evidence these shadow anything, left in place
 app.use("/api", auth_routes_1.default);
 app.use("/api", oauth_routes_1.default);
@@ -149,4 +164,5 @@ app.use("/api", utilities_routes_1.default);
 app.use("/api", emergency_routes_1.default);
 app.use("/api", notification_routes_1.default);
 app.use(errorHandler_middleware_1.errorHandler);
+(0, cron_1.startCronJobs)();
 exports.default = app;

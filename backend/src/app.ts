@@ -51,6 +51,7 @@ import contactSubmissionRoutes from "./routes/contact-submission.routes";
 import siteContentRoutes from "./routes/site-content.routes";
 
 import { errorHandler } from "./middlewares/errorHandler.middleware";
+import { startCronJobs } from "./config/cron";
 
 const app = express();
 
@@ -60,7 +61,8 @@ app.use(cors({
   origin: [
     env.FRONTEND_URL,
     "http://localhost:3000",
-    "https://life-os-vert-ten.vercel.app"
+    "https://life-os-vert-ten.vercel.app",
+    "https://www.lifeos.com.ng"
   ],
   credentials: true
 }));
@@ -141,5 +143,7 @@ app.use("/api", emergencyRoutes);
 app.use("/api", notificationRoutes);
 
 app.use(errorHandler);
+
+startCronJobs();
 
 export default app;

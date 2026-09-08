@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import crypto from "crypto";
 import { asyncHandler, AppError } from "../lib/errors";
 import type { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import { env } from "../config/env";
@@ -21,16 +22,19 @@ export const portal = asyncHandler(async (req: AuthenticatedRequest, res: Respon
 });
 
 export const webhook = asyncHandler(async (req: Request, res: Response) => {
-  const signature = req.headers["stripe-signature"];
+  const signature = req.headers["x-paystack-signature"];
   if (!signature) throw new AppError("Missing signature", 400);
 
-  let event;
-  try {
-    event = billingService.stripe.webhooks.constructEvent(req.body, signature, env.STRIPE_WEBHOOK_SECRET);
-  } catch (err) {
+  const expected = crypto
+    .createHmac("sha512", env.PAYSTACK_SECRET_KEY)
+    .update(req.body)
+    .digest("hex");
+
+  if (expected !== signature) {
     throw new AppError("Invalid webhook signature", 400);
   }
 
+  const event = JSON.parse(req.body.toString());
   await billingService.handleWebhookEvent(event);
-  return res.json({ received: true });
+  return res.status(200).json({ received: true });
 });

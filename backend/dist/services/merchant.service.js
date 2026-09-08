@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -23,9 +56,10 @@ const crypto_1 = __importDefault(require("crypto"));
 const plan_1 = require("../config/plan");
 const prisma_1 = require("../config/prisma");
 const errors_1 = require("../lib/errors");
-const billing_service_1 = require("./billing.service");
+const paystack = __importStar(require("./paystack.service"));
 const notification_service_1 = require("./notification.service");
 const audit_service_1 = require("./audit.service");
+const email_service_1 = require("./email.service");
 async function getApplicationStatus(userId) {
     const profile = await prisma_1.prisma.bizProfile.findUnique({ where: { userId } });
     if (!profile)
@@ -119,34 +153,23 @@ async function createMerchantCheckout(userId, email, planKey, interval = "month"
     const plan = plan_1.MERCHANT_PLANS[planKey];
     if (!plan)
         throw new errors_1.AppError("Invalid plan", 400);
-    const priceId = interval === "year" ? plan.priceIdYearly : plan.priceIdMonthly;
-    if (!priceId)
+    const planCode = interval === "year" ? plan.planCodeYearly : plan.planCodeMonthly;
+    if (!planCode)
         throw new errors_1.AppError("This plan isn't available for that billing interval", 400);
-    let customerId = profile.stripeCustomerId;
-    if (!customerId) {
-        const customer = await billing_service_1.stripe.customers.create({ email, metadata: { userId, type: "merchant" } });
-        customerId = customer.id;
-        await prisma_1.prisma.bizProfile.update({ where: { userId }, data: { stripeCustomerId: customerId } });
-    }
-    const session = await billing_service_1.stripe.checkout.sessions.create({
-        customer: customerId,
-        mode: "subscription",
-        line_items: [{ price: priceId, quantity: 1 }],
-        success_url: `${env_1.env.FRONTEND_URL}/merchant/dashboard?merchantPlanActive=true`,
-        cancel_url: `${env_1.env.FRONTEND_URL}/merchant/billing?canceled=true`,
+    const result = await paystack.initializeTransaction({
+        email,
+        plan: planCode,
+        callback_url: `${env_1.env.FRONTEND_URL}/merchant/dashboard?merchantPlanActive=true`,
         metadata: { userId, type: "merchant" },
     });
-    return session.url;
+    return result.authorization_url;
 }
 async function createMerchantPortalSession(userId) {
     const profile = await prisma_1.prisma.bizProfile.findUnique({ where: { userId } });
-    if (!profile?.stripeCustomerId)
+    if (!profile?.paystackSubscriptionCode)
         throw new errors_1.AppError("No merchant billing account found", 400);
-    const session = await billing_service_1.stripe.billingPortal.sessions.create({
-        customer: profile.stripeCustomerId,
-        return_url: `${env_1.env.FRONTEND_URL}/merchant/billing`,
-    });
-    return session.url;
+    const result = await paystack.getSubscriptionManageLink(profile.paystackSubscriptionCode);
+    return result.link;
 }
 // ─── Admin review ──────────────────────────────────────────────────────────
 async function listApplications(status) {
@@ -185,6 +208,9 @@ async function changeMerchantStatus(reviewerId, bizProfileId, action, reason) {
         });
         await (0, audit_service_1.logAdminAction)(reviewerId, "MERCHANT_APPROVED", "BizProfile", bizProfileId, `Approved ${updated.businessName}`);
         await (0, notification_service_1.createNotification)(updated.userId, { type: "MERCHANT", title: "You're approved!", message: `${updated.businessName} was approved. Choose a plan to activate your dashboard.`, actionUrl: "/merchant/billing" });
+        const owner = await prisma_1.prisma.user.findUnique({ where: { id: updated.userId }, select: { email: true } });
+        if (owner)
+            await (0, email_service_1.sendMerchantApprovedEmail)(owner.email, updated.businessName);
         return updated;
     }
     if (action === "REJECT") {
@@ -196,6 +222,9 @@ async function changeMerchantStatus(reviewerId, bizProfileId, action, reason) {
         });
         await (0, audit_service_1.logAdminAction)(reviewerId, "MERCHANT_REJECTED", "BizProfile", bizProfileId, `Rejected ${updated.businessName}`);
         await (0, notification_service_1.createNotification)(updated.userId, { type: "MERCHANT", title: "Application not approved", message: reason ?? "Your merchant application was not approved.", actionUrl: "/merchant/apply" });
+        const owner = await prisma_1.prisma.user.findUnique({ where: { id: updated.userId }, select: { email: true } });
+        if (owner)
+            await (0, email_service_1.sendMerchantRejectedEmail)(owner.email, updated.businessName, reason);
         return updated;
     }
     if (action === "SUSPEND") {
@@ -207,6 +236,9 @@ async function changeMerchantStatus(reviewerId, bizProfileId, action, reason) {
         });
         await (0, audit_service_1.logAdminAction)(reviewerId, "MERCHANT_SUSPENDED", "BizProfile", bizProfileId, `Suspended ${updated.businessName}`);
         await (0, notification_service_1.createNotification)(updated.userId, { type: "ALERT", title: "Merchant account suspended", message: reason ?? "Your merchant account has been suspended." });
+        const owner = await prisma_1.prisma.user.findUnique({ where: { id: updated.userId }, select: { email: true } });
+        if (owner)
+            await (0, email_service_1.sendMerchantSuspendedEmail)(owner.email, updated.businessName, reason);
         return updated;
     }
     if (action === "REACTIVATE") {
@@ -218,6 +250,9 @@ async function changeMerchantStatus(reviewerId, bizProfileId, action, reason) {
         });
         await (0, audit_service_1.logAdminAction)(reviewerId, "MERCHANT_REACTIVATED", "BizProfile", bizProfileId, `Reactivated ${updated.businessName}`);
         await (0, notification_service_1.createNotification)(updated.userId, { type: "SUCCESS", title: "Merchant account reactivated", message: "Your merchant account is active again." });
+        const owner = await prisma_1.prisma.user.findUnique({ where: { id: updated.userId }, select: { email: true } });
+        if (owner)
+            await (0, email_service_1.sendMerchantReactivatedEmail)(owner.email, updated.businessName);
         return updated;
     }
     throw new errors_1.AppError("Invalid action", 400);

@@ -28,25 +28,45 @@ const envSchema = z.object({
   CLOUDCONVERT_API_KEY: z.string().min(1, "CLOUDCONVERT_API_KEY is required"),
   GEMINI_API_KEY: z.string().min(1, "GEMINI_API_KEY is required"),
 
-  STRIPE_SECRET_KEY: z.string().min(1),
-  STRIPE_WEBHOOK_SECRET: z.string().min(1),
-  STRIPE_PRICE_STARTER_MONTHLY: z.string().min(1),
-  STRIPE_PRICE_STARTER_YEARLY: z.string().min(1),
+  // STRIPE_SECRET_KEY: z.string().min(1),
+  // STRIPE_WEBHOOK_SECRET: z.string().min(1),
+  // STRIPE_PRICE_STARTER_MONTHLY: z.string().min(1),
+  // STRIPE_PRICE_STARTER_YEARLY: z.string().min(1),
   
-  STRIPE_PRICE_PRO_MONTHLY: z.string().min(1),
-  STRIPE_PRICE_PRO_YEARLY: z.string().min(1),
+  // STRIPE_PRICE_PRO_MONTHLY: z.string().min(1),
+  // STRIPE_PRICE_PRO_YEARLY: z.string().min(1),
 
-  STRIPE_PRICE_PREMIUM_MONTHLY: z.string().min(1),
-  STRIPE_PRICE_PREMIUM_YEARLY: z.string().min(1),
+  // STRIPE_PRICE_PREMIUM_MONTHLY: z.string().min(1),
+  // STRIPE_PRICE_PREMIUM_YEARLY: z.string().min(1),
 
-  STRIPE_PRICE_MERCHANT_STARTER_MONTHLY: z.string().min(1),
-  STRIPE_PRICE_MERCHANT_STARTER_YEARLY: z.string().min(1),
+  // STRIPE_PRICE_MERCHANT_STARTER_MONTHLY: z.string().min(1),
+  // STRIPE_PRICE_MERCHANT_STARTER_YEARLY: z.string().min(1),
 
-  STRIPE_PRICE_MERCHANT_GROWTH_MONTHLY: z.string().min(1),
-  STRIPE_PRICE_MERCHANT_GROWTH_YEARLY: z.string().min(1),
+  // STRIPE_PRICE_MERCHANT_GROWTH_MONTHLY: z.string().min(1),
+  // STRIPE_PRICE_MERCHANT_GROWTH_YEARLY: z.string().min(1),
 
-  STRIPE_PRICE_MERCHANT_PRO_MONTHLY: z.string().min(1),
-  STRIPE_PRICE_MERCHANT_PRO_YEARLY: z.string().min(1),
+  // STRIPE_PRICE_MERCHANT_PRO_MONTHLY: z.string().min(1),
+  // STRIPE_PRICE_MERCHANT_PRO_YEARLY: z.string().min(1),
+
+  PAYSTACK_SECRET_KEY: z.string().min(1),
+
+  PAYSTACK_PLAN_STARTER_MONTHLY: z.string().min(1),
+  PAYSTACK_PLAN_STARTER_YEARLY: z.string().min(1),
+
+  PAYSTACK_PLAN_PRO_MONTHLY: z.string().min(1),
+  PAYSTACK_PLAN_PRO_YEARLY: z.string().min(1),
+
+  PAYSTACK_PLAN_PREMIUM_MONTHLY: z.string().min(1),
+  PAYSTACK_PLAN_PREMIUM_YEARLY: z.string().min(1),
+
+  PAYSTACK_PLAN_MERCHANT_STARTER_MONTHLY: z.string().min(1),
+  PAYSTACK_PLAN_MERCHANT_STARTER_YEARLY: z.string().min(1),
+
+  PAYSTACK_PLAN_MERCHANT_GROWTH_MONTHLY: z.string().min(1),
+  PAYSTACK_PLAN_MERCHANT_GROWTH_YEARLY: z.string().min(1),
+
+  PAYSTACK_PLAN_MERCHANT_PRO_MONTHLY: z.string().min(1),
+  PAYSTACK_PLAN_MERCHANT_PRO_YEARLY: z.string().min(1),
 
   FRONTEND_URL: z.string().url().default("http://localhost:3000"),
 

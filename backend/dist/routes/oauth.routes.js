@@ -39,6 +39,7 @@ const env_1 = require("../config/env");
 const prisma_1 = require("../config/prisma");
 const googleService = __importStar(require("../services/oauth/google.service"));
 const authService = __importStar(require("../services/auth.service"));
+const email_service_1 = require("../services/email.service");
 const REFRESH_COOKIE = "lifeos_rt";
 const router = (0, express_1.Router)();
 router.get("/auth/google", (0, errors_1.asyncHandler)(async (_req, res) => {
@@ -52,6 +53,7 @@ router.get("/auth/google/callback", (0, errors_1.asyncHandler)(async (req, res) 
         throw new errors_1.AppError("Invalid OAuth state", 400);
     const googleUser = await googleService.exchangeCodeForGoogleUser(code);
     let user = await prisma_1.prisma.user.findUnique({ where: { email: googleUser.email } });
+    let isNewUser = false;
     if (!user) {
         user = await prisma_1.prisma.user.create({
             data: {
@@ -63,10 +65,12 @@ router.get("/auth/google/callback", (0, errors_1.asyncHandler)(async (req, res) 
                 emailVerified: true,
             },
         });
+        isNewUser = true;
     }
-    const { accessToken, refreshToken } = await authService.issueSession(user.id, user.role, user.sessionVersion);
+    const { accessToken, refreshToken } = await authService.issueSession(user.id, user.email, user.name, user.role, user.sessionVersion);
+    if (isNewUser)
+        await (0, email_service_1.sendWelcomeEmail)(user.email, user.name ?? "there");
     const isProd = env_1.env.NODE_ENV !== "development";
-    // Set refresh token cookie
     res.cookie(REFRESH_COOKIE, refreshToken, {
         httpOnly: true,
         secure: isProd,
@@ -74,7 +78,6 @@ router.get("/auth/google/callback", (0, errors_1.asyncHandler)(async (req, res) 
         path: "/",
         maxAge: 30 * 24 * 60 * 60 * 1000,
     });
-    // Set flag cookies for middleware
     res.cookie("lifeos_authed", "1", {
         httpOnly: false,
         secure: isProd,
@@ -89,8 +92,6 @@ router.get("/auth/google/callback", (0, errors_1.asyncHandler)(async (req, res) 
         path: "/",
         maxAge: 30 * 24 * 60 * 60 * 1000,
     });
-    // Access token rides a one-time redirect; the frontend exchanges it
-    // for session state immediately and the URL never gets bookmarked/shared.
     res.redirect(`${env_1.env.FRONTEND_URL}/oauth/callback?accessToken=${accessToken}`);
 }));
 exports.default = router;

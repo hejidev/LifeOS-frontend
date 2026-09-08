@@ -4,224 +4,264 @@ import { logger } from "../lib/logger";
 
 const resend = new Resend(env.RESEND_API_KEY);
 
-export async function sendLoginCodeEmail(to: string, code: string) {
-  const { error } = await resend.emails.send({
-    from: env.RESEND_FROM_EMAIL,
-    to,
-    subject: "Your LifeOS sign-in code",
-    html: `<p>Your LifeOS sign-in code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px">${code}</p><p>This code expires in 10 minutes. Do not share it with anyone.</p>`,
-  });
+function renderLayout(heading: string, bodyHtml: string) {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      </head>
+      <body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px;">
+          <tr>
+            <td align="center">
+              <table width="480" cellpadding="0" cellspacing="0" style="background:#111;border:1px solid #222;border-radius:16px;overflow:hidden;">
+                <tr>
+                  <td style="padding:40px 40px 32px;text-align:center;background:linear-gradient(135deg,#6366f1,#8b5cf6);">
+                    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">LifeOS</h1>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:40px;">
+                    <h2 style="margin:0 0 12px;color:#fff;font-size:20px;font-weight:600;">${heading}</h2>
+                    ${bodyHtml}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:24px 40px;border-top:1px solid #222;text-align:center;">
+                    <p style="margin:0;color:#444;font-size:11px;">&copy; ${new Date().getFullYear()} LifeOS. All rights reserved.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+}
+
+function paragraph(text: string) {
+  return `<p style="margin:0 0 20px;color:#888;font-size:14px;line-height:1.6;">${text}</p>`;
+}
+
+function button(label: string, href: string) {
+  return `
+    <table cellpadding="0" cellspacing="0" width="100%">
+      <tr>
+        <td align="center">
+          <a href="${href}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;">
+            ${label}
+          </a>
+        </td>
+      </tr>
+    </table>
+  `;
+}
+
+async function send(to: string, subject: string, html: string, { critical = false }: { critical?: boolean } = {}) {
+  const { data, error } = await resend.emails.send({ from: env.RESEND_FROM_EMAIL, to, subject, html });
   if (error) {
-    logger.error("[resend] failed to send login code:", error);
-    throw new Error("Failed to send sign-in code");
+    logger.error(`[resend] failed to send "${subject}" to ${to}:`, error);
+    if (critical) throw new Error(`Failed to send email: ${subject}`);
+    return;
   }
+  logger.info(`[resend] sent "${subject}" to ${to}:`, data?.id);
+}
+
+export async function sendLoginCodeEmail(to: string, code: string) {
+  const html = renderLayout(
+    "Your sign-in code",
+    paragraph("Use the code below to sign in. It expires in 10 minutes — don't share it with anyone.") +
+      `<p style="margin:0 0 20px;font-size:28px;font-weight:700;letter-spacing:6px;color:#fff;">${code}</p>`
+  );
+  await send(to, "Your LifeOS sign-in code", html, { critical: true });
 }
 
 export async function sendPasswordResetEmail(to: string, resetLink: string) {
-  const { data, error } = await resend.emails.send({
-    from: env.RESEND_FROM_EMAIL,
-    to,
-    subject: "Reset your LifeOS password",
-    html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        </head>
-        <body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px;">
-            <tr>
-              <td align="center">
-                <table width="480" cellpadding="0" cellspacing="0" style="background:#111;border:1px solid #222;border-radius:16px;overflow:hidden;">
-                  <tr>
-                    <td style="padding:40px 40px 32px;text-align:center;background:linear-gradient(135deg,#6366f1,#8b5cf6);">
-                      <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">LifeOS</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding:40px;">
-                      <h2 style="margin:0 0 12px;color:#fff;font-size:20px;font-weight:600;">Reset your password</h2>
-                      <p style="margin:0 0 28px;color:#888;font-size:14px;line-height:1.6;">
-                        We received a request to reset the password for your LifeOS account.
-                        Click the button below to choose a new password. This link expires in 15 minutes.
-                      </p>
-                      <table cellpadding="0" cellspacing="0" width="100%">
-                        <tr>
-                          <td align="center">
-                            <a href="${resetLink}"
-                               style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;">
-                              Reset password
-                            </a>
-                          </td>
-                        </tr>
-                      </table>
-                      <p style="margin:28px 0 0;color:#555;font-size:12px;line-height:1.6;">
-                        If you didn't request this, you can safely ignore this email.
-                        Your password won't change.
-                      </p>
-                      <p style="margin:16px 0 0;color:#444;font-size:11px;">
-                        Or copy this link into your browser:<br/>
-                        <span style="color:#6366f1;word-break:break-all;">${resetLink}</span>
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding:24px 40px;border-top:1px solid #222;text-align:center;">
-                      <p style="margin:0;color:#444;font-size:11px;">
-                        &copy; ${new Date().getFullYear()} LifeOS. All rights reserved.
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
-    `,
-  });
-
-  if (error) {
-    logger.error("[resend] failed to send password reset email:", error);
-    throw new Error("Failed to send reset email");
-  }
-
-  logger.info("[resend] password reset email sent:", data?.id);
+  const html = renderLayout(
+    "Reset your password",
+    paragraph("We received a request to reset the password for your LifeOS account. Click the button below to choose a new password. This link expires in 15 minutes.") +
+      button("Reset password", resetLink) +
+      `<p style="margin:28px 0 0;color:#555;font-size:12px;line-height:1.6;">If you didn't request this, you can safely ignore this email. Your password won't change.</p>
+       <p style="margin:16px 0 0;color:#444;font-size:11px;">Or copy this link into your browser:<br/><span style="color:#6366f1;word-break:break-all;">${resetLink}</span></p>`
+  );
+  await send(to, "Reset your LifeOS password", html, { critical: true });
 }
 
 export async function sendFamilyInviteEmail(to: string, inviterName: string, joinLink: string) {
-  const { error } = await resend.emails.send({
-    from: env.RESEND_FROM_EMAIL,
-    to,
-    subject: `${inviterName} invited you to join their Family Space on LifeOS`,
-    html: `
-      <!DOCTYPE html>
-      <html>
-        <body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px;">
-            <tr><td align="center">
-              <table width="480" cellpadding="0" cellspacing="0" style="background:#111;border:1px solid #222;border-radius:16px;overflow:hidden;">
-                <tr><td style="padding:40px 40px 32px;text-align:center;background:linear-gradient(135deg,#6366f1,#8b5cf6);">
-                  <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;">LifeOS</h1>
-                </td></tr>
-                <tr><td style="padding:40px;">
-                  <h2 style="margin:0 0 12px;color:#fff;font-size:20px;">You're invited to a Family Space</h2>
-                  <p style="margin:0 0 28px;color:#888;font-size:14px;line-height:1.6;">
-                    ${inviterName} invited you to join their family on LifeOS. This link expires in 7 days.
-                  </p>
-                  <table cellpadding="0" cellspacing="0" width="100%"><tr><td align="center">
-                    <a href="${joinLink}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;">
-                      Join Family Space
-                    </a>
-                  </td></tr></table>
-                </td></tr>
-              </table>
-            </td></tr>
-          </table>
-        </body>
-      </html>
-    `,
-  });
-  if (error) {
-    logger.error("[resend] failed to send family invite email:", error);
-    throw new Error("Failed to send invite email");
-  }
+  const html = renderLayout(
+    "You're invited to a Family Space",
+    paragraph(`${inviterName} invited you to join their family on LifeOS. This link expires in 7 days.`) +
+      button("Join Family Space", joinLink)
+  );
+  await send(to, `${inviterName} invited you to join their Family Space on LifeOS`, html, { critical: true });
 }
 
 export async function sendContactNotificationEmail(to: string, data: { name: string; email: string; subject?: string; message: string }) {
-  const { error } = await resend.emails.send({
-    from: env.RESEND_FROM_EMAIL,
-    to,
-    subject: `New contact form submission${data.subject ? `: ${data.subject}` : ""}`,
-    html: `
-      <!DOCTYPE html>
-      <html>
-        <body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px;">
-            <tr><td align="center">
-              <table width="480" cellpadding="0" cellspacing="0" style="background:#111;border:1px solid #222;border-radius:16px;overflow:hidden;">
-                <tr><td style="padding:32px 40px;text-align:center;background:linear-gradient(135deg,#6366f1,#8b5cf6);">
-                  <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">New contact message</h1>
-                </td></tr>
-                <tr><td style="padding:32px 40px;">
-                  <p style="margin:0 0 8px;color:#888;font-size:12px;">From</p>
-                  <p style="margin:0 0 20px;color:#fff;font-size:14px;">${data.name} · ${data.email}</p>
-                  ${data.subject ? `<p style="margin:0 0 8px;color:#888;font-size:12px;">Subject</p><p style="margin:0 0 20px;color:#fff;font-size:14px;">${data.subject}</p>` : ""}
-                  <p style="margin:0 0 8px;color:#888;font-size:12px;">Message</p>
-                  <p style="margin:0;color:#ccc;font-size:14px;line-height:1.6;white-space:pre-wrap;">${data.message}</p>
-                </td></tr>
-              </table>
-            </td></tr>
-          </table>
-        </body>
-      </html>
-    `,
-  });
-  if (error) {
-    logger.error("[resend] failed to send contact notification email:", error);
-    throw new Error("Failed to send contact notification email");
-  }
+  const html = renderLayout(
+    "New contact message",
+    `<p style="margin:0 0 8px;color:#888;font-size:12px;">From</p>
+     <p style="margin:0 0 20px;color:#fff;font-size:14px;">${data.name} · ${data.email}</p>
+     ${data.subject ? `<p style="margin:0 0 8px;color:#888;font-size:12px;">Subject</p><p style="margin:0 0 20px;color:#fff;font-size:14px;">${data.subject}</p>` : ""}
+     <p style="margin:0 0 8px;color:#888;font-size:12px;">Message</p>
+     <p style="margin:0;color:#ccc;font-size:14px;line-height:1.6;white-space:pre-wrap;">${data.message}</p>`
+  );
+  await send(to, `New contact form submission${data.subject ? `: ${data.subject}` : ""}`, html, { critical: true });
 }
 
-export async function sendSubscriptionConfirmationEmail(
-  to: string,
-  data: { planName: string; interval: "month" | "year"; periodEnd: Date }
-) {
-  const { error } = await resend.emails.send({
-    from: env.RESEND_FROM_EMAIL,
-    to,
-    subject: `You're subscribed to ${data.planName}`,
-    html: `
-      <!DOCTYPE html>
-      <html>
-        <body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px;">
-            <tr><td align="center">
-              <table width="480" cellpadding="0" cellspacing="0" style="background:#111;border:1px solid #222;border-radius:16px;overflow:hidden;">
-                <tr><td style="padding:40px 40px 32px;text-align:center;background:linear-gradient(135deg,#6366f1,#8b5cf6);">
-                  <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;">LifeOS</h1>
-                </td></tr>
-                <tr><td style="padding:40px;">
-                  <h2 style="margin:0 0 12px;color:#fff;font-size:20px;font-weight:600;">You're all set</h2>
-                  <p style="margin:0 0 20px;color:#888;font-size:14px;line-height:1.6;">
-                    Your <strong style="color:#fff;">${data.planName}</strong> subscription is now active, billed ${data.interval === "year" ? "yearly" : "monthly"}.
-                  </p>
-                  <table width="100%" cellpadding="0" cellspacing="0" style="background:#181818;border-radius:10px;margin-bottom:24px;">
-                    <tr><td style="padding:16px 20px;">
-                      <p style="margin:0 0 4px;color:#888;font-size:12px;">Next billing date</p>
-                      <p style="margin:0;color:#fff;font-size:14px;font-weight:600;">${data.periodEnd.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}</p>
-                    </td></tr>
-                  </table>
-                  <p style="margin:0;color:#555;font-size:12px;line-height:1.6;">You can manage or cancel your subscription any time from your Billing page.</p>
-                </td></tr>
-                <tr><td style="padding:24px 40px;border-top:1px solid #222;text-align:center;">
-                  <p style="margin:0;color:#444;font-size:11px;">&copy; ${new Date().getFullYear()} LifeOS. All rights reserved.</p>
-                </td></tr>
-              </table>
-            </td></tr>
-          </table>
-        </body>
-      </html>
-    `,
-  });
-  if (error) {
-    logger.error("[resend] failed to send subscription confirmation email:", error);
-  }
+export async function sendSubscriptionConfirmationEmail(to: string, data: { planName: string; interval: "month" | "year"; periodEnd: Date }) {
+  const html = renderLayout(
+    "You're all set",
+    paragraph(`Your <strong style="color:#fff;">${data.planName}</strong> subscription is now active, billed ${data.interval === "year" ? "yearly" : "monthly"}.`) +
+      `<table width="100%" cellpadding="0" cellspacing="0" style="background:#181818;border-radius:10px;margin-bottom:24px;">
+         <tr><td style="padding:16px 20px;">
+           <p style="margin:0 0 4px;color:#888;font-size:12px;">Next billing date</p>
+           <p style="margin:0;color:#fff;font-size:14px;font-weight:600;">${data.periodEnd.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}</p>
+         </td></tr>
+       </table>
+       <p style="margin:0;color:#555;font-size:12px;line-height:1.6;">You can manage or cancel your subscription any time from your Billing page.</p>`
+  );
+  await send(to, `You're subscribed to ${data.planName}`, html);
 }
 
 export async function sendSupportEmailChangeVerification(to: string, confirmLink: string) {
-  const { error } = await resend.emails.send({
-    from: env.RESEND_FROM_EMAIL,
-    to,
-    subject: "Confirm your new LifeOS email address",
-    html: `<p>A LifeOS support agent started an email-address change for your account.</p>
-      <p>Confirm this new address by opening the link below. It expires in 30 minutes.</p>
-      <p><a href="${confirmLink}">Confirm email change</a></p>
-      <p>If you did not contact support, do not open this link and contact LifeOS immediately.</p>`,
-  });
-  if (error) {
-    logger.error("[resend] failed to send email-change verification:", error);
-    throw new Error("Failed to send email-change verification");
-  }
+  const html = renderLayout(
+    "Confirm your new email address",
+    paragraph("A LifeOS support agent started an email-address change for your account. Confirm this new address by clicking below. It expires in 30 minutes.") +
+      button("Confirm email change", confirmLink) +
+      paragraph("If you did not contact support, do not click this link and contact LifeOS immediately.")
+  );
+  await send(to, "Confirm your new LifeOS email address", html, { critical: true });
+}
+
+export async function sendWelcomeEmail(to: string, name: string) {
+  const html = renderLayout(
+    `Welcome, ${name.split(" ")[0]}`,
+    paragraph("Your LifeOS account is ready. Tasks, notes, habits, finance, and everything else you need to run your life now live in one place.")
+  );
+  await send(to, "Welcome to LifeOS", html);
+}
+
+export async function sendLoginAlertEmail(to: string, name: string, time: string) {
+  const html = renderLayout(
+    "New sign-in to your account",
+    paragraph(`Hi ${name.split(" ")[0]}, your LifeOS account was just signed in to on ${time}.`) +
+      paragraph("If this was you, no action is needed. If you don't recognize this, change your password immediately.")
+  );
+  await send(to, "New sign-in to your LifeOS account", html);
+}
+
+export async function sendPasswordChangedEmail(to: string, name: string) {
+  const html = renderLayout(
+    "Your password was changed",
+    paragraph(`Hi ${name.split(" ")[0]}, the password for your LifeOS account was just changed.`) +
+      paragraph("If you didn't make this change, contact support immediately.")
+  );
+  await send(to, "Your LifeOS password was changed", html);
+}
+
+export async function sendRoleChangedEmail(to: string, name: string, newRole: string) {
+  const html = renderLayout(
+    "Your account role was updated",
+    paragraph(`Hi ${name.split(" ")[0]}, your LifeOS account role was changed to <strong style="color:#fff;">${newRole.replace("_", " ")}</strong> by an administrator.`)
+  );
+  await send(to, "Your LifeOS account role has changed", html);
+}
+
+export async function sendEmailChangedByAdminEmail(to: string, name: string, newEmail: string) {
+  const html = renderLayout(
+    "Your email address was updated",
+    paragraph(`Hi ${name.split(" ")[0]}, an administrator changed the email address on your LifeOS account to <strong style="color:#fff;">${newEmail}</strong>.`) +
+      paragraph("If you didn't expect this, contact support immediately.")
+  );
+  await send(to, "Your LifeOS email address has changed", html);
+}
+
+export async function sendMerchantApprovedEmail(to: string, businessName: string) {
+  const html = renderLayout(
+    "You're approved!",
+    paragraph(`Great news — <strong style="color:#fff;">${businessName}</strong> has been approved as a LifeOS merchant. Choose a plan to activate your dashboard and start selling.`)
+  );
+  await send(to, "Your LifeOS merchant application was approved", html);
+}
+
+export async function sendMerchantRejectedEmail(to: string, businessName: string, reason?: string) {
+  const html = renderLayout(
+    "Application not approved",
+    paragraph(`Your application for <strong style="color:#fff;">${businessName}</strong> was not approved this time.`) +
+      (reason ? paragraph(`Reason: ${reason}`) : "")
+  );
+  await send(to, "Your LifeOS merchant application status", html);
+}
+
+export async function sendMerchantSuspendedEmail(to: string, businessName: string, reason?: string) {
+  const html = renderLayout(
+    "Your merchant account was suspended",
+    paragraph(`Your merchant account for <strong style="color:#fff;">${businessName}</strong> has been suspended.`) +
+      (reason ? paragraph(`Reason: ${reason}`) : "") +
+      paragraph("Contact support if you believe this was a mistake.")
+  );
+  await send(to, "Your LifeOS merchant account has been suspended", html);
+}
+
+export async function sendMerchantReactivatedEmail(to: string, businessName: string) {
+  const html = renderLayout(
+    "Your merchant account is active again",
+    paragraph(`Good news — <strong style="color:#fff;">${businessName}</strong> has been reactivated and your dashboard is fully accessible again.`)
+  );
+  await send(to, "Your LifeOS merchant account has been reactivated", html);
+}
+
+export async function sendStaffAddedEmail(to: string, ownerName: string, staffName: string, businessName: string) {
+  const html = renderLayout(
+    "New staff member added",
+    paragraph(`Hi ${ownerName.split(" ")[0]}, ${staffName} was just added as a staff member on ${businessName}.`) +
+      paragraph("If you didn't do this, review your staff list immediately.")
+  );
+  await send(to, `New staff member added to ${businessName}`, html);
+}
+
+export async function sendTwoFactorEnabledEmail(to: string, name: string) {
+  const html = renderLayout(
+    "Two-factor authentication enabled",
+    paragraph(`Hi ${name.split(" ")[0]}, two-factor authentication was just turned on for your LifeOS account.`) +
+      paragraph("If you didn't do this, contact support immediately.")
+  );
+  await send(to, "Two-factor authentication enabled on your LifeOS account", html);
+}
+
+export async function sendTwoFactorResetEmail(to: string, name: string, reason: string) {
+  const html = renderLayout(
+    "Two-factor authentication was reset",
+    paragraph(`Hi ${name.split(" ")[0]}, two-factor authentication on your LifeOS account was reset by a support agent.`) +
+      paragraph(`Reason given: ${reason}`) +
+      paragraph("If you didn't request this, contact support immediately and secure your account.")
+  );
+  await send(to, "Two-factor authentication reset on your LifeOS account", html);
+}
+
+export async function sendAdminLoginAlertEmail(to: string, adminName: string, adminEmail: string, time: string) {
+  const html = renderLayout(
+    "Admin sign-in",
+    paragraph(`${adminName} (${adminEmail}) signed in to the LifeOS admin panel on ${time}.`)
+  );
+  await send(to, `Admin sign-in: ${adminName}`, html);
+}
+
+export async function sendBillingReminderEmail(to: string, name: string, planName: string, daysRemaining: number, renewalDate: Date) {
+  const dateLabel = renewalDate.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+  const timeLabel =
+    daysRemaining === 1 ? "tomorrow" :
+    daysRemaining === 30 ? "in 1 month" :
+    daysRemaining % 7 === 0 ? `in ${daysRemaining / 7} weeks` :
+    `in ${daysRemaining} days`;
+
+  const html = renderLayout(
+    "Your plan renews soon",
+    paragraph(`Hi ${name.split(" ")[0]}, your <strong style="color:#fff;">${planName}</strong> plan renews ${timeLabel}, on ${dateLabel}.`) +
+      paragraph("No action is needed if you'd like to continue — you'll be billed automatically. If you'd like to make changes or cancel, you can do that any time from your Billing page before the renewal date.")
+  );
+  await send(to, `Your ${planName} plan renews ${timeLabel}`, html);
 }

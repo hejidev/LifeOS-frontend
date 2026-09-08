@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import { prisma } from "../config/prisma";
 import { AppError } from "../lib/errors";
 import { createNotification } from "./notification.service";
+import { sendStaffAddedEmail } from "./email.service";
 
 async function getBizProfileId(userId: string) {
   const profile = await prisma.bizProfile.findUnique({ where: { userId } });
@@ -26,6 +27,12 @@ export async function createStaff(userId: string, data: { name: string; email?: 
   const staff = await prisma.bizStaff.create({
     data: { bizProfileId, name: data.name, email: data.email, phone: data.phone, address: data.address, age: data.age, sex: data.sex, tribe: data.tribe, religion: data.religion, role: data.role as any, pinHash },
   });
+
+  const profile = await prisma.bizProfile.findUnique({ where: { id: bizProfileId }, include: { user: { select: { email: true, name: true } } } });
+  if (profile) {
+    await sendStaffAddedEmail(profile.user.email, profile.user.name ?? "there", staff.name, profile.businessName);
+  }
+
   return serializeStaff(staff);
 }
 

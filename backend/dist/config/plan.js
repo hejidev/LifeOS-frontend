@@ -1,41 +1,41 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MERCHANT_PLANS = exports.PLANS = exports.FREE_USES_PER_TOOL = void 0;
-exports.priceIdToTier = priceIdToTier;
-exports.merchantPriceIdToTier = merchantPriceIdToTier;
+exports.planCodeToTier = planCodeToTier;
+exports.merchantPlanCodeToTier = merchantPlanCodeToTier;
 const env_1 = require("./env");
 exports.FREE_USES_PER_TOOL = 3;
 exports.PLANS = {
     STARTER: {
         name: "Starter",
-        priceIdMonthly: env_1.env.STRIPE_PRICE_STARTER_MONTHLY,
-        priceIdYearly: env_1.env.STRIPE_PRICE_STARTER_YEARLY,
-        priceLabelMonthly: "$7/mo",
-        priceLabelYearly: "$57/yr",
+        planCodeMonthly: env_1.env.PAYSTACK_PLAN_STARTER_MONTHLY,
+        planCodeYearly: env_1.env.PAYSTACK_PLAN_STARTER_YEARLY,
+        priceLabelMonthly: "₦1,000/mo",
+        priceLabelYearly: "₦10,000/yr",
         description: "For light, regular use across all tools.",
     },
     PRO: {
         name: "Pro",
-        priceIdMonthly: env_1.env.STRIPE_PRICE_PRO_MONTHLY,
-        priceIdYearly: env_1.env.STRIPE_PRICE_PRO_YEARLY,
-        priceLabelMonthly: "$15/mo",
-        priceLabelYearly: "$94/yr",
+        planCodeMonthly: env_1.env.PAYSTACK_PLAN_PRO_MONTHLY,
+        planCodeYearly: env_1.env.PAYSTACK_PLAN_PRO_YEARLY,
+        priceLabelMonthly: "₦2,500/mo",
+        priceLabelYearly: "₦25,000/yr",
         description: "Unlimited AI writing, image tools, and conversions.",
     },
     PREMIUM: {
         name: "Premium",
-        priceIdMonthly: env_1.env.STRIPE_PRICE_PREMIUM_MONTHLY,
-        priceIdYearly: env_1.env.STRIPE_PRICE_PREMIUM_YEARLY,
-        priceLabelMonthly: "$29/mo",
-        priceLabelYearly: "$148/yr",
+        planCodeMonthly: env_1.env.PAYSTACK_PLAN_PREMIUM_MONTHLY,
+        planCodeYearly: env_1.env.PAYSTACK_PLAN_PREMIUM_YEARLY,
+        priceLabelMonthly: "₦4,500/mo",
+        priceLabelYearly: "₦45,000/yr",
         description: "Everything in Pro, plus priority processing.",
     },
 };
-function priceIdToTier(priceId) {
+function planCodeToTier(planCode) {
     for (const [key, plan] of Object.entries(exports.PLANS)) {
-        if (plan.priceIdMonthly === priceId)
+        if (plan.planCodeMonthly === planCode)
             return { tier: key, interval: "month" };
-        if (plan.priceIdYearly === priceId)
+        if (plan.planCodeYearly === planCode)
             return { tier: key, interval: "year" };
     }
     return null;
@@ -43,37 +43,37 @@ function priceIdToTier(priceId) {
 exports.MERCHANT_PLANS = {
     STARTER: {
         name: "Merchant Starter",
-        priceIdMonthly: env_1.env.STRIPE_PRICE_MERCHANT_STARTER_MONTHLY,
-        priceIdYearly: env_1.env.STRIPE_PRICE_MERCHANT_STARTER_YEARLY,
-        priceLabelMonthly: "$5/mo",
-        priceLabelYearly: "$48/yr",
+        planCodeMonthly: env_1.env.PAYSTACK_PLAN_MERCHANT_STARTER_MONTHLY,
+        planCodeYearly: env_1.env.PAYSTACK_PLAN_MERCHANT_STARTER_YEARLY,
+        priceLabelMonthly: "₦2,000/mo",
+        priceLabelYearly: "₦20,000/yr",
         description: "Up to 50 products, 1 staff seat, core POS tools.",
         staffLimit: 1,
     },
     GROWTH: {
         name: "Merchant Growth",
-        priceIdMonthly: env_1.env.STRIPE_PRICE_MERCHANT_GROWTH_MONTHLY,
-        priceIdYearly: env_1.env.STRIPE_PRICE_MERCHANT_GROWTH_YEARLY,
-        priceLabelMonthly: "$20/mo",
-        priceLabelYearly: "$190/yr",
+        planCodeMonthly: env_1.env.PAYSTACK_PLAN_MERCHANT_GROWTH_MONTHLY,
+        planCodeYearly: env_1.env.PAYSTACK_PLAN_MERCHANT_GROWTH_YEARLY,
+        priceLabelMonthly: "₦5,000/mo",
+        priceLabelYearly: "₦50,000/yr",
         description: "Unlimited products, 5 staff seats, customer CRM.",
         staffLimit: 5,
     },
     PRO: {
         name: "Merchant Pro",
-        priceIdMonthly: env_1.env.STRIPE_PRICE_MERCHANT_PRO_MONTHLY,
-        priceIdYearly: env_1.env.STRIPE_PRICE_MERCHANT_PRO_YEARLY,
-        priceLabelMonthly: "$30/mo",
-        priceLabelYearly: "$280/yr",
+        planCodeMonthly: env_1.env.PAYSTACK_PLAN_MERCHANT_PRO_MONTHLY,
+        planCodeYearly: env_1.env.PAYSTACK_PLAN_MERCHANT_PRO_YEARLY,
+        priceLabelMonthly: "₦10,000/mo",
+        priceLabelYearly: "₦100,000/yr",
         description: "Unlimited staff, priority support, advanced reports.",
         staffLimit: Infinity,
     },
 };
-function merchantPriceIdToTier(priceId) {
+function merchantPlanCodeToTier(planCode) {
     for (const [key, plan] of Object.entries(exports.MERCHANT_PLANS)) {
-        if (plan.priceIdMonthly === priceId)
+        if (plan.planCodeMonthly === planCode)
             return { tier: key, interval: "month" };
-        if (plan.priceIdYearly === priceId)
+        if (plan.planCodeYearly === planCode)
             return { tier: key, interval: "year" };
     }
     return null;

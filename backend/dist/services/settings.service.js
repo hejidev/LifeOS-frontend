@@ -14,6 +14,7 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const prisma_1 = require("../config/prisma");
 const errors_1 = require("../lib/errors");
 const password_policy_1 = require("../lib/password-policy");
+const email_service_1 = require("./email.service");
 function serializeUser(u) {
     return {
         id: u.id,
@@ -72,6 +73,7 @@ async function changePassword(userId, currentPassword, newPassword) {
         where: { id: userId },
         data: { passwordHash, sessionVersion: { increment: 1 } },
     });
+    await (0, email_service_1.sendPasswordChangedEmail)(user.email, user.name ?? "there");
 }
 // Aggregated snapshot of everything the user has across LifeOS — powers the
 // "your data at a glance" section on the Settings page.

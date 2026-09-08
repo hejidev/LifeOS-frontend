@@ -14,6 +14,7 @@ const prisma_1 = require("../config/prisma");
 const errors_1 = require("../lib/errors");
 const audit_service_1 = require("./audit.service");
 const io_instance_1 = require("../sockets/io-instance");
+const email_service_1 = require("./email.service");
 async function changeUserRole(actingAdminId, targetUserId, newRole) {
     if (actingAdminId === targetUserId) {
         throw new errors_1.AppError("You cannot change your own role", 400);
@@ -31,6 +32,7 @@ async function changeUserRole(actingAdminId, targetUserId, newRole) {
         await prisma_1.prisma.adminPermission.deleteMany({ where: { userId: targetUserId } });
     }
     await (0, audit_service_1.logAdminAction)(actingAdminId, "ROLE_CHANGED", "User", targetUserId, `Changed ${updated.email} from ${target.role} to ${newRole}`);
+    await (0, email_service_1.sendRoleChangedEmail)(updated.email, updated.name ?? "there", newRole);
     return updated;
 }
 async function createAdmin(actingAdminId, data) {

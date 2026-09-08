@@ -12,6 +12,7 @@ const otplib_1 = require("otplib");
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const prisma_1 = require("../config/prisma");
 const errors_1 = require("../lib/errors");
+const email_service_1 = require("./email.service");
 function buildOtpauthUri(email, secret) {
     const issuer = "LifeOS";
     const label = encodeURIComponent(`${issuer}:${email}`);
@@ -34,6 +35,7 @@ async function enableTwoFactor(userId, code) {
     if (!result.valid)
         throw new errors_1.AppError("Invalid code", 401);
     await prisma_1.prisma.user.update({ where: { id: userId }, data: { twoFactorEnabled: true } });
+    await (0, email_service_1.sendTwoFactorEnabledEmail)(user.email, user.name ?? "there");
 }
 async function disableTwoFactor(userId, password, code) {
     const user = await prisma_1.prisma.user.findUnique({ where: { id: userId } });

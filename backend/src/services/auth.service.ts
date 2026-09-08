@@ -5,7 +5,15 @@ import { redis } from "../config/redis";
 import { AppError } from "../lib/errors";
 import { assertStrongPassword } from "../lib/password-policy";
 import { signAccessToken, issueRefreshToken, rotateRefreshToken, revokeRefreshToken } from "./token.service";
-import { sendLoginCodeEmail, sendPasswordResetEmail } from "./email.service";
+
+import {
+  sendLoginCodeEmail,
+  sendPasswordResetEmail,
+  sendWelcomeEmail,
+  sendPasswordChangedEmail,
+  sendLoginAlertEmail,
+  sendAdminLoginAlertEmail,
+} from "./email.service";
 import { env } from "../config/env";
 import { logger } from "../lib/logger";
 
@@ -34,6 +42,8 @@ export async function registerUser(input: {
     data: { email: input.email, name: input.name, passwordHash, role: "USER", provider: "CREDENTIALS" },
   });
 
+  await sendWelcomeEmail(user.email, user.name);
+
   return sanitizeUser(user);
 }
 
@@ -55,10 +65,27 @@ export async function authenticateUser(email: string, password: string, meta: { 
   return sanitizeUser(user);
 }
 
-export async function issueSession(userId: string, role: string, sessionVersion: number) {
+export async function issueSession(userId: string, email: string, name: string | null, role: string, sessionVersion: number) {
   const accessToken = signAccessToken({ sub: userId, role, sv: sessionVersion });
   const { raw: refreshToken } = await issueRefreshToken(userId, sessionVersion);
+
+  notifyLogin({ email, name, role }).catch((err) => {
+    logger.error("[auth] notifyLogin failed:", err);
+  });
+
   return { accessToken, refreshToken };
+}
+
+async function notifyLogin(user: { email: string; name: string | null; role: string }) {
+  const time = new Date().toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" });
+  await sendLoginAlertEmail(user.email, user.name ?? "there", time);
+
+  if (user.role === "ADMIN") {
+    const superAdmins = await prisma.user.findMany({ where: { role: "SUPER_ADMIN" }, select: { email: true } });
+    await Promise.all(
+      superAdmins.map((sa) => sendAdminLoginAlertEmail(sa.email, user.name ?? "An admin", user.email, time))
+    );
+  }
 }
 
 export async function refreshSession(refreshToken: string) {
@@ -106,11 +133,13 @@ export async function resetPassword(token: string, newPassword: string) {
   if (!userId) throw new AppError("Reset link is invalid or has expired", 400);
 
   const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
-  await prisma.user.update({
+  const user = await prisma.user.update({
     where: { id: userId },
     data: { passwordHash, sessionVersion: { increment: 1 } },
   });
   await redis.del(`reset:${hashed}`);
+
+  await sendPasswordChangedEmail(user.email, user.name ?? "there");
 }
 
 export async function requestEmailLoginCode(emailInput: string) {

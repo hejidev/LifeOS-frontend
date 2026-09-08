@@ -40,6 +40,7 @@ async function registerUser(input) {
     const user = await prisma_1.prisma.user.create({
         data: { email: input.email, name: input.name, passwordHash, role: "USER", provider: "CREDENTIALS" },
     });
+    await (0, email_service_1.sendWelcomeEmail)(user.email, user.name);
     return sanitizeUser(user);
 }
 async function authenticateUser(email, password, meta = {}) {
@@ -56,10 +57,21 @@ async function authenticateUser(email, password, meta = {}) {
     }
     return sanitizeUser(user);
 }
-async function issueSession(userId, role, sessionVersion) {
+async function issueSession(userId, email, name, role, sessionVersion) {
     const accessToken = (0, token_service_1.signAccessToken)({ sub: userId, role, sv: sessionVersion });
     const { raw: refreshToken } = await (0, token_service_1.issueRefreshToken)(userId, sessionVersion);
+    notifyLogin({ email, name, role }).catch((err) => {
+        logger_1.logger.error("[auth] notifyLogin failed:", err);
+    });
     return { accessToken, refreshToken };
+}
+async function notifyLogin(user) {
+    const time = new Date().toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" });
+    await (0, email_service_1.sendLoginAlertEmail)(user.email, user.name ?? "there", time);
+    if (user.role === "ADMIN") {
+        const superAdmins = await prisma_1.prisma.user.findMany({ where: { role: "SUPER_ADMIN" }, select: { email: true } });
+        await Promise.all(superAdmins.map((sa) => (0, email_service_1.sendAdminLoginAlertEmail)(sa.email, user.name ?? "An admin", user.email, time)));
+    }
 }
 async function refreshSession(refreshToken) {
     const result = await (0, token_service_1.rotateRefreshToken)(refreshToken);
@@ -96,11 +108,12 @@ async function resetPassword(token, newPassword) {
     if (!userId)
         throw new errors_1.AppError("Reset link is invalid or has expired", 400);
     const passwordHash = await bcrypt_1.default.hash(newPassword, SALT_ROUNDS);
-    await prisma_1.prisma.user.update({
+    const user = await prisma_1.prisma.user.update({
         where: { id: userId },
         data: { passwordHash, sessionVersion: { increment: 1 } },
     });
     await redis_1.redis.del(`reset:${hashed}`);
+    await (0, email_service_1.sendPasswordChangedEmail)(user.email, user.name ?? "there");
 }
 async function requestEmailLoginCode(emailInput) {
     const email = normaliseEmail(emailInput);

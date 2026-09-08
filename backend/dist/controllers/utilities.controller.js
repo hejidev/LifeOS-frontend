@@ -52,11 +52,19 @@ exports.translateText = (0, errors_1.asyncHandler)(async (req, res) => {
 });
 exports.createSocialProfile = (0, errors_1.asyncHandler)(async (req, res) => {
     const userId = req.user.id;
-    const profile = await socialProfileService.createSocialProfile({
-        userId,
-        ...req.body,
-    });
-    return res.status(201).json(profile);
+    try {
+        const profile = await socialProfileService.createSocialProfile({
+            userId,
+            ...req.body,
+        });
+        return res.status(201).json(profile);
+    }
+    catch (err) {
+        if (err.message === "That username is already taken") {
+            return res.status(409).json({ error: err.message });
+        }
+        throw err;
+    }
 });
 async function getPublicSocialProfile(slug, viewData) {
     const profile = await prisma_1.prisma.socialProfile.findFirst({

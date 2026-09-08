@@ -3,7 +3,7 @@ import { AppError } from "../lib/errors";
 import { logAdminAction } from "./audit.service";
 import { revokeAllUserSessions } from "./token.service";
 import { forgotPassword } from "./auth.service";
-import { sendSupportEmailChangeVerification } from "./email.service";
+import { sendEmailChangedByAdminEmail, sendSupportEmailChangeVerification, sendTwoFactorResetEmail } from "./email.service";
 import { redis } from "../config/redis";
 import { env } from "../config/env";
 import crypto from "crypto";
@@ -28,11 +28,11 @@ export async function listUsers(search?: string) {
   const users = await prisma.user.findMany({
     where: search
       ? {
-          OR: [
-            { name: { contains: search, mode: "insensitive" } },
-            { email: { contains: search, mode: "insensitive" } },
-          ],
-        }
+        OR: [
+          { name: { contains: search, mode: "insensitive" } },
+          { email: { contains: search, mode: "insensitive" } },
+        ],
+      }
       : undefined,
     include: { subscription: true },
     orderBy: { createdAt: "desc" },
@@ -225,12 +225,17 @@ export async function confirmSupportEmailChange(token: string) {
   const request = JSON.parse(raw) as { adminId: string; userId: string; newEmail: string; reason: string };
   const existing = await prisma.user.findUnique({ where: { email: request.newEmail } });
   if (existing && existing.id !== request.userId) throw new AppError("That email address is already in use", 409);
+
+  const before = await prisma.user.findUnique({ where: { id: request.userId }, select: { email: true, name: true } });
+
   const updated = await prisma.user.update({
     where: { id: request.userId },
     data: { email: request.newEmail, emailVerified: true, sessionVersion: { increment: 1 } },
   });
   await Promise.all([redis.del(key), revokeAllUserSessions(updated.id)]);
   await logAdminAction(request.adminId, "USER_EMAIL_CHANGED", "User", updated.id, `Changed account email to ${updated.email}. Reason: ${request.reason}`);
+
+  if (before) await sendEmailChangedByAdminEmail(before.email, before.name ?? "there", updated.email);
 }
 
 export async function resetSupportTwoFactor(adminId: string, userId: string, reason: string) {
@@ -242,6 +247,7 @@ export async function resetSupportTwoFactor(adminId: string, userId: string, rea
   });
   await revokeAllUserSessions(target.id);
   await logAdminAction(adminId, "USER_TWO_FACTOR_RESET", "User", target.id, `Reset two-factor authentication for ${target.email}. Reason: ${reason}`);
+  await sendTwoFactorResetEmail(target.email, target.name ?? "there", reason);
 }
 
 export async function deleteUser(adminId: string, userId: string, confirmationEmail: string, reason: string) {

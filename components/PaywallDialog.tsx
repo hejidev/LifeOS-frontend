@@ -1,7 +1,6 @@
 "use client";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Sparkles, Zap, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCreateCheckout } from "@/lib/hooks/use-life-data";
@@ -10,7 +9,7 @@ const PLANS = [
   {
     key: "STARTER" as const,
     name: "Starter",
-    price: "$7/mo",
+    price: "₦1,000/mo",
     desc: "For light, regular use.",
     icon: Zap,
     iconBg: "bg-sky-500/10",
@@ -20,7 +19,7 @@ const PLANS = [
   {
     key: "PRO" as const,
     name: "Pro",
-    price: "$15/mo",
+    price: "₦2,500/mo",
     desc: "Unlimited across all tools.",
     icon: Sparkles,
     iconBg: "bg-violet-500/10",
@@ -31,7 +30,7 @@ const PLANS = [
   {
     key: "PREMIUM" as const,
     name: "Premium",
-    price: "$29/mo",
+    price: "₦4,500/mo",
     desc: "Pro + priority processing.",
     icon: Crown,
     iconBg: "bg-amber-500/10",

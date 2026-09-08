@@ -14,6 +14,7 @@ const bcrypt_1 = __importDefault(require("bcrypt"));
 const prisma_1 = require("../config/prisma");
 const errors_1 = require("../lib/errors");
 const notification_service_1 = require("./notification.service");
+const email_service_1 = require("./email.service");
 async function getBizProfileId(userId) {
     const profile = await prisma_1.prisma.bizProfile.findUnique({ where: { userId } });
     if (!profile)
@@ -35,6 +36,10 @@ async function createStaff(userId, data) {
     const staff = await prisma_1.prisma.bizStaff.create({
         data: { bizProfileId, name: data.name, email: data.email, phone: data.phone, address: data.address, age: data.age, sex: data.sex, tribe: data.tribe, religion: data.religion, role: data.role, pinHash },
     });
+    const profile = await prisma_1.prisma.bizProfile.findUnique({ where: { id: bizProfileId }, include: { user: { select: { email: true, name: true } } } });
+    if (profile) {
+        await (0, email_service_1.sendStaffAddedEmail)(profile.user.email, profile.user.name ?? "there", staff.name, profile.businessName);
+    }
     return serializeStaff(staff);
 }
 async function updateStaff(userId, staffId, data) {

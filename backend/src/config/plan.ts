@@ -5,26 +5,26 @@ export const FREE_USES_PER_TOOL = 3;
 export const PLANS = {
   STARTER: {
     name: "Starter",
-    priceIdMonthly: env.STRIPE_PRICE_STARTER_MONTHLY,
-    priceIdYearly: env.STRIPE_PRICE_STARTER_YEARLY,
-    priceLabelMonthly: "$7/mo",
-    priceLabelYearly: "$57/yr",
+    planCodeMonthly: env.PAYSTACK_PLAN_STARTER_MONTHLY,
+    planCodeYearly: env.PAYSTACK_PLAN_STARTER_YEARLY,
+    priceLabelMonthly: "₦1,000/mo",
+    priceLabelYearly: "₦10,000/yr",
     description: "For light, regular use across all tools.",
   },
   PRO: {
     name: "Pro",
-    priceIdMonthly: env.STRIPE_PRICE_PRO_MONTHLY,
-    priceIdYearly: env.STRIPE_PRICE_PRO_YEARLY,
-    priceLabelMonthly: "$15/mo",
-    priceLabelYearly: "$94/yr",
+    planCodeMonthly: env.PAYSTACK_PLAN_PRO_MONTHLY,
+    planCodeYearly: env.PAYSTACK_PLAN_PRO_YEARLY,
+    priceLabelMonthly: "₦2,500/mo",
+    priceLabelYearly: "₦25,000/yr",
     description: "Unlimited AI writing, image tools, and conversions.",
   },
   PREMIUM: {
     name: "Premium",
-    priceIdMonthly: env.STRIPE_PRICE_PREMIUM_MONTHLY,
-    priceIdYearly: env.STRIPE_PRICE_PREMIUM_YEARLY,
-    priceLabelMonthly: "$29/mo",
-    priceLabelYearly: "$148/yr",
+    planCodeMonthly: env.PAYSTACK_PLAN_PREMIUM_MONTHLY,
+    planCodeYearly: env.PAYSTACK_PLAN_PREMIUM_YEARLY,
+    priceLabelMonthly: "₦4,500/mo",
+    priceLabelYearly: "₦45,000/yr",
     description: "Everything in Pro, plus priority processing.",
   },
 } as const;
@@ -32,10 +32,10 @@ export const PLANS = {
 export type PlanKey = keyof typeof PLANS;
 export type BillingInterval = "month" | "year";
 
-export function priceIdToTier(priceId: string): { tier: PlanKey; interval: BillingInterval } | null {
+export function planCodeToTier(planCode: string): { tier: PlanKey; interval: BillingInterval } | null {
   for (const [key, plan] of Object.entries(PLANS)) {
-    if (plan.priceIdMonthly === priceId) return { tier: key as PlanKey, interval: "month" };
-    if (plan.priceIdYearly === priceId) return { tier: key as PlanKey, interval: "year" };
+    if (plan.planCodeMonthly === planCode) return { tier: key as PlanKey, interval: "month" };
+    if (plan.planCodeYearly === planCode) return { tier: key as PlanKey, interval: "year" };
   }
   return null;
 }
@@ -43,28 +43,28 @@ export function priceIdToTier(priceId: string): { tier: PlanKey; interval: Billi
 export const MERCHANT_PLANS = {
   STARTER: {
     name: "Merchant Starter",
-    priceIdMonthly: env.STRIPE_PRICE_MERCHANT_STARTER_MONTHLY,
-    priceIdYearly: env.STRIPE_PRICE_MERCHANT_STARTER_YEARLY,
-    priceLabelMonthly: "$5/mo",
-    priceLabelYearly: "$48/yr",
+    planCodeMonthly: env.PAYSTACK_PLAN_MERCHANT_STARTER_MONTHLY,
+    planCodeYearly: env.PAYSTACK_PLAN_MERCHANT_STARTER_YEARLY,
+    priceLabelMonthly: "₦2,000/mo",
+    priceLabelYearly: "₦20,000/yr",
     description: "Up to 50 products, 1 staff seat, core POS tools.",
     staffLimit: 1,
   },
   GROWTH: {
     name: "Merchant Growth",
-    priceIdMonthly: env.STRIPE_PRICE_MERCHANT_GROWTH_MONTHLY,
-    priceIdYearly: env.STRIPE_PRICE_MERCHANT_GROWTH_YEARLY,
-    priceLabelMonthly: "$20/mo",
-    priceLabelYearly: "$190/yr",
+    planCodeMonthly: env.PAYSTACK_PLAN_MERCHANT_GROWTH_MONTHLY,
+    planCodeYearly: env.PAYSTACK_PLAN_MERCHANT_GROWTH_YEARLY,
+    priceLabelMonthly: "₦5,000/mo",
+    priceLabelYearly: "₦50,000/yr",
     description: "Unlimited products, 5 staff seats, customer CRM.",
     staffLimit: 5,
   },
   PRO: {
     name: "Merchant Pro",
-    priceIdMonthly: env.STRIPE_PRICE_MERCHANT_PRO_MONTHLY,
-    priceIdYearly: env.STRIPE_PRICE_MERCHANT_PRO_YEARLY,
-    priceLabelMonthly: "$30/mo",
-    priceLabelYearly: "$280/yr",
+    planCodeMonthly: env.PAYSTACK_PLAN_MERCHANT_PRO_MONTHLY,
+    planCodeYearly: env.PAYSTACK_PLAN_MERCHANT_PRO_YEARLY,
+    priceLabelMonthly: "₦10,000/mo",
+    priceLabelYearly: "₦100,000/yr",
     description: "Unlimited staff, priority support, advanced reports.",
     staffLimit: Infinity,
   },
@@ -72,10 +72,10 @@ export const MERCHANT_PLANS = {
 
 export type MerchantPlanKey = keyof typeof MERCHANT_PLANS;
 
-export function merchantPriceIdToTier(priceId: string): { tier: MerchantPlanKey; interval: BillingInterval } | null {
+export function merchantPlanCodeToTier(planCode: string): { tier: MerchantPlanKey; interval: BillingInterval } | null {
   for (const [key, plan] of Object.entries(MERCHANT_PLANS)) {
-    if (plan.priceIdMonthly === priceId) return { tier: key as MerchantPlanKey, interval: "month" };
-    if (plan.priceIdYearly === priceId) return { tier: key as MerchantPlanKey, interval: "year" };
+    if (plan.planCodeMonthly === planCode) return { tier: key as MerchantPlanKey, interval: "month" };
+    if (plan.planCodeYearly === planCode) return { tier: key as MerchantPlanKey, interval: "year" };
   }
   return null;
 }

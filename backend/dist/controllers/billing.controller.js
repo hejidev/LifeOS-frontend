@@ -32,8 +32,12 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.webhook = exports.portal = exports.checkout = exports.getSummary = void 0;
+const crypto_1 = __importDefault(require("crypto"));
 const errors_1 = require("../lib/errors");
 const env_1 = require("../config/env");
 const billingService = __importStar(require("../services/billing.service"));
@@ -51,16 +55,17 @@ exports.portal = (0, errors_1.asyncHandler)(async (req, res) => {
     return res.json({ url });
 });
 exports.webhook = (0, errors_1.asyncHandler)(async (req, res) => {
-    const signature = req.headers["stripe-signature"];
+    const signature = req.headers["x-paystack-signature"];
     if (!signature)
         throw new errors_1.AppError("Missing signature", 400);
-    let event;
-    try {
-        event = billingService.stripe.webhooks.constructEvent(req.body, signature, env_1.env.STRIPE_WEBHOOK_SECRET);
-    }
-    catch (err) {
+    const expected = crypto_1.default
+        .createHmac("sha512", env_1.env.PAYSTACK_SECRET_KEY)
+        .update(req.body)
+        .digest("hex");
+    if (expected !== signature) {
         throw new errors_1.AppError("Invalid webhook signature", 400);
     }
+    const event = JSON.parse(req.body.toString());
     await billingService.handleWebhookEvent(event);
-    return res.json({ received: true });
+    return res.status(200).json({ received: true });
 });

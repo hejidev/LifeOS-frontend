@@ -40,18 +40,6 @@ const utilitiesController = __importStar(require("../controllers/utilities.contr
 const utilities_validator_1 = require("../validators/utilities.validator");
 const social_profile_validator_1 = require("../validators/social-profile.validator");
 const router = (0, express_1.Router)();
-router.get("/public/social-profile/:slug", (req, res, next) => utilitiesController
-    .getPublicSocialProfile(req.params.slug, {
-    userAgent: req.get("user-agent") ?? undefined,
-    referrer: req.get("referer") ?? undefined,
-})
-    .then((data) => res.json(data))
-    .catch((err) => {
-    if (err.message === "Social profile not found") {
-        return res.status(404).json({ message: err.message });
-    }
-    return next(err);
-}));
 router.use(auth_middleware_1.requireAuth);
 router.get("/utilities/exchange-rates", utilitiesController.getExchangeRates);
 router.post("/utilities/translate", (0, validate_middleware_1.validate)(utilities_validator_1.translateSchema), utilitiesController.translateText);

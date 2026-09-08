@@ -217,12 +217,15 @@ async function confirmSupportEmailChange(token) {
     const existing = await prisma_1.prisma.user.findUnique({ where: { email: request.newEmail } });
     if (existing && existing.id !== request.userId)
         throw new errors_1.AppError("That email address is already in use", 409);
+    const before = await prisma_1.prisma.user.findUnique({ where: { id: request.userId }, select: { email: true, name: true } });
     const updated = await prisma_1.prisma.user.update({
         where: { id: request.userId },
         data: { email: request.newEmail, emailVerified: true, sessionVersion: { increment: 1 } },
     });
     await Promise.all([redis_1.redis.del(key), (0, token_service_1.revokeAllUserSessions)(updated.id)]);
     await (0, audit_service_1.logAdminAction)(request.adminId, "USER_EMAIL_CHANGED", "User", updated.id, `Changed account email to ${updated.email}. Reason: ${request.reason}`);
+    if (before)
+        await (0, email_service_1.sendEmailChangedByAdminEmail)(before.email, before.name ?? "there", updated.email);
 }
 async function resetSupportTwoFactor(adminId, userId, reason) {
     const target = await getSupportTarget(userId);
@@ -234,6 +237,7 @@ async function resetSupportTwoFactor(adminId, userId, reason) {
     });
     await (0, token_service_1.revokeAllUserSessions)(target.id);
     await (0, audit_service_1.logAdminAction)(adminId, "USER_TWO_FACTOR_RESET", "User", target.id, `Reset two-factor authentication for ${target.email}. Reason: ${reason}`);
+    await (0, email_service_1.sendTwoFactorResetEmail)(target.email, target.name ?? "there", reason);
 }
 async function deleteUser(adminId, userId, confirmationEmail, reason) {
     const target = await getSupportTarget(userId);
