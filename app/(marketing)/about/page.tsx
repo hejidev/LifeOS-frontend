@@ -26,7 +26,7 @@ function TestimonialMarquee({ testimonials }: { testimonials: any[] }) {
   const doubled = [...testimonials, ...testimonials];
 
   return (
-    <div className="overflow-hidden relative mask-[linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
+    <div className="max-w-7xl overflow-hidden mx-auto relative mask-[linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
       <div className="flex gap-4 w-max animate-marquee">
         {doubled.map((t, i) => (
           <Card key={`${t.id}-${i}`} className="w-72 shrink-0">
@@ -68,15 +68,15 @@ export default function AboutPage() {
   const others = (team as any[]).filter((m) => !m.isFounder);
 
   return (
-    <div>
-      <section className="max-w-3xl mx-auto px-4 pt-14 sm:pt-20 pb-10 text-center">
+    <div className="max-w-8xl">
+      <section className="max-w-7xl px-4 pt-14 sm:pt-20 pb-10 text-center">
         <h1 className="text-3xl sm:text-5xl font-bold tracking-tight">Built to run your whole life, not just a slice of it</h1>
         <p className="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto">
           LifeOS started from a simple frustration: tasks, notes, health, money, and work all live in different apps that don't talk to each other. We're building the one place that holds all of it — free at its core, and built to grow with whatever you're running, from a personal to-do list to a full merchant storefront.
         </p>
       </section>
 
-      <section className="max-w-5xl mx-auto px-4 py-10 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <section className="max-w-7xl mx-auto px-4 py-10 grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card>
           <CardContent className="pt-6">
             <Compass className="h-6 w-6 text-primary mb-3" />
@@ -94,7 +94,7 @@ export default function AboutPage() {
       </section>
 
       {founders.length > 0 && (
-        <section className="max-w-3xl mx-auto px-4 py-10">
+        <section className="max-w-7xl mx-auto px-4 py-10">
           <h2 className="text-2xl font-bold mb-6">{founders.length > 1 ? "Founders" : "Founder"}</h2>
           <div className="space-y-4">
             {founders.map((f) => (
@@ -118,7 +118,7 @@ export default function AboutPage() {
       )}
 
       {(teamLoading || others.length > 0) && (
-        <section className="max-w-5xl mx-auto px-4 py-10">
+        <section className="max-w-7xl mx-auto px-4 py-10">
           <h2 className="text-2xl font-bold mb-6">The team</h2>
           {teamLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-48 rounded-xl" />)}</div>
@@ -142,17 +142,17 @@ export default function AboutPage() {
         </section>
       )}
 
-      <section className="py-10">
-        <h2 className="text-2xl font-bold mb-6 text-center">What people say</h2>
+      <section className="mt-10 px-4 max-w-7xl mx-auto">
+        <h2 className="text-2xl font-bold mb-6">What people say</h2>
         {testimonialsLoading ? (
-          <div className="max-w-5xl mx-auto px-4 grid grid-cols-1 sm:grid-cols-3 gap-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}</div>
+          <div className="max-w-3xl mx-auto px-2 grid grid-cols-1 sm:grid-cols-3 gap-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}</div>
         ) : (
           <TestimonialMarquee testimonials={testimonials as any[]} />
         )}
       </section>
 
       {(cmsItems as any[]).length > 0 && (
-        <section className="max-w-3xl mx-auto px-4 py-10 border-t border-border">
+        <section className="max-w-7xl mt-10 mx-auto px-4 py-10 border-t border-border">
           <h2 className="text-xl font-bold mb-4">More from us</h2>
           {(cmsItems as any[]).map((c) => (
             <div key={c.id} className="space-y-3 text-sm text-muted-foreground">

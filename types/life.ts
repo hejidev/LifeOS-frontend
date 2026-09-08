@@ -27,7 +27,6 @@ export interface CalendarEvent {
   location?: string;
 }
 
-// Used by the Settings page — superset of AuthUser with notification prefs.
 export interface UserProfile {
   id: string;
   name: string;

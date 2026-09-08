@@ -14,7 +14,7 @@ async function paystackRequest(path, options = {}) {
             ...options.headers,
         },
     });
-    const data = await res.json();
+    const data = (await res.json());
     if (!res.ok || data.status === false) {
         throw new errors_1.AppError(data.message ?? "Paystack request failed", res.status || 400);
     }

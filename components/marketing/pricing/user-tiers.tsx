@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const TIERS = [
-  { key: "FREE", name: "Free", priceMonthly: "$0", priceYearly: "$0", desc: "Full LifeOS core — tasks, notes, health, finance, and more.", features: ["Unlimited tasks & notes", "Finance & budget tracking", "3 free uses per AI tool"] },
-  { key: "STARTER", name: "Starter", priceMonthly: "$7/mo", priceYearly: "$57/yr", desc: "Light, regular AI tool use.", features: ["Everything in Free", "More AI Writing credits", "More Image Tool credits"] },
-  { key: "PRO", name: "Pro", priceMonthly: "$15/mo", priceYearly: "$94/yr", desc: "Unlimited AI tools.", features: ["Everything in Starter", "Unlimited AI Writing", "Unlimited Image Tools & Conversions"], popular: true },
+  { key: "FREE", name: "Free", priceMonthly: "₦0", priceYearly: "₦0", desc: "Full LifeOS core — tasks, notes, health, finance, and more.", features: ["Unlimited tasks & notes", "Finance & budget tracking", "3 free uses per AI tool"] },
+  { key: "STARTER", name: "Starter", priceMonthly: "₦1,000/mo", priceYearly: "₦10,000/yr", desc: "Light, regular AI tool use.", features: ["Everything in Free", "More AI Writing credits", "More Image Tool credits"] },
+  { key: "PRO", name: "Pro", priceMonthly: "₦2,500/mo", priceYearly: "₦25,000/yr", desc: "Unlimited AI tools.", features: ["Everything in Starter", "Unlimited AI Writing", "Unlimited Image Tools & Conversions"], popular: true },
 ];
 
 export function UserPricingTiers() {

@@ -3,8 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { refreshAccessToken, getAccessToken } from "@/lib/api/client";
-import { useAuthStore } from "@/lib/stores/auth-store";
-import { UserRole } from "@/types/life";
+import { useAuthStore, type UserRole } from "@/lib/stores/auth-store";
 
 export function AuthHydrator() {
   const queryClient = useQueryClient();
@@ -28,7 +27,6 @@ export function AuthHydrator() {
             return;
           }
 
-          // Cookies are set by the backend with proper SameSite/secure settings
           queryClient.setQueryData(["me"], { user: data.user });
 
           authStoreLogin({
@@ -39,7 +37,6 @@ export function AuthHydrator() {
           });
         }
       } catch {
-        // Clear cookies on error since backend might not be reachable
         document.cookie = "lifeos_authed=; path=/; max-age=0";
         document.cookie = "lifeos_role=; path=/; max-age=0";
         authStoreLogin(null);

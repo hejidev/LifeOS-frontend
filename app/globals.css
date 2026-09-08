@@ -129,3 +129,33 @@ body {
   --sidebar-border: hsl(240 3.7% 15.9%);
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
 }
+
+@font-face {
+  font-family: Montserrat;
+  src: url('/assets/Montserrat-Light.ttf');
+}
+
+p, a, input, textarea {
+  font-family: Montserrat;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: Plus;
+  src: url('/assets/PlusJakartaSans-Light.ttf');
+}
+
+div, span, text {
+  font-family: Plus;
+  font-weight: 200;
+}
+
+@font-face {
+  font-family: Beb;
+  src: url('/assets/BebasNeue-Regular.ttf');
+}
+
+h1, h2, h3, h4, h5, h6, button {
+  font-family: Beb;
+  font-weight: 400;
+}

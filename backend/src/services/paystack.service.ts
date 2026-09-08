@@ -3,6 +3,12 @@ import { AppError } from "../lib/errors";
 
 const PAYSTACK_BASE_URL = "https://api.paystack.co";
 
+interface PaystackEnvelope<T> {
+  status: boolean;
+  message: string;
+  data: T;
+}
+
 async function paystackRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${PAYSTACK_BASE_URL}${path}`, {
     ...options,
@@ -13,11 +19,11 @@ async function paystackRequest<T>(path: string, options: RequestInit = {}): Prom
     },
   });
 
-  const data = await res.json();
+  const data = (await res.json()) as PaystackEnvelope<T>;
   if (!res.ok || data.status === false) {
     throw new AppError(data.message ?? "Paystack request failed", res.status || 400);
   }
-  return data.data as T;
+  return data.data;
 }
 
 interface InitializeTransactionInput {

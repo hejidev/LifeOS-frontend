@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const TIERS = [
-  { name: "Starter", priceMonthly: "$5/mo", priceYearly: "$48/yr", desc: "Up to 50 products, 1 staff seat.", features: ["POS & inventory", "1 staff seat", "Sales & expense tracking"] },
-  { name: "Growth", priceMonthly: "$20/mo", priceYearly: "$190/yr", desc: "Unlimited products, 5 staff seats.", features: ["Everything in Starter", "5 staff seats", "Customer CRM"], popular: true },
-  { name: "Pro", priceMonthly: "$30/mo", priceYearly: "$280/yr", desc: "Unlimited everything.", features: ["Everything in Growth", "Unlimited staff", "Priority support"] },
+  { name: "Starter", priceMonthly: "₦2,000/mo", priceYearly: "₦20,000/yr", desc: "Up to 50 products, 1 staff seat.", features: ["POS & inventory", "1 staff seat", "Sales & expense tracking"] },
+  { name: "Growth", priceMonthly: "₦5,000/mo", priceYearly: "₦50,000/yr", desc: "Unlimited products, 5 staff seats.", features: ["Everything in Starter", "5 staff seats", "Customer CRM"], popular: true },
+  { name: "Pro", priceMonthly: "₦10,000/mo", priceYearly: "₦100,000/yr", desc: "Unlimited everything.", features: ["Everything in Growth", "Unlimited staff", "Priority support"] },
 ];
 
 export function MerchantPricingTiers() {
