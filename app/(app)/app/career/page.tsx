@@ -270,7 +270,7 @@ export default function CareerPage() {
       </div>
 
       <Dialog open={goalOpen} onOpenChange={setGoalOpen}>
-        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5 mt-3 max-h-[90vh] flex flex-col gap-1">
+        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5 mt-10 max-h-[90vh] flex flex-col gap-1">
           <DialogHeader className="shrink-0"><DialogTitle className="text-start mb-0">{editingGoalId ? "Edit goal" : "Add career goal"}</DialogTitle></DialogHeader>
           <form onSubmit={handleGoalSubmit} className="flex flex-col flex-1 min-h-0">
             <ScrollArea className="flex-1 max-h-[60vh] pr-3">

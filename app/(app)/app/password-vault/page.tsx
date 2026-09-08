@@ -197,12 +197,12 @@ export default function PasswordVaultPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5 max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-70 sm:max-w-xl mt-7 px-5 sm:px-5 max-h-[90vh] flex flex-col">
           <DialogHeader className="shrink-0"><DialogTitle className="text-start">{editingId ? "Edit credential" : "Add credential"}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <ScrollArea className="flex-1 max-h-full pr-1">
               <div className="space-y-4 pt-2 pb-2">
-                <div className="space-y-1">
+                <div className="space-y-1 max-w-full">
                   <Label className="text-[10px] sm:text-xs">Label</Label>
                   <Input placeholder="e.g. Google, Chase Bank" value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} required className="text-xs sm:text-sm" />
                 </div>
