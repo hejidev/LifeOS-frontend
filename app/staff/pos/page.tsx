@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, Clock, LogOut, Sparkles, Users, RotateCcw, MessageSquare, UserCircle2,
-  Plus, Minus, Trash2, ShoppingCart, X, Store, Receipt, Download, Printer,
+  Plus, Minus, Trash2, ShoppingCart, X, Store, Receipt, Download, Printer, Search,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { staffApi, StaffSessionExpiredError } from "@/lib/api/staff-client";
@@ -112,6 +113,8 @@ export default function StaffShiftPage() {
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [checkingOut, setCheckingOut] = useState(false);
   const [receipt, setReceipt] = useState<any>(null);
+  const [productSearchQuery, setProductSearchQuery] = useState("");
+  const [recentSales, setRecentSales] = useState<any[]>([]);
 
   const elapsed = useElapsedTime(shiftStart);
   const clock = useClock();
@@ -150,6 +153,7 @@ export default function StaffShiftPage() {
 
   async function openSale() {
     setSaleOpen(true);
+    setProductSearchQuery("");
     try {
       const [p, c] = await Promise.all([
         staffApi.get("/staff-pos/products"),
@@ -161,6 +165,10 @@ export default function StaffShiftPage() {
       if (!(err instanceof StaffSessionExpiredError)) showToast("error", (err as Error).message);
     }
   }
+
+  const filteredProducts = productSearchQuery
+    ? products.filter((p) => p.name.toLowerCase().includes(productSearchQuery.toLowerCase()))
+    : products;
 
   function addToCart(p: any) {
     setCart((prev) => {
@@ -195,6 +203,7 @@ export default function StaffShiftPage() {
       setCustomerId("");
       setSaleOpen(false);
       setReceipt(sale);
+      setRecentSales((prev) => [sale, ...prev]);
       loadActivity();
     } catch (err) {
       if (!(err instanceof StaffSessionExpiredError)) showToast("error", (err as Error).message);
@@ -336,6 +345,26 @@ export default function StaffShiftPage() {
           </div>
         </div>
 
+        {recentSales.length > 0 && (
+          <Card>
+            <CardContent className="pt-4 sm:pt-6 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1"><Receipt className="h-3.5 w-3.5" /> Your receipts this shift</p>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {recentSales.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => setReceipt(s)}
+                    className="w-full flex items-center justify-between text-sm rounded-lg bg-muted/30 px-3 py-2 gap-2 hover:bg-muted/50 transition-colors text-left"
+                  >
+                    <span className="truncate">{s.receiptNumber}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">{currency} {s.total.toLocaleString()}</span>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardContent className="pt-4 sm:pt-6 space-y-2">
             <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1"><Sparkles className="h-3.5 w-3.5" /> Today's activity</p>
@@ -359,8 +388,26 @@ export default function StaffShiftPage() {
         <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><ShoppingCart className="h-4 w-4 text-primary" /> New Sale</DialogTitle></DialogHeader>
           <div className="flex-1 overflow-y-auto space-y-4 pt-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search products by name..."
+                value={productSearchQuery}
+                onChange={(e) => setProductSearchQuery(e.target.value)}
+                className="pl-9 h-9 text-sm"
+              />
+              {productSearchQuery && (
+                <button
+                  onClick={() => setProductSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-2">
-              {products.map((p) => {
+              {filteredProducts.map((p) => {
                 const inCart = cartQtyFor(p.id);
                 return (
                   <button
@@ -379,6 +426,9 @@ export default function StaffShiftPage() {
                 );
               })}
               {products.length === 0 && <p className="col-span-2 text-sm text-muted-foreground text-center py-4">No products available.</p>}
+              {products.length > 0 && filteredProducts.length === 0 && (
+                <p className="col-span-2 text-sm text-muted-foreground text-center py-4">No products match "{productSearchQuery}"</p>
+              )}
             </div>
 
             {cart.length > 0 && (
