@@ -230,7 +230,7 @@ export default function FamilySpacePage() {
       </div>
 
       <Dialog open={memberOpen} onOpenChange={setMemberOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className=" sm:w-full px-4 sm:px-6 max-h-[85vh] overflow-hidden">
           <DialogHeader><DialogTitle className="text-sm sm:text-base">Add family member</DialogTitle></DialogHeader>
           <form onSubmit={handleMemberSubmit} className="space-y-4 pt-2">
             <div className="space-y-1"><Label className="text-[10px] sm:text-xs">Name</Label><Input value={memberForm.name} onChange={(e) => setMemberForm((f) => ({ ...f, name: e.target.value }))} required className="text-xs sm:text-sm" /></div>
@@ -265,31 +265,31 @@ export default function FamilySpacePage() {
       </Dialog>
 
       <Dialog open={controlOpen} onOpenChange={setControlOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className=" sm:w-full px-4 sm:px-6 max-h-[80vh] overflow-hidden">
           <DialogHeader><DialogTitle>Add safety control</DialogTitle></DialogHeader>
-          <form onSubmit={handleControlSubmit} className="space-y-4 pt-2">
-            <div className="space-y-1">
-              <Label>Title</Label>
+          <form onSubmit={handleControlSubmit} className="space-y-2">
+            <div className="space-y-1 px-1">
+              <Label className="text-[10px] sm:text-sm">Title</Label>
               <Input placeholder="e.g. Screen time limit" value={controlForm.title} onChange={(e) => setControlForm((f) => ({ ...f, title: e.target.value }))} required />
             </div>
-            <div className="space-y-1">
-              <Label>Applies to</Label>
-              <select className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={controlForm.memberId} onChange={(e) => setControlForm((f) => ({ ...f, memberId: e.target.value }))}>
+            <div className="space-y-1 px-1">
+              <Label className="text-[10px] sm:text-sm">Applies to</Label>
+              <select className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-xs sm:text-sm" value={controlForm.memberId} onChange={(e) => setControlForm((f) => ({ ...f, memberId: e.target.value }))}>
                 <option value="">All members</option>
                 {members.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
-            <div className="space-y-1">
-              <Label>Value (optional)</Label>
+            <div className="space-y-1 px-1">
+              <Label  className="text-[10px] sm:text-sm">Value (optional)</Label>
               <Input placeholder="e.g. 2 hours/day, 9:00 PM" value={controlForm.value} onChange={(e) => setControlForm((f) => ({ ...f, value: e.target.value }))} />
             </div>
-            <div className="space-y-1">
-              <Label>Description (optional)</Label>
+            <div className="space-y-1 px-1">
+              <Label className="text-[10px] sm:text-sm">Description (optional)</Label>
               <Input value={controlForm.description} onChange={(e) => setControlForm((f) => ({ ...f, description: e.target.value }))} />
             </div>
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex items-center gap-2 cursor-pointer text-[10px] sm:text-sm">
               <Checkbox checked={controlForm.enabled} onCheckedChange={(checked) => setControlForm((f) => ({ ...f, enabled: !!checked }))} />
-              <span className="text-sm">Enabled</span>
+              <span className="text-[10px] sm:text-sm">Enabled</span>
             </label>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setControlOpen(false)}>Cancel</Button>

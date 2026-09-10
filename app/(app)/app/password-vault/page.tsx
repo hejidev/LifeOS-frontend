@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   KeyRound, ShieldCheck, Lock, Globe, Smartphone, Banknote, CreditCard,
@@ -24,13 +24,15 @@ const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
 const CATEGORY_ICONS: Record<string, any> = { WEBSITE: Globe, APP: Smartphone, BANK: Banknote, CARD: CreditCard, NOTE: Lock };
 const CATEGORY_LABELS: Record<string, string> = { WEBSITE: "Website", APP: "App", BANK: "Bank", CARD: "Card", NOTE: "Note" };
 
+const FIELD_TEXT = "text-[10px] sm:text-sm";
+const LABEL_TEXT = "text-xs sm:text-xs";
+
 function generatePassword(length = 16) {
   const charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*()-_=+";
   const bytes = new Uint32Array(length);
   window.crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => charset[b % charset.length]).join("");
 }
-
 function clientStrength(pw: string) {
   let score = 0;
   if (pw.length >= 8) score += 25;
@@ -64,10 +66,25 @@ export default function PasswordVaultPage() {
   const [form, setForm] = useState(emptyForm);
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+
+  const items = (data as any)?.items ?? [];
+
+  const filteredItems = useMemo(() => {
+    return (items as any[]).filter((vaultItem) => {
+      const matchesCategory = categoryFilter === "all" || vaultItem.category === categoryFilter;
+      const matchesSearch =
+        !searchQuery.trim() ||
+        vaultItem.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (vaultItem.username ?? "").toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
+  }, [items, searchQuery, categoryFilter]);
 
   if (isLoading || !data) return <Skeleton className="h-[calc(100vh-8rem)] rounded-xl" />;
 
-  const { items, stats, insight } = data as any;
+  const { stats, insight } = data as any;
   const formStrength = clientStrength(form.password);
 
   function openCreate() {
@@ -104,7 +121,6 @@ export default function PasswordVaultPage() {
       createItem.mutate(payload as any, { onSuccess: () => setDialogOpen(false) });
     }
   }
-
   async function toggleReveal(id: string) {
     if (revealedPasswords[id]) {
       setRevealedPasswords((prev) => { const next = { ...prev }; delete next[id]; return next; });
@@ -158,19 +174,30 @@ export default function PasswordVaultPage() {
             <CardHeader className="pb-3 flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-sm sm:text-base">Your credentials</CardTitle>
               <div className="flex items-center gap-2 flex-wrap">
-                <Input placeholder="Search..." value={""} onChange={(e) => {}} className="w-32 sm:w-48 text-xs sm:text-sm" />
-                <select className="h-8 sm:h-9 rounded-lg border border-input bg-background px-3 text-xs sm:text-sm" value={""} onChange={(e) => {}}>
+                <Input
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-32 sm:w-48 text-sm sm:text-sm"
+                />
+                <select
+                  className="h-8 sm:h-9 rounded-lg border border-input bg-background px-3 text-sm sm:text-sm"
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                >
                   <option value="all">All categories</option>
                   {Object.keys(CATEGORY_LABELS).map((c) => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
                 </select>
               </div>
             </CardHeader>
             <CardContent>
-              {items.length === 0 ? (
-                <p className="text-xs sm:text-sm text-muted-foreground text-center py-4">No credentials found.</p>
+              {filteredItems.length === 0 ? (
+                <p className="text-xs sm:text-sm text-muted-foreground text-center py-4">
+                  {items.length === 0 ? "No credentials found." : "No credentials match your search."}
+                </p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
-                  {items.map((vaultItem: any) => (
+                  {filteredItems.map((vaultItem: any) => (
                     <div key={vaultItem.id} className="rounded-lg border border-border/60 bg-card/60 p-2 sm:p-3 cursor-pointer hover:border-primary/40 transition-colors" onClick={() => openEdit(vaultItem)}>
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <div className="flex-1 min-w-0">
@@ -197,65 +224,65 @@ export default function PasswordVaultPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-70 sm:max-w-xl mt-7 px-5 sm:px-5 max-h-[90vh] flex flex-col">
-          <DialogHeader className="shrink-0"><DialogTitle className="text-start">{editingId ? "Edit credential" : "Add credential"}</DialogTitle></DialogHeader>
+        <DialogContent className="!flex !flex-col w-[calc(100vw-2rem)] sm:w-full sm:max-w-lg px-4 sm:px-6 max-h-[85vh] overflow-hidden">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="text-start">{editingId ? "Edit credential" : "Add credential"}</DialogTitle>
+          </DialogHeader>
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <ScrollArea className="flex-1 max-h-full pr-1">
+            <div className="flex-1 min-h-0 overflow-y-auto pr-3 -mr-3">
               <div className="space-y-4 pt-2 pb-2">
-                <div className="space-y-1 max-w-full">
-                  <Label className="text-[10px] sm:text-xs">Label</Label>
-                  <Input placeholder="e.g. Google, Chase Bank" value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} required className="text-xs sm:text-sm" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px] sm:text-xs">Category</Label>
-                  <select className="flex h-8 sm:h-9 w-full rounded-lg border border-input bg-background px-3 text-xs sm:text-sm" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}>
-                    {Object.keys(CATEGORY_LABELS).map((c) => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px] sm:text-xs">Username / email</Label>
-                  <Input value={form.username} onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} className="text-xs sm:text-sm" />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[10px] sm:text-xs">{editingId ? "New password (leave blank to keep current)" : "Password"}</Label>
-                    <button type="button" className="text-[11px] text-primary hover:underline flex items-center gap-1" onClick={() => setForm((f) => ({ ...f, password: generatePassword() }))}>
-                      <RefreshCw className="h-3 w-3" /> Generate
-                    </button>
-                  </div>
-                  <Input type="text" value={form.password} placeholder="••••••••" onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className="text-xs sm:text-sm" />
-                  {form.password && (
-                    <div className="space-y-1 pt-1">
-                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div className={`h-full rounded-full transition-all ${formStrength.label === "strong" ? "bg-emerald-500" : formStrength.label === "medium" ? "bg-amber-500" : "bg-destructive"}`} style={{ width: `${formStrength.score}%` }} />
-                      </div>
-                      <p className="text-[11px] text-muted-foreground capitalize">{formStrength.label} password</p>
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px] sm:text-xs">URL (optional)</Label>
-                  <Input placeholder="https://..." value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} className="text-xs sm:text-sm" />
-                  <Label>URL (optional)</Label>
-                  <Input placeholder="https://..." value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} />
-                </div>
-                <div className="space-y-1">
-                  <Label>Tags (comma separated)</Label>
-                  <Input placeholder="Work, Personal" value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} />
-                </div>
-                <div className="space-y-1">
-                  <Label>Notes (optional)</Label>
-                  <Input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
-                </div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={form.favorite} onChange={(e) => setForm((f) => ({ ...f, favorite: e.target.checked }))} className="rounded" />
-                  <span className="text-sm">Mark as favorite</span>
-                </label>
+                <Label className={LABEL_TEXT}>Label</Label>
+                <Input placeholder="e.g. Google, Chase Bank" value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} required className={FIELD_TEXT} />
               </div>
-            </ScrollArea>
+              <div className="space-y-1 px-1">
+                <Label className={LABEL_TEXT}>Category</Label>
+                <select className={`flex h-9 w-full rounded-lg border border-input bg-background px-3 ${FIELD_TEXT}`} value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}>
+                  {Object.keys(CATEGORY_LABELS).map((c) => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1 px-1">
+                <Label className={LABEL_TEXT}>Username / email</Label>
+                <Input value={form.username} onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} className={FIELD_TEXT} />
+              </div>
+              <div className="space-y-1 px-1">
+                <div className="flex items-center justify-between">
+                  <Label className={LABEL_TEXT}>{editingId ? "New password (leave blank to keep current)" : "Password"}</Label>
+                  <button type="button" className="text-xs text-primary hover:underline flex items-center gap-1 shrink-0" onClick={() => setForm((f) => ({ ...f, password: generatePassword() }))}>
+                    <RefreshCw className="h-3 w-3" /> Generate
+                  </button>
+                </div>
+                <Input type="text" value={form.password} placeholder="••••••••" onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className={FIELD_TEXT} />
+                {form.password && (
+                  <div className="space-y-1 pt-1">
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div className={`h-full rounded-full transition-all ${formStrength.label === "strong" ? "bg-emerald-500" : formStrength.label === "medium" ? "bg-amber-500" : "bg-destructive"}`} style={{ width: `${formStrength.score}%` }} />
+                    </div>
+                    <p className="text-xs text-muted-foreground capitalize">{formStrength.label} password</p>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-1 px-1">
+                <Label className={LABEL_TEXT}>URL (optional)</Label>
+                <Input placeholder="https://..." value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} className={FIELD_TEXT} />
+              </div>
+              <div className="space-y-1 px-1">
+                <Label className={LABEL_TEXT}>Tags (comma separated)</Label>
+                <Input placeholder="Work, Personal" value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} className={FIELD_TEXT} />
+              </div>
+              <div className="space-y-1 px-1">
+                <Label className={LABEL_TEXT}>Notes (optional)</Label>
+                <Input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} className={FIELD_TEXT} />
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.favorite} onChange={(e) => setForm((f) => ({ ...f, favorite: e.target.checked }))} className="rounded" />
+                <span className="text-sm">Mark as favorite</span>
+              </label>
+            </div>
             <div className="flex justify-end gap-2 pt-3 border-t border-border mt-2 shrink-0">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createItem.isPending || updateItem.isPending}>{createItem.isPending || updateItem.isPending ? "Saving..." : "Save"}</Button>
+              <Button type="submit" disabled={createItem.isPending || updateItem.isPending}>
+                {createItem.isPending || updateItem.isPending ? "Saving..." : "Save"}
+              </Button>
             </div>
           </form>
         </DialogContent>

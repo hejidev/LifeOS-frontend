@@ -259,39 +259,39 @@ export default function DocumentsPage() {
           <DialogHeader><DialogTitle className="text-sm sm:text-base">Add document</DialogTitle></DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4 pt-2">
           <ScrollArea className="space-y-3 max-h-[60vh]">
-            <div className="space-y-1">
+            <div className="space-y-1 px-1">
               <Label className="text-[10px] sm:text-xs">Title</Label>
               <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} required className="text-xs sm:text-sm" />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 px-1">
               <Label className="text-[10px] sm:text-xs">Category</Label>
               <select className="flex h-8 sm:h-9 w-full rounded-lg border border-input bg-background px-3 text-xs sm:text-sm" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as any }))}>
                 {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 px-1">
               <Label className="text-[10px] sm:text-xs">Type</Label>
               <select className="flex h-8 sm:h-9 w-full rounded-lg border border-input bg-background px-3 text-xs sm:text-sm" value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as any }))}>
                 {["PDF", "IMAGE", "VIDEO", "AUDIO", "OTHER"].map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 px-1">
               <Label className="text-[10px] sm:text-xs">Expiry date (optional)</Label>
               <Input type="date" value={form.expiresAt} onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))} className="text-xs sm:text-sm" />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 px-1">
               <Label className="text-[10px] sm:text-xs">Tags (comma-separated)</Label>
               <Input placeholder="e.g. insurance, important" value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} className="text-xs sm:text-sm" />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 px-1">
               <Label className="text-[10px] sm:text-xs">File upload</Label>
               <Input type="file" onChange={handleFileSelect} className="text-xs sm:text-sm" />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 px-1">
               <Label className="text-[10px] sm:text-xs">Or link URL</Label>
               <Input placeholder="https://..." value={form.fileUrl} onChange={(e) => setForm((f) => ({ ...f, fileUrl: e.target.value }))} className="text-xs sm:text-sm" />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 px-1">
               <Label className="text-[10px] sm:text-xs">Summary (optional)</Label>
               <Textarea placeholder="Brief description of this document..." value={form.summary} rows={2} className="text-xs sm:text-sm"
                 onChange={(e) => setForm((f) => ({ ...f, summary: e.target.value }))} />

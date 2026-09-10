@@ -232,7 +232,7 @@ export default function TasksPage() {
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <motion.div variants={item} className="lg:col-span-2 space-y-4">
+      <motion.div variants={item} className="order-2 lg:order-1 lg:col-span-2 space-y-4">
           {view === "list" ? (
             <Card className="hover:border-primary/20 transition-colors">
               <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -389,7 +389,7 @@ export default function TasksPage() {
           )}
         </motion.div>
 
-        <motion.div variants={item} className="space-y-4">
+        <motion.div variants={item} className="order-1 lg:order-2 space-y-4">
           <Card className="hover:border-primary/20 transition-colors">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">

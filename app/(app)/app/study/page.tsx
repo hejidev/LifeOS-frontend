@@ -519,7 +519,7 @@ export default function StudyPage() {
                   </div>
                 )}
 
-                <div className="space-y-1">
+                <div className="space-y-1 px-1">
                   <Label>Title</Label>
                   <Input
                     placeholder="e.g. Introduction to Algorithms"
@@ -530,7 +530,7 @@ export default function StudyPage() {
                 </div>
 
                 {materialMode === "link" ? (
-                  <div className="space-y-1" key="link-field">
+                  <div className="space-y-1 px-1" key="link-field">
                     <Label>URL</Label>
                     <Input
                       key="url-input"
@@ -541,7 +541,7 @@ export default function StudyPage() {
                     />
                   </div>
                 ) : (
-                  <div className="space-y-1" key="upload-field">
+                  <div className="space-y-1 px-1" key="upload-field">
                     <Label>File</Label>
                     <Input
                       key="file-input"
@@ -558,7 +558,7 @@ export default function StudyPage() {
                   </div>
                 )}
 
-                <div className="space-y-1">
+                <div className="space-y-1 px-1">
                   <Label>Type</Label>
                   <select
                     className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
@@ -570,7 +570,7 @@ export default function StudyPage() {
                     ))}
                   </select>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 px-1">
                   <Label>Subject (optional)</Label>
                   <select
                     className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
@@ -582,7 +582,7 @@ export default function StudyPage() {
                   </select>
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-1 px-1">
                   <Label>Notes (optional)</Label>
                   <Input
                     placeholder="Quick note about this material"
@@ -628,7 +628,7 @@ export default function StudyPage() {
             }}
             className="space-y-4 pt-2"
           >
-            <div className="space-y-1">
+            <div className="space-y-1 px-1">
               <Label>Subject name</Label>
               <Input
                 placeholder="e.g. Computer Science"
@@ -637,7 +637,7 @@ export default function StudyPage() {
                 required
               />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 px-1">
               <Label>Color</Label>
               <Input
                 type="color"
@@ -646,7 +646,7 @@ export default function StudyPage() {
                 className="h-10"
               />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 px-1">
               <Label>Description (optional)</Label>
               <Input
                 placeholder="Brief description"

@@ -130,9 +130,9 @@ export default function CareerPage() {
         </div>
         <div className="flex gap-2 flex-col sm:flex-row">
           <Button variant="outline" onClick={openCreateSkill} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl ml-2">
-          <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Skill</Button>
+            <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Skill</Button>
           <Button onClick={openCreateGoal} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl ml-2">
-          <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Goal</Button>
+            <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Goal</Button>
         </div>
       </motion.div>
 
@@ -270,16 +270,16 @@ export default function CareerPage() {
       </div>
 
       <Dialog open={goalOpen} onOpenChange={setGoalOpen}>
-        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5 mt-10 max-h-[90vh] flex flex-col gap-1">
+        <DialogContent className="!flex !flex-col max-w-70 sm:max-w-xl px-2 sm:px-5 mt-10 max-h-[90vh] gap-1 overflow-hidden">
           <DialogHeader className="shrink-0"><DialogTitle className="text-start mb-0">{editingGoalId ? "Edit goal" : "Add career goal"}</DialogTitle></DialogHeader>
           <form onSubmit={handleGoalSubmit} className="flex flex-col flex-1 min-h-0">
-            <ScrollArea className="flex-1 max-h-[60vh] pr-3">
+            <div className="flex-1 min-h-0 overflow-y-auto pr-3">
               <div className="space-y-2 pt-2 pb-2">
-                <div className="space-y-1">
+                <div className="space-y-1 px-1">
                   <Label>Title</Label>
                   <Input value={goalForm.title} onChange={(e) => setGoalForm((f) => ({ ...f, title: e.target.value }))} required />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 px-1">
                   <Label>Area</Label>
                   <select className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={goalForm.area} onChange={(e) => setGoalForm((f) => ({ ...f, area: e.target.value }))}>
                     {Object.keys(AREA_LABELS).map((a) => <option key={a} value={a}>{AREA_LABELS[a]}</option>)}
@@ -287,28 +287,28 @@ export default function CareerPage() {
                 </div>
                 {editingGoalId && (
                   <>
-                    <div className="space-y-1">
+                    <div className="space-y-1 px-1">
                       <Label>Status</Label>
                       <select className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={goalForm.status} onChange={(e) => setGoalForm((f) => ({ ...f, status: e.target.value }))}>
                         {Object.keys(GOAL_STATUS_CONFIG).map((s) => <option key={s} value={s}>{GOAL_STATUS_CONFIG[s].label}</option>)}
                       </select>
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 px-1">
                       <div className="flex items-center justify-between"><Label>Progress</Label><span className="text-xs text-muted-foreground">{goalForm.progress}%</span></div>
                       <input type="range" min={0} max={100} step={5} value={goalForm.progress} onChange={(e) => setGoalForm((f) => ({ ...f, progress: Number(e.target.value) }))} className="w-full accent-primary" />
                     </div>
                   </>
                 )}
-                <div className="space-y-1">
+                <div className="space-y-1 px-1">
                   <Label>Target date (optional)</Label>
                   <Input type="date" value={goalForm.targetDate} onChange={(e) => setGoalForm((f) => ({ ...f, targetDate: e.target.value }))} />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 px-1">
                   <Label>Notes (optional)</Label>
                   <Textarea rows={3} value={goalForm.notes} onChange={(e) => setGoalForm((f) => ({ ...f, notes: e.target.value }))} />
                 </div>
               </div>
-            </ScrollArea>
+            </div>
             <div className="flex justify-end gap-2 pt-3 border-t border-border mt-2 shrink-0">
               <Button type="button" variant="outline" onClick={() => setGoalOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={createGoal.isPending || updateGoal.isPending}>{createGoal.isPending || updateGoal.isPending ? "Saving..." : "Save"}</Button>
@@ -321,21 +321,21 @@ export default function CareerPage() {
         <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5">
           <DialogHeader><DialogTitle>{editingSkillId ? "Edit skill" : "Add skill"}</DialogTitle></DialogHeader>
           <form onSubmit={handleSkillSubmit} className="space-y-4 pt-2">
-            <div className="space-y-1">
+            <div className="space-y-1 px-1">
               <Label>Name</Label>
               <Input value={skillForm.name} onChange={(e) => setSkillForm((f) => ({ ...f, name: e.target.value }))} required />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 px-1">
               <Label>Level</Label>
               <select className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={skillForm.level} onChange={(e) => setSkillForm((f) => ({ ...f, level: e.target.value }))}>
                 {SKILL_LEVELS.map((l) => <option key={l} value={l}>{l.charAt(0) + l.slice(1).toLowerCase()}</option>)}
               </select>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 px-1">
               <div className="flex items-center justify-between"><Label>Progress</Label><span className="text-xs text-muted-foreground">{skillForm.progress}%</span></div>
               <input type="range" min={0} max={100} step={5} value={skillForm.progress} onChange={(e) => setSkillForm((f) => ({ ...f, progress: Number(e.target.value) }))} className="w-full accent-primary" />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 px-1">
               <Label>Category (optional)</Label>
               <Input placeholder="e.g. Engineering, Design" value={skillForm.category} onChange={(e) => setSkillForm((f) => ({ ...f, category: e.target.value }))} />
             </div>
@@ -348,39 +348,39 @@ export default function CareerPage() {
       </Dialog>
 
       <Dialog open={achievementOpen} onOpenChange={setAchievementOpen}>
-        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5 mt-3 max-h-[90vh] flex flex-col">
+        <DialogContent className="!flex !flex-col max-w-70 sm:max-w-xl px-2 sm:px-5 mt-3 max-h-[90vh] overflow-hidden">
           <DialogHeader className="shrink-0"><DialogTitle>Add achievement</DialogTitle></DialogHeader>
           <form onSubmit={handleAchievementSubmit} className="flex flex-col flex-1 min-h-0">
-            <ScrollArea className="flex-1 max-h-[60vh] pr-3">
+            <div className="flex-1 min-h-0 overflow-y-auto pr-3">
               <div className="space-y-4 pt-2 pb-2">
-                <div className="space-y-1">
+                <div className="space-y-1 px-1">
                   <Label>Title</Label>
                   <Input value={achievementForm.title} onChange={(e) => setAchievementForm((f) => ({ ...f, title: e.target.value }))} required />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 px-1">
                   <Label>Type</Label>
                   <select className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={achievementForm.type} onChange={(e) => setAchievementForm((f) => ({ ...f, type: e.target.value }))}>
                     {ACHIEVEMENT_TYPES.map((t) => <option key={t} value={t}>{t.charAt(0) + t.slice(1).toLowerCase()}</option>)}
                   </select>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 px-1">
                   <Label>Issuer (optional)</Label>
                   <Input placeholder="e.g. AWS, Google" value={achievementForm.issuer} onChange={(e) => setAchievementForm((f) => ({ ...f, issuer: e.target.value }))} />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 px-1">
                   <Label>Date (optional)</Label>
                   <Input type="date" value={achievementForm.date} onChange={(e) => setAchievementForm((f) => ({ ...f, date: e.target.value }))} />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 px-1">
                   <Label>Credential URL (optional)</Label>
                   <Input placeholder="https://..." value={achievementForm.credentialUrl} onChange={(e) => setAchievementForm((f) => ({ ...f, credentialUrl: e.target.value }))} />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 px-1">
                   <Label>Description (optional)</Label>
                   <Textarea rows={2} value={achievementForm.description} onChange={(e) => setAchievementForm((f) => ({ ...f, description: e.target.value }))} />
                 </div>
               </div>
-            </ScrollArea>
+            </div>
             <div className="flex justify-end gap-2 pt-3 border-t border-border mt-2 shrink-0">
               <Button type="button" variant="outline" onClick={() => setAchievementOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={createAchievement.isPending}>{createAchievement.isPending ? "Saving..." : "Save"}</Button>
