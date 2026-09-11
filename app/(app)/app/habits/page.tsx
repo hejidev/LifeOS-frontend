@@ -250,7 +250,7 @@ export default function HabitsPage() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      {/* Header */}
+      
       <motion.div variants={item} className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
@@ -266,8 +266,7 @@ export default function HabitsPage() {
         </Button>
       </motion.div>
 
-      {/* Hero: completion ring + best streak + insight */}
-      <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+     <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="hover:border-primary/20 transition-colors">
           <CardContent className="p-5 flex items-center gap-4">
             <div className="relative shrink-0 text-primary">
@@ -310,7 +309,6 @@ export default function HabitsPage() {
         </Card>
       </motion.div>
 
-      {/* Category filter */}
       <motion.div variants={item} className="flex flex-wrap items-center gap-2">
         <Badge
           variant={categoryFilter === "all" ? "default" : "outline"}
@@ -335,7 +333,6 @@ export default function HabitsPage() {
         })}
       </motion.div>
 
-      {/* Habit grid */}
       <motion.div variants={container} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         <AnimatePresence mode="popLayout">
           {filtered.length === 0 ? (
@@ -360,14 +357,13 @@ export default function HabitsPage() {
         </AnimatePresence>
       </motion.div>
 
-      {/* Create dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:w-full px-4 sm:px-6 max-h-[80vh] overflow-hidden">
           <DialogHeader>
             <DialogTitle>New habit</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 pt-2">
-            <div className="space-y-1.5">
+          <div className="space-y-2">
+            <div className="space-y-1 px-1">
               <Label className="text-xs">Title</Label>
               <Input
                 placeholder="e.g. Drink 2L of water"

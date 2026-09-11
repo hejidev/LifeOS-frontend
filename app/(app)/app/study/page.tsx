@@ -616,8 +616,8 @@ export default function StudyPage() {
       </Dialog>
 
       <Dialog open={subjectOpen} onOpenChange={setSubjectOpen}>
-        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5 mt-6">
-          <DialogHeader><DialogTitle>Add subject</DialogTitle></DialogHeader>
+        <DialogContent className="sm:w-full px-4 sm:px-6 max-h-[95vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0"><DialogTitle>Add subject</DialogTitle></DialogHeader>
           <form
             onSubmit={(e) => {
               e.preventDefault();

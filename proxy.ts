@@ -22,6 +22,7 @@ export function proxy(req: NextRequest) {
     pathname.startsWith("/connect/") ||
     pathname.startsWith("/oauth") ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/public/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon");
 
@@ -52,6 +53,6 @@ export function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|assets/|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ttf|woff|woff2|otf)$).*)",
   ],
 };

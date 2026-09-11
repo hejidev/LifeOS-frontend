@@ -110,7 +110,7 @@ export default function CalendarPage() {
       </motion.div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className=" sm:w-full px-4 sm:px-6 max-h-[80vh] overflow-hidden">
           <DialogHeader><DialogTitle>{editingId ? "Edit event" : "New event"}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3 pt-2">
             <div className="space-y-1"><Label>Title</Label><Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} required /></div>
