@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useMe } from "@/lib/hooks/use-auth";
 import { useSubmitContactForm } from "@/lib/hooks/use-life-data";
 import Link from "next/link";
+import { MarketingPageHeader } from "@/components/marketing/page-header";
 
 const REASONS = ["General enquiry", "Support", "Billing", "Partnership", "Other"];
 const INFO = [
@@ -38,13 +39,11 @@ export default function ContactPage() {
 
       <div className="max-w-5xl mx-auto px-4 py-14 sm:py-20">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 mb-4">
-            <Mail className="h-6 w-6 text-primary" />
-          </div>
-          <h1 className="text-3xl sm:text-5xl font-bold tracking-tight">Let's talk</h1>
-          <p className="mt-4 text-base sm:text-lg text-muted-foreground max-w-lg mx-auto">
-            Questions, feedback, partnership ideas, or just curious about LifeOS — send us a message.
-          </p>
+        <MarketingPageHeader
+  title="Get in touch"
+  description="Questions, feedback, or something not working right? We read every message."
+  icon={<Mail className="h-5 w-5" />}
+/>
         </motion.div>
 
         {(me as any)?.user && (

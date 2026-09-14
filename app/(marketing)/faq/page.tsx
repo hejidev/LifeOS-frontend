@@ -4,19 +4,18 @@ import { HelpCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { usePublishedContent } from "@/lib/hooks/use-life-data";
+import { MarketingPageHeader } from "@/components/marketing/page-header";
 
 export default function FAQPage() {
   const { data: items = [], isLoading } = usePublishedContent("FAQ");
 
   return (
     <div className="max-w-8xl mx-auto px-4 py-14 sm:py-16">
-      <div className="text-center mb-5 md:mb-10">
-        <div className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 mb-3">
-          <HelpCircle className="h-6 w-6 text-primary" />
-        </div>
-        <h1 className="text-3xl sm:text-4xl font-bold">Frequently asked questions</h1>
-        <p className="mt-3 text-sm sm:text-base text-muted-foreground">Everything people usually ask before getting started with LifeOS — or reach out on our Contact page if yours isn't here.</p>
-      </div>
+      <MarketingPageHeader
+        title="Frequently asked questions"
+        description="Everything people usually ask before getting started with LifeOS — or reach out on our Contact page if yours isn't here."
+        icon={<HelpCircle className="h-5 w-5" />}
+      />
 
       {isLoading ? (
         <Skeleton className="h-64 rounded-xl" />

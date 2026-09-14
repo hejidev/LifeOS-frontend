@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTeam, useTestimonials, usePublishedContent } from "@/lib/hooks/use-life-data";
+import { MarketingPageHeader } from "@/components/marketing/page-header";
 
 function getInitials(name: string) {
   return name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
@@ -69,12 +70,14 @@ export default function AboutPage() {
 
   return (
     <div className="max-w-8xl">
-      <section className="max-w-7xl px-4 pt-14 sm:pt-20 pb-10 text-center">
-        <h1 className="text-3xl sm:text-5xl font-bold tracking-tight">Built to run your whole life, not just a slice of it</h1>
-        <p className="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto">
-          LifeOS started from a simple frustration: tasks, notes, health, money, and work all live in different apps that don't talk to each other. We're building the one place that holds all of it — free at its core, and built to grow with whatever you're running, from a personal to-do list to a full merchant storefront.
-        </p>
-      </section>
+      {/* <section className="max-w-7xl px-4 pt-14 sm:pt-20 pb-10 text-center"> */}
+        <MarketingPageHeader
+          size="hero"
+          title={<>Run your whole life.<br />Not just a slice of it.</>}
+          description="LifeOS started from a simple frustration: tasks, notes, health, money, and work all live in different apps that don't talk to each other. We're building the one place that holds all of it — free at its core, and built to grow with whatever you're running, from a personal to-do list to a full merchant storefront."
+          tagline="Built solo. Live today. 20+ modules and counting."
+        />
+      {/* </section> */}
 
       <section className="max-w-7xl mx-auto px-4 py-10 grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card>

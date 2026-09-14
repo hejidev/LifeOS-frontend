@@ -14,7 +14,6 @@ const NAV = [
   { label: "Blog", href: "/blog", icon: Newspaper },
   { label: "FAQ", href: "/faq", icon: HelpCircle },
   { label: "Contact", href: "/contact", icon: Mail },
-  { label: "Pricing", href: "/pricing", icon: Tag },
 ];
 
 export default function MarketingNavbar() {

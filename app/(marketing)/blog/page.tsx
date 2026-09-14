@@ -5,19 +5,18 @@ import { Newspaper } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { usePublishedContent } from "@/lib/hooks/use-life-data";
+import { MarketingPageHeader } from "@/components/marketing/page-header";
 
 export default function BlogIndexPage() {
   const { data: posts = [], isLoading } = usePublishedContent("BLOG");
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-14 sm:py-16">
-      <div className="text-center mb-10">
-        <div className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 mb-3">
-          <Newspaper className="h-5 w-5 text-primary" />
-        </div>
-        <h1 className="text-3xl sm:text-4xl font-bold">From the LifeOS blog</h1>
-        <p className="mt-3 text-sm sm:text-base text-muted-foreground max-w-xl mx-auto">Product updates, tips for getting more out of LifeOS, and notes from the team as we build.</p>
-      </div>
+      <MarketingPageHeader
+        title="From the LifeOS blog"
+        description="Product updates, tips for getting more out of LifeOS, and notes from the team as we build."
+        icon={<Newspaper className="h-5 w-5" />}
+      />
 
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-64 rounded-xl" />)}</div>
