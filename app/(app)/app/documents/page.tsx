@@ -255,7 +255,7 @@ export default function DocumentsPage() {
       </div>
 
       <Dialog open={uploadOpen} onOpenChange={(open) => (open ? setUploadOpen(true) : resetDialog())}>
-        <DialogContent className="!flex !flex-col w-[calc(100vw-2rem)] sm:w-full sm:max-w-lg px-4 sm:px-6 max-h-[85vh] overflow-hidden">
+        <DialogContent className="flex! flex-col! w-[calc(100vw-2rem)] sm:w-full sm:max-w-lg px-4 sm:px-6 max-h-[85vh] overflow-hidden">
           <DialogHeader className="shrink-0"><DialogTitle className="text-sm sm:text-base">Add document</DialogTitle></DialogHeader>
           <form onSubmit={handleCreate} className="flex flex-col flex-1 min-h-0">
             <div className="flex-1 min-h-0 overflow-y-auto pr-3 -mr-3">

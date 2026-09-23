@@ -270,7 +270,7 @@ export default function CareerPage() {
       </div>
 
       <Dialog open={goalOpen} onOpenChange={setGoalOpen}>
-        <DialogContent className="!flex !flex-col max-w-70 sm:max-w-xl px-2 sm:px-5 mt-10 max-h-[90vh] gap-1 overflow-hidden">
+        <DialogContent className="flex! flex-col! max-w-70 sm:max-w-xl px-2 sm:px-5 mt-10 max-h-[90vh] gap-1 overflow-hidden">
           <DialogHeader className="shrink-0"><DialogTitle className="text-start mb-0">{editingGoalId ? "Edit goal" : "Add career goal"}</DialogTitle></DialogHeader>
           <form onSubmit={handleGoalSubmit} className="flex flex-col flex-1 min-h-0">
             <div className="flex-1 min-h-0 overflow-y-auto pr-3">
@@ -348,7 +348,7 @@ export default function CareerPage() {
       </Dialog>
 
       <Dialog open={achievementOpen} onOpenChange={setAchievementOpen}>
-        <DialogContent className="!flex !flex-col max-w-70 sm:max-w-xl px-2 sm:px-5 mt-3 max-h-[90vh] overflow-hidden">
+        <DialogContent className="flex! flex-col! max-w-70 sm:max-w-xl px-2 sm:px-5 mt-3 max-h-[90vh] overflow-hidden">
           <DialogHeader className="shrink-0"><DialogTitle>Add achievement</DialogTitle></DialogHeader>
           <form onSubmit={handleAchievementSubmit} className="flex flex-col flex-1 min-h-0">
             <div className="flex-1 min-h-0 overflow-y-auto pr-3">

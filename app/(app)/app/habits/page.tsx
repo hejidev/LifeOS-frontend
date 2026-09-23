@@ -98,7 +98,7 @@ function CompletionRing({ percent }: { percent: number }) {
 
 function Heatmap({ days }: { days: Habit["last30Days"] }) {
   return (
-    <div className="grid grid-cols-10 gap-[3px]">
+    <div className="grid grid-cols-10 gap-0.75">
       {days.map((d) => (
         <div
           key={d.date}

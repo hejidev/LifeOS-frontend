@@ -4,6 +4,7 @@ import { env } from "../config/env";
 import { prisma } from "../config/prisma";
 import * as staffAuthService from "../services/staff-auth.service";
 import type { StaffRequest } from "../middlewares/staff-session.middleware";
+import { getStaffPermissions } from "../lib/staff-permissions";
 
 const STAFF_COOKIE = "lifeos_staff_token";
 const isProd = env.NODE_ENV !== "development";
@@ -27,16 +28,21 @@ export const me = asyncHandler(async (req: StaffRequest, res: Response) => {
   const staff = await prisma.bizStaff.findUnique({ where: { id: req.staff!.staffId } });
   if (!staff) return res.status(404).json({ error: "Staff not found" });
 
-  const profile = await prisma.bizProfile.findUnique({
-    where: { id: req.staff!.bizProfileId },
-    select: { businessName: true, currency: true },
-  });
+  const [profile, store] = await Promise.all([
+    prisma.bizProfile.findUnique({
+      where: { id: req.staff!.bizProfileId },
+      select: { businessName: true, currency: true },
+    }),
+    prisma.store.findUnique({ where: { id: req.staff!.storeId }, select: { name: true } }),
+  ]);
 
   const { pinHash: _hash, ...rest } = staff;
   return res.json({
     staff: rest,
     businessName: profile?.businessName,
+    storeName: store?.name,
     currency: profile?.currency ?? "USD",
+    permissions: getStaffPermissions(req.staff!.role),
   });
 });
 

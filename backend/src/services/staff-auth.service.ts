@@ -22,8 +22,17 @@ export async function staffLogin(storeCode: string, staffName: string, pin: stri
   const valid = await bcrypt.compare(pin, candidate.pinHash);
   if (!valid) throw new AppError("Incorrect name or PIN", 401);
 
+  let storeId = candidate.storeId;
+  if (!storeId) {
+    const defaultStore = await prisma.store.findFirst({ where: { bizProfileId: bizProfile.id, isDefault: true } });
+    storeId = defaultStore?.id ?? null;
+  }
+  if (!storeId) throw new AppError("No location assigned to this account — contact your manager", 500);
+
+  const store = await prisma.store.findUnique({ where: { id: storeId } });
+
   const token = jwt.sign(
-    { type: "staff", staffId: candidate.id, bizProfileId: bizProfile.id, role: candidate.role, tokenVersion: bizProfile.staffTokenVersion },
+    { type: "staff", staffId: candidate.id, bizProfileId: bizProfile.id, storeId, role: candidate.role, tokenVersion: bizProfile.staffTokenVersion },
     env.ACCESS_TOKEN_SECRET,
     { expiresIn: STAFF_TOKEN_TTL_SECONDS }
   );
@@ -37,17 +46,22 @@ export async function staffLogin(storeCode: string, staffName: string, pin: stri
   await createNotification(bizProfile.userId, {
     type: "STAFF",
     title: "Staff clocked in",
-    message: `${candidate.name} (${candidate.role.replace("_", " ").toLowerCase()}) clocked in at ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+    message: `${candidate.name} (${candidate.role.replace("_", " ").toLowerCase()}) clocked in at ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${store ? ` — ${store.name}` : ""}`,
     actionUrl: "/merchant/staff/activity",
   });
 
-  return { token, staff: { id: candidate.id, name: candidate.name, role: candidate.role }, businessName: bizProfile.businessName };
+  return {
+    token,
+    staff: { id: candidate.id, name: candidate.name, role: candidate.role },
+    businessName: bizProfile.businessName,
+    storeName: store?.name,
+  };
 }
 
 export function verifyStaffToken(token: string) {
   const payload = jwt.verify(token, env.ACCESS_TOKEN_SECRET) as any;
   if (payload.type !== "staff") throw new AppError("Invalid staff session", 401);
-  return payload as { staffId: string; bizProfileId: string; role: string };
+  return payload as { staffId: string; bizProfileId: string; storeId: string; role: string };
 }
 
 export function generateStoreCode() {

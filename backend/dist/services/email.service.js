@@ -20,6 +20,7 @@ exports.sendTwoFactorEnabledEmail = sendTwoFactorEnabledEmail;
 exports.sendTwoFactorResetEmail = sendTwoFactorResetEmail;
 exports.sendAdminLoginAlertEmail = sendAdminLoginAlertEmail;
 exports.sendBillingReminderEmail = sendBillingReminderEmail;
+exports.sendCustomerBroadcastEmail = sendCustomerBroadcastEmail;
 const resend_1 = require("resend");
 const env_1 = require("../config/env");
 const logger_1 = require("../lib/logger");
@@ -76,6 +77,14 @@ function button(label, href) {
       </tr>
     </table>
   `;
+}
+function escapeHtml(str) {
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
 }
 async function send(to, subject, html, { critical = false } = {}) {
     const { data, error } = await resend.emails.send({ from: env_1.env.RESEND_FROM_EMAIL, to, subject, html });
@@ -200,4 +209,9 @@ async function sendBillingReminderEmail(to, name, planName, daysRemaining, renew
     const html = renderLayout("Your plan renews soon", paragraph(`Hi ${name.split(" ")[0]}, your <strong style="color:#fff;">${planName}</strong> plan renews ${timeLabel}, on ${dateLabel}.`) +
         paragraph("No action is needed if you'd like to continue — you'll be billed automatically. If you'd like to make changes or cancel, you can do that any time from your Billing page before the renewal date."));
     await send(to, `Your ${planName} plan renews ${timeLabel}`, html);
+}
+async function sendCustomerBroadcastEmail(to, businessName, subject, body) {
+    const html = renderLayout(escapeHtml(subject), `<p style="margin:0 0 24px;color:#ccc;font-size:14px;line-height:1.6;white-space:pre-wrap;">${escapeHtml(body)}</p>
+     <p style="margin:24px 0 0;color:#555;font-size:12px;line-height:1.6;">This message was sent to you by ${escapeHtml(businessName)} via LifeOS.</p>`);
+    await send(to, subject, html, { critical: true });
 }

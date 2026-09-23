@@ -32,13 +32,30 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
+const multer_1 = __importDefault(require("multer"));
 const auth_middleware_1 = require("../middlewares/auth.middleware");
 const validate_middleware_1 = require("../middlewares/validate.middleware");
 const businessController = __importStar(require("../controllers/business.controller"));
 const business_validator_1 = require("../validators/business.validator");
 const merchant_middleware_1 = require("../middlewares/merchant.middleware");
+const customer_messaging_validator_1 = require("../validators/customer-messaging.validator");
+const customerMessagingController = __importStar(require("../controllers/customer-messaging.controller"));
+const analyticsController = __importStar(require("../controllers/analytics.controller"));
+const upload = (0, multer_1.default)({
+    storage: multer_1.default.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (_req, file, cb) => {
+        const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
+        if (!allowed.includes(file.mimetype))
+            return cb(new Error("Only image files are allowed"));
+        cb(null, true);
+    },
+});
 const router = (0, express_1.Router)();
 router.use(auth_middleware_1.requireAuth);
 router.use(merchant_middleware_1.requireMerchant);
@@ -46,11 +63,16 @@ router.get("/dashboard", businessController.getDashboard);
 router.get("/profile", businessController.getProfile);
 router.patch("/profile", (0, validate_middleware_1.validate)(business_validator_1.updateBizProfileSchema), businessController.updateProfile);
 router.get("/products", businessController.getProducts);
+router.get("/products/by-barcode/:barcode", businessController.getProductByBarcode);
 router.post("/products", (0, validate_middleware_1.validate)(business_validator_1.createProductSchema), businessController.createProduct);
+router.post("/products/upload-image", upload.single("file"), businessController.uploadProductImage);
+router.post("/products/bulk-import", businessController.bulkImportProducts);
 router.patch("/products/:id", (0, validate_middleware_1.validate)(business_validator_1.updateProductSchema), businessController.updateProduct);
 router.delete("/products/:id", businessController.deleteProduct);
 router.get("/customers", businessController.getCustomers);
 router.post("/customers", (0, validate_middleware_1.validate)(business_validator_1.createCustomerSchema), businessController.createCustomer);
+router.post("/customers/message", (0, validate_middleware_1.validate)(customer_messaging_validator_1.sendCustomerMessageSchema), customerMessagingController.sendMessage);
+router.patch("/customers/:id", (0, validate_middleware_1.validate)(business_validator_1.updateCustomerSchema), businessController.updateCustomer);
 router.get("/sales", businessController.getSales);
 router.post("/sales", (0, validate_middleware_1.validate)(business_validator_1.createSaleSchema), businessController.createSale);
 router.patch("/sales/:id/status", (0, validate_middleware_1.validate)(business_validator_1.updateSaleStatusSchema), businessController.updateSaleStatus);
@@ -58,4 +80,8 @@ router.get("/expenses", businessController.getExpenses);
 router.post("/expenses", (0, validate_middleware_1.validate)(business_validator_1.createExpenseSchema), businessController.createExpense);
 router.delete("/expenses/:id", businessController.deleteExpense);
 router.get("/products/paged", businessController.getProductsPaged);
+router.get("/products/export", businessController.exportProducts);
+router.get("/sales/export", businessController.exportSales);
+router.get("/customers/export", businessController.exportCustomers);
+router.get("/analytics", analyticsController.getAnalytics);
 exports.default = router;

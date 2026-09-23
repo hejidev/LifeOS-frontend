@@ -13,9 +13,9 @@ async function resolveOwner(bizProfileId: string) {
   return profile;
 }
 
-export async function getProducts(bizProfileId: string) {
+export async function getProducts(bizProfileId: string, storeId: string) {
   const { userId } = await resolveOwner(bizProfileId);
-  return businessService.listProducts(userId, true);
+  return businessService.listProducts(userId, true, storeId);
 }
 
 export async function getCustomers(bizProfileId: string) {
@@ -28,11 +28,11 @@ export async function createCustomer(bizProfileId: string, data: any) {
   return businessService.createCustomer(userId, data);
 }
 
-export async function createSale(staffId: string, bizProfileId: string, data: any) {
+export async function createSale(staffId: string, bizProfileId: string, storeId: string, data: any) {
   const { userId, currency } = await resolveOwner(bizProfileId);
 
   const { discount: _ignored, ...saleData } = data;
-  const sale = await businessService.createSale(userId, { ...saleData, discount: 0 });
+  const sale = await businessService.createSale(userId, { ...saleData, discount: 0 }, storeId);
 
   await staffPortalService.logSelfActivity(
     staffId,
@@ -42,4 +42,9 @@ export async function createSale(staffId: string, bizProfileId: string, data: an
   );
 
   return sale;
+}
+
+export async function getProductByBarcode(bizProfileId: string, storeId: string, barcode: string) {
+  const { userId } = await resolveOwner(bizProfileId);
+  return businessService.getProductByBarcode(userId, barcode, storeId);
 }

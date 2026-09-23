@@ -2,8 +2,8 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { useMemo, useState, useEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Building2,
   TrendingUp,
@@ -30,6 +30,10 @@ import {
   Zap,
   X,
   RotateCcw,
+  ScanLine,
+  Camera,
+  ImageIcon,
+  Upload,
 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,11 +71,19 @@ import {
   useCreateBizExpense,
   useDeleteBizExpense,
   useBizSales,
+  useLookupProductByBarcode,
+  useUploadProductImage,
+  useBulkImportProducts,
+  useExportCustomers,
+  useExportSales,
 } from "@/lib/hooks/use-life-data";
+import { useBarcodeScanner } from "@/lib/hooks/use-barcode-scanner";
 import type { BizExpense, BizProduct, BizSale, BusinessActivity } from "@/types/life";
 import { cn } from "@/lib/utils";
 import { DashboardRangeSelector, type DashboardRangeValue } from "@/components/merchant/dashboard-range-selector";
 import { FaHandHolding } from "react-icons/fa6";
+import { CameraBarcodeScanner } from "@/components/merchant/camera-barcode-scanner";
+import { BulkProductImport } from "@/components/merchant/bulk-product-import";
 
 const container = {
   hidden: { opacity: 0 },
@@ -157,10 +169,14 @@ export default function MerchantDashboardPage() {
   const createProduct = useCreateBizProduct();
   const updateProduct = useUpdateBizProduct();
   const deleteProduct = useDeleteBizProduct();
+  const uploadProductImage = useUploadProductImage();
+  const bulkImportProducts = useBulkImportProducts();
   const createCustomer = useCreateBizCustomer();
   const createSale = useCreateBizSale();
   const createExpense = useCreateBizExpense();
   const deleteExpense = useDeleteBizExpense();
+  const exportCustomers = useExportCustomers();
+  const exportSales = useExportSales(supportedRangePreset);
 
   const [tab, setTab] = useState<"sell" | "products" | "customers" | "expenses">("sell");
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -174,26 +190,72 @@ export default function MerchantDashboardPage() {
   const [receiptOpen, setReceiptOpen] = useState(false);
 
   const [productDialogOpen, setProductDialogOpen] = useState(false);
-  const [newProduct, setNewProduct] = useState({ name: "", price: 0, stock: 0, category: "" });
+  const [newProduct, setNewProduct] = useState({ name: "", price: 0, stock: 0, category: "", barcode: "", imageUrl: "" });
+  const [newProductImageFile, setNewProductImageFile] = useState<File | null>(null);
+  const [newProductImagePreview, setNewProductImagePreview] = useState<string | null>(null);
+  const [newProductImageUploading, setNewProductImageUploading] = useState(false);
 
   const [editingProduct, setEditingProduct] = useState<BizProduct | null>(null);
   const [editProductForm, setEditProductForm] = useState({
-    name: "",
-    price: 0,
-    stock: 0,
-    lowStockAt: 3,
-    category: "",
+    name: "", price: 0, stock: 0, lowStockAt: 3, category: "", barcode: "", imageUrl: "",
   });
+  const [editProductImageFile, setEditProductImageFile] = useState<File | null>(null);
+  const [editProductImagePreview, setEditProductImagePreview] = useState<string | null>(null);
+  const [editProductImageUploading, setEditProductImageUploading] = useState(false);
+
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
 
   const openEditProduct = (p: BizProduct) => {
     setEditingProduct(p);
     setEditProductForm({
-      name: p.name,
-      price: p.price,
-      stock: p.stock,
-      lowStockAt: p.lowStockAt,
-      category: p.category ?? "",
+      name: p.name, price: p.price, stock: p.stock, lowStockAt: p.lowStockAt,
+      category: p.category ?? "", barcode: p.barcode ?? "", imageUrl: p.imageUrl ?? "",
     });
+    setEditProductImagePreview(p.imageUrl ?? null);
+  };
+
+  const handleNewProductImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setNewProductImageFile(file);
+    if (file.type.startsWith("image/")) {
+      setNewProductImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleEditProductImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setEditProductImageFile(file);
+    if (file.type.startsWith("image/")) {
+      setEditProductImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const uploadNewProductImage = async () => {
+    if (!newProductImageFile) return newProduct.imageUrl;
+    setNewProductImageUploading(true);
+    try {
+      const result = await uploadProductImage.mutateAsync(newProductImageFile);
+      setNewProductImagePreview(result.url);
+      setNewProductImageFile(null);
+      return result.url;
+    } finally {
+      setNewProductImageUploading(false);
+    }
+  };
+
+  const uploadEditProductImage = async () => {
+    if (!editProductImageFile) return editProductForm.imageUrl;
+    setEditProductImageUploading(true);
+    try {
+      const result = await uploadProductImage.mutateAsync(editProductImageFile);
+      setEditProductImagePreview(result.url);
+      setEditProductImageFile(null);
+      return result.url;
+    } finally {
+      setEditProductImageUploading(false);
+    }
   };
 
   const saveEditedProduct = () => {
@@ -204,12 +266,33 @@ export default function MerchantDashboardPage() {
     );
   };
 
+  const lookupBarcode = useLookupProductByBarcode();
+  const [scanBarcodeInput, setScanBarcodeInput] = useState("");
+  const [scanFeedback, setScanFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
+
+  // Cleanup image previews to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Only revoke local blob URLs, not server URLs
+      if (newProductImagePreview && newProductImagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(newProductImagePreview);
+      }
+      if (editProductImagePreview && editProductImagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(editProductImagePreview);
+      }
+    };
+  }, [newProductImagePreview, editProductImagePreview]);
+
+
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [newCustomer, setNewCustomer] = useState({ name: "", phone: "" });
 
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [newExpense, setNewExpense] = useState({ title: "", amount: 0, category: "OTHER" });
   const [productSearchQuery, setProductSearchQuery] = useState("");
+
+  const [redeemPoints, setRedeemPoints] = useState(0);
 
   const subtotal = cart.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
   const total = Math.max(0, subtotal - discount);
@@ -219,15 +302,39 @@ export default function MerchantDashboardPage() {
     ? (products ?? []).filter((p) => p.name.toLowerCase().includes(productSearchQuery.toLowerCase()))
     : products ?? [];
 
-  const addToCart = (p: BizProduct) => {
+  function addToCart(p: any) {
     setCart((prev) => {
-      const existing = prev.find((l) => l.productId === p.id);
+      const existing = prev.find((i) => i.productId === p.id);
       if (existing) {
-        return prev.map((l) => (l.productId === p.id ? { ...l, quantity: l.quantity + 1 } : l));
+        if (existing.quantity >= p.stock) return prev;
+        return prev.map((i) => (i.productId === p.id ? { ...i, quantity: i.quantity + 1 } : i));
       }
+      if (p.stock <= 0) return prev;
       return [...prev, { productId: p.id, name: p.name, unitPrice: p.price, quantity: 1 }];
     });
-  };
+  }
+
+  function handleBarcodeScan(code: string) {
+    lookupBarcode.mutate(code, {
+      onSuccess: (data: any) => {
+        if (data.product.stock <= 0) {
+          setScanFeedback({ type: "error", message: `${data.product.name} is out of stock` });
+          setTimeout(() => setScanFeedback(null), 2200);
+          return;
+        }
+        addToCart(data.product);
+        setScanFeedback({ type: "success", message: `Added: ${data.product.name}` });
+        setTimeout(() => setScanFeedback(null), 1800);
+      },
+      onError: () => {
+        setScanFeedback({ type: "error", message: `No product found for barcode ${code}` });
+        setTimeout(() => setScanFeedback(null), 2200);
+      },
+    });
+    setScanBarcodeInput("");
+  }
+
+  useBarcodeScanner(handleBarcodeScan, true);
 
   const updateQty = (productId: string | undefined, name: string, delta: number) => {
     setCart((prev) =>
@@ -248,6 +355,7 @@ export default function MerchantDashboardPage() {
         discount,
         paymentMethod,
         status: "PAID",
+        redeemPoints: redeemPoints > 0 ? redeemPoints : undefined,
       },
       {
         onSuccess: (sale: BizSale) => {
@@ -256,6 +364,7 @@ export default function MerchantDashboardPage() {
           setCart([]);
           setDiscount(0);
           setCustomerId(undefined);
+          setRedeemPoints(0);
         },
       }
     );
@@ -476,98 +585,58 @@ export default function MerchantDashboardPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-5">
-                <div className="relative">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+                <div className="bg-background p-5 space-y-4">
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Scan barcode..."
+                        value={scanBarcodeInput}
+                        onChange={(e) => setScanBarcodeInput(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && scanBarcodeInput.trim() && handleBarcodeScan(scanBarcodeInput.trim())}
+                        className="pl-9 h-11 font-mono"
+                      />
+                    </div>
+                    <Button variant="outline" size="icon" className="h-11 w-11 shrink-0" onClick={() => setCameraScannerOpen(true)}>
+                      <Camera className="h-4 w-4" />
+                    </Button>
+                  </div>
                   <Input
-                    placeholder="Search products by name..."
+                    placeholder="Search products..."
                     value={productSearchQuery}
                     onChange={(e) => setProductSearchQuery(e.target.value)}
-                    className="pl-10 sm:pl-11 h-10 sm:h-11 text-sm sm:text-base"
+                    className="h-10"
                   />
-                </div>
-                {!products || products.length === 0 ? (
-                  <div className="text-center py-14">
-                    <Package className="h-14 w-14 mx-auto text-muted-foreground/30 mb-4" />
-                    <p className="text-sm sm:text-base text-muted-foreground">
-                      No products yet — add one from the Products tab to start selling.
-                    </p>
-                  </div>
-                ) : filteredProducts.length === 0 ? (
-                  <div className="text-center py-14">
-                    <Search className="h-14 w-14 mx-auto text-muted-foreground/30 mb-4" />
-                    <p className="text-sm sm:text-base text-muted-foreground">
-                      No products match "{productSearchQuery}"
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                    {filteredProducts.map((p, index) => (
-                      <motion.button
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[calc(100vh-22rem)] overflow-y-auto">
+                    {filteredProducts.map((p) => (
+                      <button
                         key={p.id}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: index * 0.05 }}
                         onClick={() => addToCart(p)}
                         disabled={p.stock <= 0}
-                        whileHover={{ scale: 1.03, y: -2 }}
-                        whileTap={{ scale: 0.98 }}
-                        className="group text-left rounded-xl border border-border bg-card p-4 sm:p-5 hover:border-primary/40 hover:shadow-lg transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none relative overflow-hidden"
+                        className="aspect-square rounded-xl border border-border bg-card overflow-hidden flex flex-col text-left hover:border-foreground/30 active:scale-95 transition-all disabled:opacity-30"
                       >
-                        <div className="absolute inset-0 bg-linear-to-br from-primary/0 via-transparent to-primary/0 group-hover:from-primary/5 group-hover:to-primary/5 transition-all duration-300" />
-                        {p.stock <= p.lowStockAt && p.stock > 0 && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="absolute top-2.5 right-2.5 z-10"
-                          >
-                            <Badge variant="warning" className="text-[10px] px-1.5 py-0 h-5">Low</Badge>
-                          </motion.div>
-                        )}
-                        {p.stock <= 0 && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="absolute top-2.5 right-2.5 z-10"
-                          >
-                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-5">Out</Badge>
-                          </motion.div>
-                        )}
-                        <div className="space-y-3 relative z-10">
-                          <div>
-                            <p className="text-sm sm:text-base font-semibold truncate group-hover:text-primary transition-colors">{p.name}</p>
-                            {p.category && (
-                              <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 capitalize">{p.category}</p>
-                            )}
+                        {p.imageUrl ? (
+                          <div className="h-20 w-full bg-muted border-b border-border/50">
+                            <img src={p.imageUrl} alt={p.name} className="h-full w-full object-cover" />
                           </div>
-                          <div className="flex items-end justify-between">
-                            <div>
-                              <p className="text-xs text-muted-foreground">Price</p>
-                              <motion.p
-                                className="text-base sm:text-xl font-bold"
-                                initial={{ y: 5, opacity: 0 }}
-                                animate={{ y: 0, opacity: 1 }}
-                                transition={{ delay: 0.1 }}
-                              >
-                                {currency} {p.price.toLocaleString()}
-                              </motion.p>
-                            </div>
-                            <motion.div
-                              whileHover={{ scale: 1.1 }}
-                              transition={{ type: "spring", stiffness: 400 }}
-                            >
-                              <Badge
-                                variant={p.stock <= 0 ? "destructive" : p.stock <= p.lowStockAt ? "warning" : "secondary"}
-                                className="text-xs px-2 py-0.5"
-                              >
-                                {p.stock > 0 ? `${p.stock}` : "0"}
-                              </Badge>
-                            </motion.div>
+                        ) : (
+                          <div className="h-20 w-full bg-muted flex items-center justify-center border-b border-border/50">
+                            <Package className="h-8 w-8 text-muted-foreground/30" />
+                          </div>
+                        )}
+                        <div className="p-2 flex flex-col justify-between flex-1">
+                          <p className="text-xs font-medium leading-tight line-clamp-2">{p.name}</p>
+                          <div>
+                            <p className="font-mono text-sm font-semibold">{currency} {p.price.toLocaleString()}</p>
+                            <p className={cn("text-[9px]", p.stock <= p.lowStockAt ? "text-red-500" : "text-muted-foreground")}>
+                              {p.stock} in stock
+                            </p>
                           </div>
                         </div>
-                      </motion.button>
+                      </button>
                     ))}
                   </div>
-                )}
+                </div>
               </CardContent>
             </Card>
           </motion.div>
@@ -602,60 +671,10 @@ export default function MerchantDashboardPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="space-y-3 max-h-56 sm:max-h-72 overflow-y-auto pr-2">
-                      {cart.map((l, index) => (
-                        <motion.div
-                          key={`${l.productId}-${l.name}`}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.05 }}
-                          className="flex items-center justify-between gap-3 p-3 sm:p-4 rounded-xl bg-muted/30 border border-border/50 hover:bg-muted/50 hover:border-primary/20 transition-all duration-200"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm sm:text-base font-medium truncate">{l.name}</p>
-                            <p className="text-xs sm:text-sm text-muted-foreground">{currency} {l.unitPrice.toLocaleString()} each</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-7 w-7 sm:h-8 sm:w-8"
-                                onClick={() => updateQty(l.productId, l.name, -1)}
-                              >
-                                <Minus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                              </Button>
-                            </motion.div>
-                            <motion.span
-                              key={l.quantity}
-                              initial={{ scale: 1.2 }}
-                              animate={{ scale: 1 }}
-                              className="w-6 text-center text-sm sm:text-base font-bold"
-                            >
-                              {l.quantity}
-                            </motion.span>
-                            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-7 w-7 sm:h-8 sm:w-8"
-                                onClick={() => updateQty(l.productId, l.name, 1)}
-                              >
-                                <Plus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                              </Button>
-                            </motion.div>
-                          </div>
-                          <div className="text-right min-w-15 sm:min-w-20">
-                            <p className="text-sm sm:text-base font-semibold">{currency} {(l.unitPrice * l.quantity).toLocaleString()}</p>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-
                     <div className="space-y-4 pt-4 border-t border-border/60">
                       <div className="space-y-2">
                         <Label className="text-xs sm:text-sm font-medium">Customer (optional)</Label>
-                        <Select value={customerId} onValueChange={setCustomerId}>
+                        <Select value={customerId} onValueChange={(v) => { setCustomerId(v); setRedeemPoints(0); }}>
                           <SelectTrigger className="h-9 sm:h-10 text-sm">
                             <SelectValue placeholder="Walk-in customer" />
                           </SelectTrigger>
@@ -697,60 +716,84 @@ export default function MerchantDashboardPage() {
                           </Select>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="space-y-2 pt-3 border-t border-border/60">
-                      <div className="flex items-center justify-between text-sm sm:text-base">
-                        <span className="text-muted-foreground">Subtotal</span>
-                        <span className="font-medium">{currency} {subtotal.toLocaleString()}</span>
-                      </div>
-                      {discount > 0 && (
-                        <div className="flex items-center justify-between text-sm sm:text-base">
-                          <span className="text-muted-foreground">Discount</span>
-                          <span className="font-medium text-emerald-600">-{currency} {discount.toLocaleString()}</span>
+                      <div className="bg-[#0F172A] text-white flex flex-col">
+                        <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                          <span className="text-sm text-white/60">Current sale</span>
+                          <span className="font-mono text-sm text-white/40">{cart.length} item{cart.length !== 1 ? "s" : ""}</span>
                         </div>
-                      )}
-                      <div className="flex items-center justify-between pt-2">
-                        <span className="text-base sm:text-lg font-semibold">Total</span>
-                        <span className="text-xl sm:text-2xl font-bold">{currency} {total.toLocaleString()}</span>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-1 font-mono text-sm">
+                          {cart.length === 0 ? (
+                            <p className="text-white/30 text-center py-10">No items yet</p>
+                          ) : cart.map((l) => (
+                            <div key={`${l.productId}-${l.name}`} className="flex items-center justify-between py-2 border-b border-white/5">
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => updateQty(l.productId, l.name, -1)} className="h-6 w-6 rounded bg-white/10 hover:bg-white/20 flex items-center justify-center"><Minus className="h-3 w-3" /></button>
+                                <span className="w-4 text-center">{l.quantity}</span>
+                                <button onClick={() => updateQty(l.productId, l.name, 1)} className="h-6 w-6 rounded bg-white/10 hover:bg-white/20 flex items-center justify-center"><Plus className="h-3 w-3" /></button>
+                              </div>
+                              <span className="truncate flex-1 px-2 text-white/80">{l.name}</span>
+                              <span>{(l.unitPrice * l.quantity).toLocaleString()}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {(() => {
+                          const selectedCustomer = customers?.find((c) => c.id === customerId);
+                          if (!selectedCustomer || selectedCustomer.loyaltyPoints <= 0) return null;
+                          const redemptionValue = (dash as any)?.loyaltyRedemptionValue ?? 1;
+                          return (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs sm:text-sm font-medium">Redeem points</Label>
+                                <span className="text-xs text-muted-foreground">{selectedCustomer.loyaltyPoints} available</span>
+                              </div>
+                              <Input
+                                type="number"
+                                min={0}
+                                max={selectedCustomer.loyaltyPoints}
+                                className="h-9 sm:h-10 text-sm"
+                                value={redeemPoints || ""}
+                                onChange={(e) => setRedeemPoints(Math.max(0, Math.min(selectedCustomer.loyaltyPoints, Number(e.target.value) || 0)))}
+                                placeholder="0"
+                              />
+                              {redeemPoints > 0 && (
+                                <p className="text-xs text-emerald-600">{redeemPoints} points = {currency} {(redeemPoints * redemptionValue).toLocaleString()} off</p>
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        <div className="space-y-2 p-4 border-t border-border/60">
+                          <div className="flex items-center justify-between text-sm sm:text-base">
+                            <span className="text-muted-foreground">Subtotal</span>
+                            <span className="font-medium">{currency} {subtotal.toLocaleString()}</span>
+                          </div>
+                          {discount > 0 && (
+                            <div className="flex items-center justify-between text-sm sm:text-base">
+                              <span className="text-muted-foreground">Discount</span>
+                              <span className="font-medium text-emerald-600">-{currency} {discount.toLocaleString()}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-4 border-t border-white/10 space-y-3">
+                          <div className="flex items-end justify-between">
+                            <span className="text-white/60">Total</span>
+                            <span className="font-mono text-3xl font-bold">{currency} {total.toLocaleString()}</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button variant="outline" className="bg-white/5 border-white/10 text-white hover:bg-white/10 h-11" onClick={holdOrder} disabled={cart.length === 0}>
+                              <FaHandHolding className="h-4 w-4 mr-2" /> Hold
+                            </Button>
+                            <Button className="h-11 bg-[#22C55E] hover:bg-[#16A34A] text-white font-semibold" disabled={cart.length === 0 || createSale.isPending} onClick={handleCheckout}>
+                              {createSale.isPending ? "Processing..." : "Charge"}
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={holdOrder}
-                        disabled={cart.length === 0}
-                        className="h-11"
-                      >
-                        <FaHandHolding className="h-4 w-4 mr-2" />
-                        Hold
-                      </Button>
 
-                      <motion.div
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                      >
-                        <Button
-                          className="h-11 font-medium w-full"
-                          disabled={cart.length === 0 || createSale.isPending}
-                          onClick={handleCheckout}
-                        >
-                          {createSale.isPending ? (
-                            <span className="flex items-center gap-2">
-                              <RotateCcw className="h-4 w-4 animate-spin" />
-                              Processing...
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-2">
-                              <Zap className="h-4 w-4" />
-                              Complete Sale
-                            </span>
-                          )}
-                        </Button>
-                      </motion.div>
-                    </div>
 
                     {lastSale && (
                       <Button
@@ -779,9 +822,14 @@ export default function MerchantDashboardPage() {
                 <CardTitle className="text-base sm:text-lg flex items-center gap-2">
                   <Package className="h-5 w-5 text-primary" /> Products
                 </CardTitle>
-                <Button size="sm" onClick={() => setProductDialogOpen(true)} className="gap-2 h-9 sm:h-10 text-sm">
-                  <Plus className="h-4 w-4" /> Add Product
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setBulkImportOpen(true)} className="gap-2 h-9 sm:h-10 text-sm">
+                    <Upload className="h-4 w-4" /> Bulk Import
+                  </Button>
+                  <Button size="sm" onClick={() => setProductDialogOpen(true)} className="gap-2 h-9 sm:h-10 text-sm">
+                    <Plus className="h-4 w-4" /> Add Product
+                  </Button>
+                </div>
               </div>
             </CardHeader>
 
@@ -797,60 +845,68 @@ export default function MerchantDashboardPage() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
                   {(products ?? []).map((p) => (
-                    <div key={p.id} className="group relative rounded-xl border border-border bg-card p-5 hover:border-primary/40 hover:shadow-md transition-all duration-200">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-base truncate">{p.name}</p>
-                          {p.category && (
-                            <p className="text-xs sm:text-sm text-muted-foreground capitalize mt-0.5">{p.category}</p>
+                    <div key={p.id} className="group relative rounded-xl border border-border bg-card hover:border-primary/40 hover:shadow-md transition-all duration-200 overflow-hidden">
+                      {p.imageUrl && (
+                        <div className="h-32 w-full bg-muted border-b border-border/50">
+                          <img src={p.imageUrl} alt={p.name} className="h-full w-full object-cover" />
+                        </div>
+                      )}
+
+                      <div className="p-5">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-base truncate">{p.name}</p>
+                            {p.category && (
+                              <p className="text-xs sm:text-sm text-muted-foreground capitalize mt-0.5">{p.category}</p>
+                            )}
+                          </div>
+                          {p.stock <= p.lowStockAt && p.stock > 0 && (
+                            <Badge variant="warning" className="text-[10px] px-1.5 py-0 h-5 shrink-0">Low</Badge>
+                          )}
+                          {p.stock <= 0 && (
+                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-5 shrink-0">Out</Badge>
                           )}
                         </div>
-                        {p.stock <= p.lowStockAt && p.stock > 0 && (
-                          <Badge variant="warning" className="text-[10px] px-1.5 py-0 h-5 shrink-0">Low</Badge>
-                        )}
-                        {p.stock <= 0 && (
-                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-5 shrink-0">Out</Badge>
-                        )}
-                      </div>
-                      <div className="space-y-2.5 mb-4">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs sm:text-sm text-muted-foreground">Price</span>
-                          <span className="font-semibold text-sm sm:text-base">{currency} {p.price.toLocaleString()}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs sm:text-sm text-muted-foreground">Stock</span>
-                          <span className={cn("font-medium text-sm sm:text-base", p.stock <= 0 ? "text-destructive" : p.stock <= p.lowStockAt ? "text-amber-600" : "")}>
-                            {p.stock}
-                          </span>
-                        </div>
-                        {p.margin != null && (
+                        <div className="space-y-2.5 mb-4">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs sm:text-sm text-muted-foreground">Margin</span>
-                            <span className="text-xs sm:text-sm font-medium text-emerald-600">{p.margin}%</span>
+                            <span className="text-xs sm:text-sm text-muted-foreground">Price</span>
+                            <span className="font-semibold text-sm sm:text-base">{currency} {p.price.toLocaleString()}</span>
                           </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 pt-3 border-t border-border/50">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1 h-9 text-xs sm:text-sm"
-                          onClick={() => openEditProduct(p)}
-                        >
-                          <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => {
-                            if (confirm(`Remove "${p.name}" from your catalog?`)) {
-                              deleteProduct.mutate(p.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs sm:text-sm text-muted-foreground">Stock</span>
+                            <span className={cn("font-medium text-sm sm:text-base", p.stock <= 0 ? "text-destructive" : p.stock <= p.lowStockAt ? "text-amber-600" : "")}>
+                              {p.stock}
+                            </span>
+                          </div>
+                          {p.margin != null && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs sm:text-sm text-muted-foreground">Margin</span>
+                              <span className="text-xs sm:text-sm font-medium text-emerald-600">{p.margin}%</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 pt-3 border-t border-border/50">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 h-9 text-xs sm:text-sm"
+                            onClick={() => openEditProduct(p)}
+                          >
+                            <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => {
+                              if (confirm(`Remove "${p.name}" from your catalog?`)) {
+                                deleteProduct.mutate(p.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -871,6 +927,16 @@ export default function MerchantDashboardPage() {
                 </CardTitle>
                 <Button size="sm" onClick={() => setCustomerDialogOpen(true)} className="gap-2 h-9 sm:h-10 text-sm">
                   <Plus className="h-4 w-4" /> Add Customer
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => exportCustomers.mutate(undefined, { onError: (err: any) => alert(err.message ?? "Export failed") })}
+                  disabled={exportCustomers.isPending}
+                  className="gap-2 h-9 sm:h-10 text-sm"
+                >
+                  <Download className="h-4 w-4" /> {exportCustomers.isPending ? "Exporting..." : "Export"}
                 </Button>
               </div>
             </CardHeader>
@@ -977,6 +1043,16 @@ export default function MerchantDashboardPage() {
                     View all
                   </Button>
                 )}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 text-xs sm:text-sm px-3 gap-1.5"
+                  onClick={() => exportSales.mutate(undefined, { onError: (err: any) => alert(err.message ?? "Export failed") })}
+                  disabled={exportSales.isPending}
+                >
+                  <Download className="h-3.5 w-3.5" /> {exportSales.isPending ? "Exporting..." : "Export"}
+                </Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -1090,42 +1166,146 @@ export default function MerchantDashboardPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={productDialogOpen} onOpenChange={setProductDialogOpen}>
+      <Dialog open={productDialogOpen} onOpenChange={(open) => {
+        setProductDialogOpen(open);
+        if (!open) {
+          setNewProductImageFile(null);
+          setNewProductImagePreview(null);
+        }
+      }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Add product</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 pt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs sm:text-sm">Product Image</Label>
+              <div className="flex items-center gap-3">
+                <div className="h-16 w-16 rounded-lg bg-muted border-2 border-dashed flex items-center justify-center overflow-hidden">
+                  {newProductImagePreview ? (
+                    <img src={newProductImagePreview} alt="Product preview" className="h-full w-full object-cover" />
+                  ) : (
+                    <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleNewProductImageSelect}
+                    className="hidden"
+                    id="new-product-image"
+                  />
+                  <label htmlFor="new-product-image">
+                    <Button type="button" variant="outline" size="sm" className="w-full" asChild>
+                      <span>
+                        {newProductImageUploading ? "Uploading..." : newProductImagePreview ? "Change image" : "Upload image"}
+                      </span>
+                    </Button>
+                  </label>
+                </div>
+              </div>
+            </div>
             <Input placeholder="Name" value={newProduct.name} onChange={(e) => setNewProduct((p) => ({ ...p, name: e.target.value }))} />
             <div className="grid grid-cols-2 gap-3">
-              <Input type="number" placeholder="Price" value={newProduct.price} onChange={(e) => setNewProduct((p) => ({ ...p, price: Number(e.target.value) || 0 }))} />
-              <Input type="number" placeholder="Stock" value={newProduct.stock} onChange={(e) => setNewProduct((p) => ({ ...p, stock: Number(e.target.value) || 0 }))} />
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">Price</Label>
+                <Input type="number" placeholder="Price" value={newProduct.price} onChange={(e) => setNewProduct((p) => ({ ...p, price: Number(e.target.value) || 0 }))} />
+              </div>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">Stock</Label>
+                <Input type="number" placeholder="Stock" value={newProduct.stock} onChange={(e) => setNewProduct((p) => ({ ...p, stock: Number(e.target.value) || 0 }))} />
+              </div>
+
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <ScanLine className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+                  <Input
+                    placeholder="Scan a barcode, or type it and press Enter..."
+                    value={scanBarcodeInput}
+                    onChange={(e) => setScanBarcodeInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && scanBarcodeInput.trim()) {
+                        e.preventDefault();
+                        handleBarcodeScan(scanBarcodeInput.trim());
+                      }
+                    }}
+                    className="pl-10 sm:pl-11 h-10 sm:h-11 text-sm sm:text-base"
+                  />
+                </div>
+                <Button type="button" variant="outline" size="icon" className="h-10 w-10 sm:h-11 sm:w-11 shrink-0" onClick={() => setCameraScannerOpen(true)}>
+                  <Camera className="h-4 w-4" />
+                </Button>
+              </div>
+
             </div>
             <Input placeholder="Category (optional)" value={newProduct.category} onChange={(e) => setNewProduct((p) => ({ ...p, category: e.target.value }))} />
             <Button
               className="w-full"
-              disabled={!newProduct.name.trim() || createProduct.isPending}
-              onClick={() =>
-                createProduct.mutate(newProduct as any, {
-                  onSuccess: () => {
-                    setNewProduct({ name: "", price: 0, stock: 0, category: "" });
-                    setProductDialogOpen(false);
-                  },
-                })
-              }
+              disabled={!newProduct.name.trim() || createProduct.isPending || newProductImageUploading}
+              onClick={async () => {
+                const imageUrl = await uploadNewProductImage();
+                createProduct.mutate(
+                  { ...newProduct, imageUrl } as any,
+                  {
+                    onSuccess: () => {
+                      setNewProduct({ name: "", price: 0, stock: 0, category: "", barcode: "", imageUrl: "" });
+                      setNewProductImageFile(null);
+                      setNewProductImagePreview(null);
+                      setProductDialogOpen(false);
+                    },
+                  }
+                );
+              }}
             >
-              {createProduct.isPending ? "Adding..." : "Add product"}
+              {createProduct.isPending ? "Adding..." : newProductImageUploading ? "Uploading image..." : "Add product"}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editingProduct} onOpenChange={(open) => !open && setEditingProduct(null)}>
+      <BulkProductImport open={bulkImportOpen} onClose={() => setBulkImportOpen(false)} />
+
+      <Dialog open={!!editingProduct} onOpenChange={(open) => {
+        if (!open) {
+          setEditingProduct(null);
+          setEditProductImageFile(null);
+          setEditProductImagePreview(null);
+        }
+      }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Edit product</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 pt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs sm:text-sm">Product Image</Label>
+              <div className="flex items-center gap-3">
+                <div className="h-16 w-16 rounded-lg bg-muted border-2 border-dashed flex items-center justify-center overflow-hidden">
+                  {editProductImagePreview ? (
+                    <img src={editProductImagePreview} alt="Product preview" className="h-full w-full object-cover" />
+                  ) : (
+                    <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleEditProductImageSelect}
+                    className="hidden"
+                    id="edit-product-image"
+                  />
+                  <label htmlFor="edit-product-image">
+                    <Button type="button" variant="outline" size="sm" className="w-full" asChild>
+                      <span>
+                        {editProductImageUploading ? "Uploading..." : editProductImagePreview ? "Change image" : "Upload image"}
+                      </span>
+                    </Button>
+                  </label>
+                </div>
+              </div>
+            </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Name</Label>
               <Input
@@ -1150,6 +1330,13 @@ export default function MerchantDashboardPage() {
                   onChange={(e) => setEditProductForm((f) => ({ ...f, stock: Number(e.target.value) || 0 }))}
                 />
               </div>
+
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">Barcode</Label>
+                <Input placeholder="Barcode (optional — scan or type)"
+                  value={editProductForm.barcode}
+                  onChange={(e) => setEditProductForm((f) => ({ ...f, barcode: e.target.value }))} />
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Low-stock alert threshold</Label>
@@ -1171,10 +1358,16 @@ export default function MerchantDashboardPage() {
                 Cancel
               </Button>
               <Button
-                disabled={!editProductForm.name.trim() || updateProduct.isPending}
-                onClick={saveEditedProduct}
+                disabled={!editProductForm.name.trim() || updateProduct.isPending || editProductImageUploading}
+                onClick={async () => {
+                  const imageUrl = await uploadEditProductImage();
+                  updateProduct.mutate(
+                    { id: editingProduct!.id, data: { ...editProductForm, imageUrl } },
+                    { onSuccess: () => setEditingProduct(null) }
+                  );
+                }}
               >
-                {updateProduct.isPending ? "Saving..." : "Save changes"}
+                {updateProduct.isPending ? "Saving..." : editProductImageUploading ? "Uploading image..." : "Save changes"}
               </Button>
             </div>
           </div>
@@ -1383,6 +1576,28 @@ export default function MerchantDashboardPage() {
           }
         }
       `}</style>
+
+      <AnimatePresence>
+        {scanFeedback && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] text-white text-sm px-4 py-2 rounded-full shadow-lg ${scanFeedback.type === "success" ? "bg-emerald-500" : "bg-destructive"}`}
+          >
+            {scanFeedback.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <CameraBarcodeScanner
+        open={cameraScannerOpen}
+        onOpenChange={setCameraScannerOpen}
+        onDetect={(code) => {
+          setCameraScannerOpen(false);
+          handleBarcodeScan(code);
+        }}
+      />
     </motion.div>
   );
 }

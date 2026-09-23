@@ -38,6 +38,7 @@ const errors_1 = require("../lib/errors");
 const env_1 = require("../config/env");
 const prisma_1 = require("../config/prisma");
 const staffAuthService = __importStar(require("../services/staff-auth.service"));
+const staff_permissions_1 = require("../lib/staff-permissions");
 const STAFF_COOKIE = "lifeos_staff_token";
 const isProd = env_1.env.NODE_ENV !== "development";
 const STAFF_COOKIE_OPTIONS = {
@@ -57,15 +58,20 @@ exports.me = (0, errors_1.asyncHandler)(async (req, res) => {
     const staff = await prisma_1.prisma.bizStaff.findUnique({ where: { id: req.staff.staffId } });
     if (!staff)
         return res.status(404).json({ error: "Staff not found" });
-    const profile = await prisma_1.prisma.bizProfile.findUnique({
-        where: { id: req.staff.bizProfileId },
-        select: { businessName: true, currency: true },
-    });
+    const [profile, store] = await Promise.all([
+        prisma_1.prisma.bizProfile.findUnique({
+            where: { id: req.staff.bizProfileId },
+            select: { businessName: true, currency: true },
+        }),
+        prisma_1.prisma.store.findUnique({ where: { id: req.staff.storeId }, select: { name: true } }),
+    ]);
     const { pinHash: _hash, ...rest } = staff;
     return res.json({
         staff: rest,
         businessName: profile?.businessName,
+        storeName: store?.name,
         currency: profile?.currency ?? "USD",
+        permissions: (0, staff_permissions_1.getStaffPermissions)(req.staff.role),
     });
 });
 exports.logout = (0, errors_1.asyncHandler)(async (_req, res) => {

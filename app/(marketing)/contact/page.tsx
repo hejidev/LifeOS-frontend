@@ -35,7 +35,7 @@ export default function ContactPage() {
 
   return (
     <div className="relative overflow-hidden">
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 h-[500px] w-[800px] rounded-full bg-primary/10 blur-3xl -z-10" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 h-125 w-200 rounded-full bg-primary/10 blur-3xl -z-10" />
 
       <div className="max-w-5xl mx-auto px-4 py-14 sm:py-20">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">

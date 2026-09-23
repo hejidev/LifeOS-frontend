@@ -71,7 +71,7 @@ export default function ExpensesPage() {
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
       <motion.div variants={item} className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg border border-primary/20">
+          <div className="p-2 bg-linear-to-br from-primary/20 to-primary/5 rounded-lg border border-primary/20">
             <Receipt className="h-5 w-5 text-primary" />
           </div>
           <div>
@@ -108,7 +108,7 @@ export default function ExpensesPage() {
                 />
               </div>
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-full sm:w-[180px] h-9 sm:h-10 text-sm">
+                <SelectTrigger className="w-full sm:w-45 h-9 sm:h-10 text-sm">
                   <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
                   <SelectValue placeholder="All categories" />
                 </SelectTrigger>
@@ -169,7 +169,7 @@ export default function ExpensesPage() {
                                   {new Date(e.date).toLocaleDateString()}
                                 </span>
                                 {e.note && (
-                                  <span className="truncate max-w-[150px] sm:max-w-[200px]">{e.note}</span>
+                                  <span className="truncate max-w-37.5 sm:max-w-50">{e.note}</span>
                                 )}
                               </div>
                             </div>

@@ -33,12 +33,16 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createSale = exports.createCustomer = exports.getCustomers = exports.getProducts = void 0;
+exports.createSale = exports.createCustomer = exports.getCustomers = exports.getProductByBarcode = exports.getProducts = void 0;
 const errors_1 = require("../lib/errors");
 const staffPosService = __importStar(require("../services/staff-pos.service"));
 exports.getProducts = (0, errors_1.asyncHandler)(async (req, res) => {
-    const products = await staffPosService.getProducts(req.staff.bizProfileId);
+    const products = await staffPosService.getProducts(req.staff.bizProfileId, req.staff.storeId);
     return res.json({ products });
+});
+exports.getProductByBarcode = (0, errors_1.asyncHandler)(async (req, res) => {
+    const product = await staffPosService.getProductByBarcode(req.staff.bizProfileId, req.staff.storeId, req.params.barcode);
+    return res.json({ product });
 });
 exports.getCustomers = (0, errors_1.asyncHandler)(async (req, res) => {
     const customers = await staffPosService.getCustomers(req.staff.bizProfileId);
@@ -49,6 +53,6 @@ exports.createCustomer = (0, errors_1.asyncHandler)(async (req, res) => {
     return res.status(201).json({ customer });
 });
 exports.createSale = (0, errors_1.asyncHandler)(async (req, res) => {
-    const sale = await staffPosService.createSale(req.staff.staffId, req.staff.bizProfileId, req.body);
+    const sale = await staffPosService.createSale(req.staff.staffId, req.staff.bizProfileId, req.staff.storeId, req.body);
     return res.status(201).json({ sale });
 });

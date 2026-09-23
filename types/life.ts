@@ -439,6 +439,7 @@ export interface SmallBusinessSummary {
 }
 
 export interface BizProduct {
+  barcode: string;
   id: string;
   name: string;
   sku?: string;
@@ -462,6 +463,7 @@ export interface BizCustomer {
   notes?: string;
   totalSpent: number;
   orderCount: number;
+  loyaltyPoints: number;
   createdAt: string;
 }
 

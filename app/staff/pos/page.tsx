@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, Clock, LogOut, Sparkles, Users, RotateCcw, MessageSquare, UserCircle2,
   Plus, Minus, Trash2, ShoppingCart, X, Store, Receipt, Download, Printer, Search,
+  ScanLine, Camera, Monitor, CalendarClock,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,9 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { staffApi, StaffSessionExpiredError } from "@/lib/api/staff-client";
+import { useBarcodeScanner } from "@/lib/hooks/use-barcode-scanner";
+import { CameraBarcodeScanner } from "@/components/merchant/camera-barcode-scanner";
+import { usePosDisplayBroadcast } from "@/lib/hooks/use-pos-display";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
 
@@ -102,6 +106,10 @@ export default function StaffShiftPage() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState("");
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const [scanFeedback, setScanFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
+
   const [clockOutConfirm, setClockOutConfirm] = useState(false);
   const [clockingOut, setClockingOut] = useState(false);
 
@@ -109,6 +117,8 @@ export default function StaffShiftPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const total = cart.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0); // moved up, used by broadcast effect below
+
   const [customerId, setCustomerId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [checkingOut, setCheckingOut] = useState(false);
@@ -116,8 +126,38 @@ export default function StaffShiftPage() {
   const [productSearchQuery, setProductSearchQuery] = useState("");
   const [recentSales, setRecentSales] = useState<any[]>([]);
 
+  const [permissions, setPermissions] = useState<string[]>([]);
+
+  const [scanBarcodeInput, setScanBarcodeInput] = useState("");
+
+  const [redeemPoints, setRedeemPoints] = useState(0);
+
+  const [myShifts, setMyShifts] = useState<any[]>([]);
+
   const elapsed = useElapsedTime(shiftStart);
   const clock = useClock();
+
+  const [displaySession] = useState(() => crypto.randomUUID());
+  const { publish } = usePosDisplayBroadcast(displaySession);
+
+  useEffect(() => {
+    publish({
+      businessName, currency,
+      lines: cart.map((i) => ({ name: i.name, quantity: i.quantity, unitPrice: i.unitPrice })),
+      discount: 0,
+      total,
+      status: cart.length > 0 ? "shopping" : "idle",
+      servedBy: staff?.name,
+    });
+  }, [cart, total, publish, businessName, currency, staff]);
+
+  function openCustomerDisplay() {
+    window.open(
+      `/merchant/pos/customer-display?session=${displaySession}`,
+      "pos-customer-display",
+      "width=1024,height=768"
+    );
+  }
 
   const showToast = useCallback((type: "success" | "error", message: string) => {
     setToast({ type, message });
@@ -128,14 +168,21 @@ export default function StaffShiftPage() {
     try {
       const data = await staffApi.get("/staff-portal/activity");
       setActivity(data.activity);
-    } catch {}
+    } catch { }
   }, []);
 
   const loadTeam = useCallback(async () => {
     try {
       const data = await staffApi.get("/staff-portal/team");
       setTeam(data.team);
-    } catch {}
+    } catch { }
+  }, []);
+
+  const loadMyShifts = useCallback(async () => {
+    try {
+      const data = await staffApi.get("/my-shifts");
+      setMyShifts(data.shifts);
+    } catch { }
   }, []);
 
   useEffect(() => {
@@ -145,13 +192,16 @@ export default function StaffShiftPage() {
         setStaff(d.staff);
         setBusinessName(d.businessName ?? "");
         setCurrency(d.currency ?? "USD");
+        setPermissions(d.permissions ?? []);
       })
       .catch(() => router.push("/staff/login"));
     loadActivity();
     loadTeam();
-  }, [router, loadActivity, loadTeam]);
+    loadMyShifts();
+  }, [router, loadActivity, loadTeam, loadMyShifts]);
 
   async function openSale() {
+    if (!permissions.includes("CREATE_SALE")) return;
     setSaleOpen(true);
     setProductSearchQuery("");
     try {
@@ -170,24 +220,70 @@ export default function StaffShiftPage() {
     ? products.filter((p) => p.name.toLowerCase().includes(productSearchQuery.toLowerCase()))
     : products;
 
+  function handleBarcodeScan(code: string) {
+    staffApi
+      .get(`/staff-pos/products/by-barcode/${encodeURIComponent(code)}`)
+      .then((data: any) => {
+        if (data.product.stock <= 0) {
+          setScanFeedback({ type: "error", message: `${data.product.name} is out of stock` });
+          setTimeout(() => setScanFeedback(null), 2500);
+          return;
+        }
+        addToCart(data.product);
+        setScanFeedback({ type: "success", message: `Added: ${data.product.name}` });
+        setTimeout(() => setScanFeedback(null), 2500);
+        setScanBarcodeInput("");
+      })
+      .catch((err) => {
+        if (!(err instanceof StaffSessionExpiredError)) {
+          setScanFeedback({ type: "error", message: `No product found for barcode ${code}` });
+          setTimeout(() => setScanFeedback(null), 2500);
+        }
+      });
+  }
+
+  useBarcodeScanner(handleBarcodeScan, saleOpen);
+
   function addToCart(p: any) {
     setCart((prev) => {
       const existing = prev.find((i) => i.productId === p.id);
-      if (existing) return prev.map((i) => (i.productId === p.id ? { ...i, quantity: i.quantity + 1 } : i));
+      if (existing) {
+        if (existing.quantity >= p.stock) return prev;
+        return prev.map((i) => (i.productId === p.id ? { ...i, quantity: i.quantity + 1 } : i));
+      }
+      if (p.stock <= 0) return prev;
       return [...prev, { productId: p.id, name: p.name, unitPrice: p.price, quantity: 1 }];
     });
   }
+
+  function adjustQty(productId: string, delta: number) {
+    setCart((prev) =>
+      prev
+        .map((i) => {
+          if (i.productId !== productId) return i;
+          const product = products.find((p) => p.id === productId);
+          const max = product?.stock ?? Infinity;
+          return { ...i, quantity: Math.min(max, i.quantity + delta) };
+        })
+        .filter((i) => i.quantity > 0)
+    );
+  }
+
   function cartQtyFor(productId: string) {
     return cart.find((i) => i.productId === productId)?.quantity ?? 0;
   }
-  function adjustQty(productId: string, delta: number) {
-    setCart((prev) => prev.map((i) => (i.productId === productId ? { ...i, quantity: i.quantity + delta } : i)).filter((i) => i.quantity > 0));
-  }
+
   function removeItem(productId: string) {
     setCart((prev) => prev.filter((i) => i.productId !== productId));
   }
 
-  const total = cart.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+  const idleResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (idleResetTimeoutRef.current) clearTimeout(idleResetTimeoutRef.current);
+    };
+  }, []);
 
   async function handleCheckout() {
     if (cart.length === 0) return;
@@ -198,9 +294,21 @@ export default function StaffShiftPage() {
         items: cart.map(({ productId, name, unitPrice, quantity }) => ({ productId, name, unitPrice, quantity })),
         paymentMethod,
         status: "PAID",
+        redeemPoints: redeemPoints > 0 ? redeemPoints : undefined,
       });
+      publish({
+        businessName, currency,
+        lines: cart.map((i) => ({ name: i.name, quantity: i.quantity, unitPrice: i.unitPrice })),
+        discount: 0, total, status: "paid", servedBy: staff?.name,
+      });
+
+      idleResetTimeoutRef.current = setTimeout(() => {
+        publish({ businessName, currency, lines: [], discount: 0, total: 0, status: "idle" });
+      }, 4000);
+
       setCart([]);
       setCustomerId("");
+      setRedeemPoints(0);
       setSaleOpen(false);
       setReceipt(sale);
       setRecentSales((prev) => [sale, ...prev]);
@@ -259,11 +367,11 @@ export default function StaffShiftPage() {
   const todayCount = activity.length;
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-background px-4 py-6 sm:py-8">
-      <div className="pointer-events-none absolute -top-32 left-1/2 h-[380px] w-[380px] -translate-x-1/2 rounded-full bg-primary/15 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-0 right-0 h-[300px] w-[300px] rounded-full bg-emerald-500/10 blur-3xl" />
+    <div className="relative min-h-screen overflow-hidden bg-background px-4 py-6 sm:py-8 max-w-8xl">
+      <div className="pointer-events-none absolute -top-32 left-1/2 h-95 w-95 -translate-x-1/2 rounded-full bg-primary/15 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-0 right-0 h-75 w-75 rounded-full bg-emerald-500/10 blur-3xl" />
 
-      <div className="relative max-w-lg mx-auto space-y-4 sm:space-y-5">
+      <div className="relative sm:max-w-7xl mx-auto space-y-4 sm:space-y-5">
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-center space-y-1.5">
           <div className="relative inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 mb-1">
             <CheckCircle2 className="h-7 w-7 text-emerald-500" />
@@ -290,12 +398,27 @@ export default function StaffShiftPage() {
           </CardContent>
         </Card>
 
-        <button
-          onClick={openSale}
-          className="w-full h-16 rounded-2xl gradient-bg text-white font-semibold text-base flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.01] active:scale-[0.99] transition-all"
-        >
-          <ShoppingCart className="h-5 w-5" /> New Sale
-        </button>
+        <div className="grid grid-cols-[1fr_auto] gap-2">
+          {permissions.includes("CREATE_SALE") ? (
+            <button
+              onClick={openSale}
+              className="h-16 rounded-2xl gradient-bg text-white font-semibold text-base flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.01] active:scale-[0.99] transition-all"
+            >
+              <ShoppingCart className="h-5 w-5" /> New Sale
+            </button>
+          ) : (
+            <div className="h-16 rounded-2xl border border-dashed border-border bg-muted/30 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <ShoppingCart className="h-4 w-4" /> Sales access isn't enabled for your role
+            </div>
+          )}
+          <button
+            onClick={openCustomerDisplay}
+            title="Open customer display"
+            className="h-16 w-16 rounded-2xl border border-border bg-card flex items-center justify-center hover:bg-muted transition-colors"
+          >
+            <Monitor className="h-5 w-5 text-muted-foreground" />
+          </button>
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <Card>
@@ -324,6 +447,35 @@ export default function StaffShiftPage() {
                     <span className="text-[10px] text-muted-foreground">{t.role.replace("_", " ")}</span>
                   </div>
                 ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {myShifts.length > 0 && (
+          <Card>
+            <CardContent className="pt-4 pb-4 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1"><CalendarClock className="h-3.5 w-3.5" /> Your upcoming shifts</p>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {myShifts.map((sh) => {
+                  const start = new Date(sh.startsAt);
+                  const end = new Date(sh.endsAt);
+                  const isToday = start.toDateString() === new Date().toDateString();
+                  return (
+                    <div key={sh.id} className="flex items-center justify-between text-sm rounded-lg bg-muted/30 px-3 py-2 gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">
+                          {isToday ? "Today" : start.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}–{end.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                          {sh.storeName ? ` · ${sh.storeName}` : ""}
+                        </p>
+                      </div>
+                      {isToday && <span className="shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">Today</span>}
+                    </div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -384,10 +536,44 @@ export default function StaffShiftPage() {
         </Card>
       </div>
 
+      <AnimatePresence>
+        {scanFeedback && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-100 text-white text-sm px-4 py-2 rounded-full shadow-lg ${scanFeedback.type === "success" ? "bg-emerald-500" : "bg-destructive"}`}
+          >
+            {scanFeedback.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <Dialog open={saleOpen} onOpenChange={setSaleOpen}>
-        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+        <DialogContent className="max-h-[85vh] flex flex-col">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><ShoppingCart className="h-4 w-4 text-primary" /> New Sale</DialogTitle></DialogHeader>
           <div className="flex-1 overflow-y-auto space-y-4 pt-2">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <ScanLine className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+                <Input
+                  placeholder="Scan a barcode, or type it and press Enter..."
+                  value={scanBarcodeInput}
+                  onChange={(e) => setScanBarcodeInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && scanBarcodeInput.trim()) {
+                      e.preventDefault();
+                      handleBarcodeScan(scanBarcodeInput.trim());
+                    }
+                  }}
+                  className="pl-10 sm:pl-11 h-10 sm:h-11 text-sm sm:text-base"
+                />
+              </div>
+              <Button type="button" variant="outline" size="icon" className="h-10 w-10 sm:h-11 sm:w-11 shrink-0" onClick={() => setCameraScannerOpen(true)}>
+                <Camera className="h-4 w-4" />
+              </Button>
+            </div>
+
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -449,7 +635,7 @@ export default function StaffShiftPage() {
             )}
 
             <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border">
-              <select className="h-9 rounded-lg border border-input bg-background px-2 text-sm" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+              <select className="h-9 rounded-lg border border-input bg-background px-2 text-sm" value={customerId} onChange={(e) => { setCustomerId(e.target.value); setRedeemPoints(0); }}>
                 <option value="">Walk-in customer</option>
                 {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
@@ -458,6 +644,28 @@ export default function StaffShiftPage() {
               </select>
             </div>
           </div>
+
+          {(() => {
+            const selectedCustomer = customers.find((c) => c.id === customerId);
+            if (!selectedCustomer || !selectedCustomer.loyaltyPoints) return null;
+            return (
+              <div className="pt-2 border-t border-border space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium">Redeem points</span>
+                  <span className="text-muted-foreground">{selectedCustomer.loyaltyPoints} available</span>
+                </div>
+                <Input
+                  type="number"
+                  min={0}
+                  max={selectedCustomer.loyaltyPoints}
+                  className="h-9 text-sm"
+                  value={redeemPoints || ""}
+                  onChange={(e) => setRedeemPoints(Math.max(0, Math.min(selectedCustomer.loyaltyPoints, Number(e.target.value) || 0)))}
+                  placeholder="0"
+                />
+              </div>
+            );
+          })()}
 
           <div className="pt-3 border-t border-border shrink-0 space-y-2">
             <p className="text-lg font-bold text-right">Total: {currency} {total.toFixed(2)}</p>
@@ -558,6 +766,12 @@ export default function StaffShiftPage() {
           #receipt-print-area { position: fixed; top: 0; left: 0; width: 100%; padding: 24px; }
         }
       `}</style>
+
+      <CameraBarcodeScanner
+        open={cameraScannerOpen}
+        onOpenChange={setCameraScannerOpen}
+        onDetect={(code) => { setCameraScannerOpen(false); handleBarcodeScan(code); }}
+      />
     </div>
   );
 }

@@ -224,7 +224,7 @@ export default function PasswordVaultPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="!flex !flex-col w-[calc(100vw-2rem)] sm:w-full sm:max-w-lg px-4 sm:px-6 max-h-[85vh] overflow-hidden">
+        <DialogContent className="flex! flex-col! w-[calc(100vw-2rem)] sm:w-full sm:max-w-lg px-4 sm:px-6 max-h-[85vh] overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle className="text-start">{editingId ? "Edit credential" : "Add credential"}</DialogTitle>
           </DialogHeader>

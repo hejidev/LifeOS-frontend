@@ -141,3 +141,34 @@ export async function streamPost(path: string, body: unknown): Promise<ReadableS
   }
   return res.body.getReader();
 }
+
+export async function downloadFile(path: string, filenameFallback: string) {
+  const res = await fetch(`${API_URL}${path}`, {
+    credentials: "include",
+    headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+  });
+
+  if (res.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) return downloadFile(path, filenameFallback);
+  }
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw makeError((data as any).error ?? "Export failed", res.status);
+  }
+
+  const disposition = res.headers.get("Content-Disposition");
+  const match = disposition?.match(/filename="([^"]+)"/);
+  const filename = match?.[1] ?? filenameFallback;
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

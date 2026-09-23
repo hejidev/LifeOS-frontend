@@ -1,13 +1,13 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  /* config options here */
+const BACKEND_URL = process.env.BACKEND_URL ?? "https://lifeos-backend-cnfx.onrender.com";
 
+const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
         source: "/api/:path*",
-        destination: "https://lifeos-backend-cnfx.onrender.com/api/:path*",
+        destination: `${BACKEND_URL}/api/:path*`,
       },
     ];
   },

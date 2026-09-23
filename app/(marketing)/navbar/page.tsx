@@ -32,7 +32,7 @@ export default function MarketingNavbar() {
 
   return (
     <header className="sticky top-0 z-50">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
+      <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-primary/50 to-transparent" />
       <div className={cn("transition-all duration-300", scrolled ? "bg-background/80 backdrop-blur-xl border-b border-border shadow-sm" : "bg-transparent")}>
         <div className="mx-auto max-w-7xl px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 shrink-0 group">

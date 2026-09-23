@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   Settings, Copy, CreditCard, ShieldAlert, Bell, Store, UserCog,
   RefreshCw, LogOut, PauseCircle, PlayCircle, ExternalLink, AlertTriangle,
+  Gift, TrendingUp, MapPin, Activity, Image as ImageIcon, CheckCircle2, Users,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,14 +21,35 @@ import {
   useRegenerateStoreCode, useForceStaffLogout, useUpdateNotificationSettings, useSetStorePaused,
   useMerchantStaff, useMerchantStatus,
 } from "@/lib/hooks/use-life-data";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api/client";
+import { LoyaltySettingsCard } from "@/components/merchant/loyalty-settings-card";
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
 
+const TABS = [
+  { key: "profile", label: "Business Profile", icon: Store },
+  { key: "security", label: "Security", icon: ShieldAlert },
+  { key: "staff", label: "Staff & Access", icon: UserCog },
+  { key: "loyalty", label: "Loyalty", icon: Gift },
+  { key: "notifications", label: "Notifications", icon: Bell },
+  { key: "billing", label: "Billing", icon: CreditCard },
+  { key: "danger", label: "Danger Zone", icon: AlertTriangle },
+] as const;
+
+function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={`relative h-6 w-11 rounded-full transition-colors shrink-0 ${checked ? "bg-primary" : "bg-muted"}`}
+    >
+      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${checked ? "translate-x-5" : "translate-x-0.5"}`} />
+    </button>
+  );
+}
+
 export default function MerchantSettingsPage() {
-  const [tab, setTab] = useState<"profile" | "security" | "staff" | "notifications" | "billing" | "danger">("profile");
+  const [tab, setTab] = useState<"profile" | "security" | "staff" | "loyalty" | "notifications" | "billing" | "danger">("profile");
 
   const { data: profile } = useBusinessProfile();
   const updateProfile = useUpdateBusinessProfile();
@@ -39,7 +61,7 @@ export default function MerchantSettingsPage() {
   const { data: staff = [] } = useMerchantStaff();
   const { data: status } = useMerchantStatus();
 
-  const [profileForm, setProfileForm] = useState({ businessName: "", currency: "", description: "" });
+  const [profileForm, setProfileForm] = useState({ businessName: "", currency: "", description: "", logoUrl: "" });
   const [notifForm, setNotifForm] = useState({ notifyLowStock: true, notifyNewSale: false, notifyDailySummary: false });
   const [copied, setCopied] = useState(false);
   const [forceLogoutConfirm, setForceLogoutConfirm] = useState(false);
@@ -49,7 +71,7 @@ export default function MerchantSettingsPage() {
   useEffect(() => {
     if (profile) {
       const p = profile as any;
-      setProfileForm({ businessName: p.businessName ?? "", currency: p.currency ?? "", description: p.description ?? "" });
+      setProfileForm({ businessName: p.businessName ?? "", currency: p.currency ?? "", description: p.description ?? "", logoUrl: p.logoUrl ?? "" });
       setNotifForm({ notifyLowStock: p.notifyLowStock ?? true, notifyNewSale: p.notifyNewSale ?? false, notifyDailySummary: p.notifyDailySummary ?? false });
     }
   }, [profile]);
@@ -70,47 +92,100 @@ export default function MerchantSettingsPage() {
     setTimeout(() => setCopied(false), 1500);
   }
 
-  const TABS = [
-    { key: "profile", label: "Business Profile", icon: Store },
-    { key: "security", label: "Security", icon: ShieldAlert },
-    { key: "staff", label: "Staff & Access", icon: UserCog },
-    { key: "notifications", label: "Notifications", icon: Bell },
-    { key: "billing", label: "Billing", icon: CreditCard },
-    { key: "danger", label: "Danger Zone", icon: AlertTriangle },
-  ] as const;
-
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="max-w-8xl space-y-6">
-      <motion.div variants={item} className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Settings className="h-5 w-5 text-primary" /> Merchant Settings</h1>
-          <p className="text-muted-foreground text-sm mt-1">Manage your business profile, security, staff, and billing.</p>
+      <motion.div variants={item} className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-linear-to-br from-primary/20 to-primary/5 rounded-xl border border-primary/20">
+            <Settings className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Merchant Settings</h1>
+            <p className="text-muted-foreground text-sm mt-0.5">Manage your business profile, security, staff, and billing.</p>
+          </div>
         </div>
-        {savedMsg && <Badge variant="secondary" className="animate-in fade-in">{savedMsg}</Badge>}
+        {savedMsg && (
+          <Badge variant="secondary" className="gap-1.5 animate-in fade-in">
+            <CheckCircle2 className="h-3 w-3" /> {savedMsg}
+          </Badge>
+        )}
       </motion.div>
 
       <motion.div variants={item}>
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-          <TabsList className="flex-wrap h-auto">
-            {TABS.map((t) => <TabsTrigger key={t.key} value={t.key} className="gap-1.5"><t.icon className="h-3.5 w-3.5" />{t.label}</TabsTrigger>)}
+          <TabsList className="flex-wrap h-auto bg-muted/50 p-1.5 rounded-xl shadow-sm gap-1">
+            {TABS.map((t) => (
+              <TabsTrigger
+                key={t.key}
+                value={t.key}
+                className="gap-1.5 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-md transition-all duration-200"
+              >
+                <t.icon className="h-3.5 w-3.5" />{t.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </Tabs>
       </motion.div>
 
       {tab === "profile" && (
-        <motion.div variants={item}>
+        <motion.div variants={item} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Card className="bg-linear-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+              <CardContent className="pt-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-blue-700">Status</p>
+                  <p className="text-lg font-bold text-blue-900 mt-0.5 capitalize">{(p?.status ?? s?.status ?? "—").toLowerCase()}</p>
+                </div>
+                <div className="p-2.5 bg-blue-500/20 rounded-full"><Store className="h-4 w-4 text-blue-600" /></div>
+              </CardContent>
+            </Card>
+            <Card className="bg-linear-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
+              <CardContent className="pt-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-purple-700">Plan</p>
+                  <p className="text-lg font-bold text-purple-900 mt-0.5 capitalize">{(s?.planTier ?? "none").toLowerCase()}</p>
+                </div>
+                <div className="p-2.5 bg-purple-500/20 rounded-full"><CreditCard className="h-4 w-4 text-purple-600" /></div>
+              </CardContent>
+            </Card>
+            <Card className="bg-linear-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/20">
+              <CardContent className="pt-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-emerald-700">Active staff</p>
+                  <p className="text-lg font-bold text-emerald-900 mt-0.5">{activeStaffCount}</p>
+                </div>
+                <div className="p-2.5 bg-emerald-500/20 rounded-full"><Users className="h-4 w-4 text-emerald-600" /></div>
+              </CardContent>
+            </Card>
+          </div>
+
           <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">Business profile</CardTitle></CardHeader>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2"><Store className="h-4 w-4 text-primary" /> Business profile</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="h-16 w-16 rounded-xl border border-border bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
+                  {profileForm.logoUrl ? (
+                    <img src={profileForm.logoUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+                  )}
+                </div>
+                <div className="flex-1 space-y-1">
+                  <Label className="text-xs">Logo URL (optional)</Label>
+                  <Input value={profileForm.logoUrl} onChange={(e) => setProfileForm((f) => ({ ...f, logoUrl: e.target.value }))} placeholder="https://..." />
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1"><Label>Business name</Label><Input value={profileForm.businessName} onChange={(e) => setProfileForm((f) => ({ ...f, businessName: e.target.value }))} /></div>
                 <div className="space-y-1"><Label>Currency</Label><Input value={profileForm.currency} onChange={(e) => setProfileForm((f) => ({ ...f, currency: e.target.value.toUpperCase() }))} maxLength={3} /></div>
               </div>
               <div className="space-y-1"><Label>Description</Label><Textarea rows={3} value={profileForm.description} onChange={(e) => setProfileForm((f) => ({ ...f, description: e.target.value }))} /></div>
               {p && (
-                <div className="grid grid-cols-2 gap-3 text-xs text-muted-foreground pt-2 border-t border-border">
+                <div className="grid grid-cols-2 gap-3 text-xs text-muted-foreground pt-3 border-t border-border">
                   <p>Category: <span className="text-foreground">{p.category ?? "—"}</span></p>
-                  <span>Status: <Badge variant="secondary" className="text-[10px] ml-1">{p.status ?? s?.status}</Badge></span>
+                  <span>Application status: <Badge variant="secondary" className="text-[10px] ml-1">{p.status ?? s?.status}</Badge></span>
                   <p>Contact: <span className="text-foreground">{p.contactEmail}</span></p>
                   <p>Phone: <span className="text-foreground">{p.contactPhone}</span></p>
                 </div>
@@ -165,51 +240,74 @@ export default function MerchantSettingsPage() {
 
       {tab === "staff" && (
         <motion.div variants={item} className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3 flex items-center justify-between">
-              <CardTitle className="text-base">Staff overview</CardTitle>
-              <Button size="sm" variant="outline" asChild><Link href="/merchant/staff">Manage staff <ExternalLink className="ml-1 h-3 w-3" /></Link></Button>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg border border-border/60 bg-card/60 p-3"><p className="text-xs text-muted-foreground">Total staff</p><p className="text-xl font-semibold">{staff.length}</p></div>
-                <div className="rounded-lg border border-border/60 bg-card/60 p-3"><p className="text-xs text-muted-foreground">Active</p><p className="text-xl font-semibold">{activeStaffCount}</p></div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">Staff activity log</CardTitle></CardHeader>
-            <CardContent>
-              <Button size="sm" variant="outline" asChild><Link href="/merchant/staff/activity">View full activity log <ExternalLink className="ml-1 h-3 w-3" /></Link></Button>
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-2 gap-3">
+            <Card className="bg-linear-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+              <CardContent className="pt-5">
+                <p className="text-xs font-medium text-blue-700">Total staff</p>
+                <p className="text-2xl font-bold text-blue-900 mt-1">{staff.length}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-linear-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/20">
+              <CardContent className="pt-5">
+                <p className="text-xs font-medium text-emerald-700">Active</p>
+                <p className="text-2xl font-bold text-emerald-900 mt-1">{activeStaffCount}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[
+              { href: "/merchant/staff", label: "Manage Staff", desc: "Add, edit, suspend, or remove team members", icon: UserCog, color: "text-blue-600 bg-blue-500/10" },
+              { href: "/merchant/staff/activity", label: "Activity Log", desc: "See every clock-in, sale, and note across your team", icon: Activity, color: "text-purple-600 bg-purple-500/10" },
+              { href: "/merchant/staff/performance", label: "Performance", desc: "Revenue and sales rung up per staff member", icon: TrendingUp, color: "text-emerald-600 bg-emerald-500/10" },
+              { href: "/merchant/locations", label: "Locations", desc: "Manage branches and assign staff to a store", icon: MapPin, color: "text-amber-600 bg-amber-500/10" },
+            ].map((linkItem) => (
+              <Link key={linkItem.href} href={linkItem.href}>
+                <Card className="h-full hover:border-primary/40 hover:shadow-md transition-all duration-200 cursor-pointer">
+                  <CardContent className="pt-5 flex items-start gap-3">
+                    <div className={`p-2.5 rounded-lg shrink-0 ${linkItem.color}`}>
+                      <linkItem.icon className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-semibold">{linkItem.label}</p>
+                        <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">{linkItem.desc}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {tab === "loyalty" && (
+        <motion.div variants={item}>
+          <LoyaltySettingsCard />
         </motion.div>
       )}
 
       {tab === "notifications" && (
         <motion.div variants={item}>
           <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">Notification preferences</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
+            <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Bell className="h-4 w-4 text-primary" /> Notification preferences</CardTitle></CardHeader>
+            <CardContent className="space-y-1">
               {[
                 { key: "notifyLowStock" as const, label: "Low stock alerts", desc: "Get notified when a product hits its reorder threshold." },
                 { key: "notifyNewSale" as const, label: "New sale alerts", desc: "Get notified whenever a sale is completed." },
                 { key: "notifyDailySummary" as const, label: "Daily summary", desc: "A daily digest of revenue, sales, and low stock." },
-              ].map((n) => (
-                <label key={n.key} className="flex items-center justify-between gap-4 cursor-pointer">
+              ].map((n, i) => (
+                <div key={n.key} className={`flex items-center justify-between gap-4 py-3.5 ${i > 0 ? "border-t border-border/50" : ""}`}>
                   <div>
                     <p className="text-sm font-medium">{n.label}</p>
-                    <p className="text-xs text-muted-foreground">{n.desc}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{n.desc}</p>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={notifForm[n.key]}
-                    onChange={(e) => setNotifForm((f) => ({ ...f, [n.key]: e.target.checked }))}
-                    className="h-5 w-5 rounded accent-primary shrink-0"
-                  />
-                </label>
+                  <ToggleSwitch checked={notifForm[n.key]} onChange={(v) => setNotifForm((f) => ({ ...f, [n.key]: v }))} />
+                </div>
               ))}
-              <Button size="sm" onClick={() => updateNotifications.mutate(notifForm, { onSuccess: () => flashSaved("Preferences saved") })} disabled={updateNotifications.isPending}>
+              <Button size="sm" className="mt-3" onClick={() => updateNotifications.mutate(notifForm, { onSuccess: () => flashSaved("Preferences saved") })} disabled={updateNotifications.isPending}>
                 {updateNotifications.isPending ? "Saving..." : "Save preferences"}
               </Button>
             </CardContent>
@@ -220,12 +318,12 @@ export default function MerchantSettingsPage() {
       {tab === "billing" && (
         <motion.div variants={item}>
           <Card>
-            <CardContent className="pt-6 flex items-center justify-between">
+            <CardContent className="pt-6 flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10"><CreditCard className="h-5 w-5 text-primary" /></div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10"><CreditCard className="h-5 w-5 text-primary" /></div>
                 <div>
-                  <p className="text-sm font-medium">{s?.planTier ? `${s.planTier} plan` : "No active plan"}</p>
-                  <p className="text-xs text-muted-foreground">{s?.planStatus === "ACTIVE" ? `Renews ${new Date(s.currentPeriodEnd).toLocaleDateString()}` : "Choose a plan to activate"}</p>
+                  <p className="text-sm font-semibold capitalize">{s?.planTier ? `${s.planTier.toLowerCase()} plan` : "No active plan"}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{s?.planStatus === "ACTIVE" ? `Renews ${new Date(s.currentPeriodEnd).toLocaleDateString()}` : "Choose a plan to activate"}</p>
                 </div>
               </div>
               <Button size="sm" variant="outline" asChild><Link href="/merchant/billing">Manage billing</Link></Button>

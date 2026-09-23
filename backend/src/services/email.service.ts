@@ -60,6 +60,15 @@ function button(label: string, href: string) {
   `;
 }
 
+function escapeHtml(str: string) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 async function send(to: string, subject: string, html: string, { critical = false }: { critical?: boolean } = {}) {
   const { data, error } = await resend.emails.send({ from: env.RESEND_FROM_EMAIL, to, subject, html });
   if (error) {
@@ -264,4 +273,13 @@ export async function sendBillingReminderEmail(to: string, name: string, planNam
       paragraph("No action is needed if you'd like to continue — you'll be billed automatically. If you'd like to make changes or cancel, you can do that any time from your Billing page before the renewal date.")
   );
   await send(to, `Your ${planName} plan renews ${timeLabel}`, html);
+}
+
+export async function sendCustomerBroadcastEmail(to: string, businessName: string, subject: string, body: string) {
+  const html = renderLayout(
+    escapeHtml(subject),
+    `<p style="margin:0 0 24px;color:#ccc;font-size:14px;line-height:1.6;white-space:pre-wrap;">${escapeHtml(body)}</p>
+     <p style="margin:24px 0 0;color:#555;font-size:12px;line-height:1.6;">This message was sent to you by ${escapeHtml(businessName)} via LifeOS.</p>`
+  );
+  await send(to, subject, html, { critical: true });
 }

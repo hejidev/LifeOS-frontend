@@ -37,6 +37,7 @@ exports.getProducts = getProducts;
 exports.getCustomers = getCustomers;
 exports.createCustomer = createCustomer;
 exports.createSale = createSale;
+exports.getProductByBarcode = getProductByBarcode;
 const prisma_1 = require("../config/prisma");
 const errors_1 = require("../lib/errors");
 const businessService = __importStar(require("./business.service"));
@@ -52,9 +53,9 @@ async function resolveOwner(bizProfileId) {
         throw new errors_1.AppError("This store is currently paused", 403);
     return profile;
 }
-async function getProducts(bizProfileId) {
+async function getProducts(bizProfileId, storeId) {
     const { userId } = await resolveOwner(bizProfileId);
-    return businessService.listProducts(userId, true);
+    return businessService.listProducts(userId, true, storeId);
 }
 async function getCustomers(bizProfileId) {
     const { userId } = await resolveOwner(bizProfileId);
@@ -64,10 +65,14 @@ async function createCustomer(bizProfileId, data) {
     const { userId } = await resolveOwner(bizProfileId);
     return businessService.createCustomer(userId, data);
 }
-async function createSale(staffId, bizProfileId, data) {
+async function createSale(staffId, bizProfileId, storeId, data) {
     const { userId, currency } = await resolveOwner(bizProfileId);
     const { discount: _ignored, ...saleData } = data;
-    const sale = await businessService.createSale(userId, { ...saleData, discount: 0 });
+    const sale = await businessService.createSale(userId, { ...saleData, discount: 0 }, storeId);
     await staffPortalService.logSelfActivity(staffId, bizProfileId, "SALE_CREATED", `Rang up sale ${sale.receiptNumber} — ${currency} ${sale.total.toLocaleString()}`);
     return sale;
+}
+async function getProductByBarcode(bizProfileId, storeId, barcode) {
+    const { userId } = await resolveOwner(bizProfileId);
+    return businessService.getProductByBarcode(userId, barcode, storeId);
 }

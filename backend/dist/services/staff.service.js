@@ -10,11 +10,26 @@ exports.deleteStaff = deleteStaff;
 exports.clockIn = clockIn;
 exports.logActivity = logActivity;
 exports.getStaffActivity = getStaffActivity;
+exports.getStaffPerformance = getStaffPerformance;
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const prisma_1 = require("../config/prisma");
 const errors_1 = require("../lib/errors");
 const notification_service_1 = require("./notification.service");
 const email_service_1 = require("./email.service");
+const num = (d) => (d == null ? 0 : Number(d));
+function rangeStart(range) {
+    const now = new Date();
+    if (range === "today")
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (range === "week") {
+        const d = new Date(now);
+        const day = d.getDay() === 0 ? 7 : d.getDay();
+        d.setDate(d.getDate() - day + 1);
+        d.setHours(0, 0, 0, 0);
+        return d;
+    }
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+}
 async function getBizProfileId(userId) {
     const profile = await prisma_1.prisma.bizProfile.findUnique({ where: { userId } });
     if (!profile)
@@ -27,14 +42,23 @@ function serializeStaff(staff) {
 }
 async function listStaff(userId) {
     const bizProfileId = await getBizProfileId(userId);
-    const staff = await prisma_1.prisma.bizStaff.findMany({ where: { bizProfileId }, orderBy: { createdAt: "asc" } });
+    const staff = await prisma_1.prisma.bizStaff.findMany({
+        where: { bizProfileId },
+        include: { store: { select: { id: true, name: true } } },
+        orderBy: { createdAt: "asc" },
+    });
     return staff.map(serializeStaff);
 }
 async function createStaff(userId, data) {
     const bizProfileId = await getBizProfileId(userId);
     const pinHash = await bcrypt_1.default.hash(data.pin, 10);
+    let storeId = data.storeId;
+    if (!storeId) {
+        const defaultStore = await prisma_1.prisma.store.findFirst({ where: { bizProfileId, isDefault: true } });
+        storeId = defaultStore?.id;
+    }
     const staff = await prisma_1.prisma.bizStaff.create({
-        data: { bizProfileId, name: data.name, email: data.email, phone: data.phone, address: data.address, age: data.age, sex: data.sex, tribe: data.tribe, religion: data.religion, role: data.role, pinHash },
+        data: { bizProfileId, storeId, name: data.name, email: data.email, phone: data.phone, address: data.address, age: data.age, sex: data.sex, tribe: data.tribe, religion: data.religion, role: data.role, pinHash },
     });
     const profile = await prisma_1.prisma.bizProfile.findUnique({ where: { id: bizProfileId }, include: { user: { select: { email: true, name: true } } } });
     if (profile) {
@@ -61,6 +85,7 @@ async function updateStaff(userId, staffId, data) {
             ...(data.religion !== undefined && { religion: data.religion }),
             ...(data.role && { role: data.role }),
             ...(data.status && { status: data.status }),
+            ...(data.storeId !== undefined && { storeId: data.storeId }),
             ...(pinHash && { pinHash }),
         },
     });
@@ -114,4 +139,67 @@ async function getStaffActivity(userId, staffId) {
         orderBy: { createdAt: "desc" },
         take: 100,
     });
+}
+async function getStaffPerformance(userId, range = "month") {
+    const bizProfileId = await getBizProfileId(userId);
+    const start = rangeStart(range);
+    const [staffList, activities] = await Promise.all([
+        prisma_1.prisma.bizStaff.findMany({ where: { bizProfileId } }),
+        prisma_1.prisma.bizStaffActivity.findMany({ where: { bizProfileId, action: "SALE_CREATED", createdAt: { gte: start } } }),
+    ]);
+    const receiptToStaff = new Map();
+    for (const a of activities) {
+        const match = a.description.match(/Rang up sale (\S+)/);
+        if (match)
+            receiptToStaff.set(match[1], a.staffId);
+    }
+    const receiptNumbers = [...receiptToStaff.keys()];
+    const sales = receiptNumbers.length
+        ? await prisma_1.prisma.bizSale.findMany({
+            where: { userId, receiptNumber: { in: receiptNumbers }, status: "PAID" },
+            select: { receiptNumber: true, total: true },
+        })
+        : [];
+    const otherActivity = await prisma_1.prisma.bizStaffActivity.groupBy({
+        by: ["staffId", "action"],
+        where: { bizProfileId, createdAt: { gte: start }, action: { in: ["CUSTOMER_ADDED", "REFUND_ISSUED"] } },
+        _count: { _all: true },
+    });
+    const perStaff = new Map();
+    for (const sale of sales) {
+        const staffId = receiptToStaff.get(sale.receiptNumber);
+        if (!staffId)
+            continue;
+        const cur = perStaff.get(staffId) ?? { salesCount: 0, revenue: 0 };
+        cur.salesCount += 1;
+        cur.revenue += num(sale.total);
+        perStaff.set(staffId, cur);
+    }
+    const extras = new Map();
+    for (const row of otherActivity) {
+        const cur = extras.get(row.staffId) ?? { customersAdded: 0, refundsIssued: 0 };
+        if (row.action === "CUSTOMER_ADDED")
+            cur.customersAdded = row._count._all;
+        if (row.action === "REFUND_ISSUED")
+            cur.refundsIssued = row._count._all;
+        extras.set(row.staffId, cur);
+    }
+    return staffList
+        .map((s) => {
+        const perf = perStaff.get(s.id) ?? { salesCount: 0, revenue: 0 };
+        const ex = extras.get(s.id) ?? { customersAdded: 0, refundsIssued: 0 };
+        return {
+            id: s.id,
+            name: s.name,
+            role: s.role,
+            status: s.status,
+            lastActiveAt: s.lastActiveAt?.toISOString(),
+            salesCount: perf.salesCount,
+            revenue: perf.revenue,
+            avgSaleValue: perf.salesCount > 0 ? Math.round(perf.revenue / perf.salesCount) : 0,
+            customersAdded: ex.customersAdded,
+            refundsIssued: ex.refundsIssued,
+        };
+    })
+        .sort((a, b) => b.revenue - a.revenue);
 }

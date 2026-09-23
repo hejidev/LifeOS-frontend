@@ -1,52 +1,143 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { Package, Plus, Trash2, Pencil, Search, AlertTriangle, RotateCcw, X, Tag, DollarSign, Box } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Package, Plus, Trash2, Pencil, Search, AlertTriangle, RotateCcw, X, DollarSign, Box, Camera, ImageIcon, Loader2, Upload, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useBusinessProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/lib/hooks/use-life-data";
+import { useBusinessProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useLookupProductByBarcode, useUploadProductImage, useExportProducts } from "@/lib/hooks/use-life-data";
 import { cn } from "@/lib/utils";
+import { CameraBarcodeScanner } from "@/components/merchant/camera-barcode-scanner";
+import { BulkProductImport } from "@/components/merchant/bulk-product-import";
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
-const emptyForm = { name: "", sku: "", category: "", price: "", cost: "", stock: "0", lowStockAt: "3", imageUrl: "" };
+const emptyForm = {
+  name: "",
+  sku: "",
+  barcode: "",
+  category: "",
+  price: "",
+  cost: "",
+  stock: "0",
+  lowStockAt: "3",
+  imageUrl: ""
+};
 
 export default function ProductsPage() {
   const { data: products = [] } = useBusinessProducts();
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
+  const lookupBarcode = useLookupProductByBarcode();
+  const uploadImage = useUploadProductImage();
+  const exportProducts = useExportProducts();
 
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [searchQuery, setSearchQuery] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
+
+  const [scanFeedback, setScanFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
+  const [scanMode, setScanMode] = useState<"lookup" | "assign">("lookup");
 
   function openCreate() { setEditingId(null); setForm(emptyForm); setOpen(true); }
   function openEdit(p: any) {
     setEditingId(p.id);
-    setForm({ name: p.name, sku: p.sku ?? "", category: p.category ?? "", price: String(p.price), cost: p.cost ? String(p.cost) : "", stock: String(p.stock), lowStockAt: String(p.lowStockAt), imageUrl: p.imageUrl ?? "" });
+    setForm({
+      name: p.name,
+      sku: p.sku ?? "",
+      barcode: p.barcode ?? "",
+      category: p.category ?? "",
+      price: String(p.price),
+      cost: p.cost ? String(p.cost) : "",
+      stock: String(p.stock),
+      lowStockAt: String(p.lowStockAt),
+      imageUrl: p.imageUrl ?? ""
+    });
     setOpen(true);
+  }
+
+  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingImage(true);
+    uploadImage.mutate(file, {
+      onSuccess: (data: any) => {
+        setForm((f) => ({ ...f, imageUrl: data.url }));
+        setUploadingImage(false);
+      },
+      onError: () => setUploadingImage(false),
+    });
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const payload = {
-      name: form.name, sku: form.sku || undefined, category: form.category || undefined,
-      price: parseFloat(form.price), cost: form.cost ? parseFloat(form.cost) : undefined,
-      stock: parseInt(form.stock) || 0, lowStockAt: parseInt(form.lowStockAt) || 3,
+      name: form.name,
+      sku: form.sku || undefined,
+      barcode: form.barcode || undefined,
+      category: form.category || undefined,
+      price: parseFloat(form.price),
+      cost: form.cost ? parseFloat(form.cost) : undefined,
+      stock: parseInt(form.stock) || 0,
+      lowStockAt: parseInt(form.lowStockAt) || 3,
       imageUrl: form.imageUrl || undefined,
     };
+
     if (editingId) {
       updateProduct.mutate({ id: editingId, data: payload }, { onSuccess: () => setOpen(false) });
     } else {
       createProduct.mutate(payload, { onSuccess: () => setOpen(false) });
     }
+  }
+
+  function openScanLookup() {
+    setScanMode("lookup");
+    setCameraScannerOpen(true);
+  }
+
+  function openScanAssign() {
+    setScanMode("assign");
+    setCameraScannerOpen(true);
+  }
+
+  function handleCameraDetect(code: string) {
+    setCameraScannerOpen(false);
+
+    if (scanMode === "assign") {
+      setForm((f) => ({ ...f, barcode: code }));
+      setScanFeedback({ type: "success", message: `Barcode set to ${code}` });
+      setTimeout(() => setScanFeedback(null), 1800);
+      return;
+    }
+
+    lookupBarcode.mutate(code, {
+      onSuccess: (data: any) => {
+        openEdit(data.product);
+        setScanFeedback({ type: "success", message: `Found: ${data.product.name}` });
+        setTimeout(() => setScanFeedback(null), 1800);
+      },
+      onError: () => {
+        setEditingId(null);
+        setForm({ ...emptyForm, barcode: code });
+        setOpen(true);
+        setScanFeedback({ type: "error", message: "No match — starting a new product with this barcode" });
+        setTimeout(() => setScanFeedback(null), 2500);
+      },
+    });
   }
 
   const filteredProducts = searchQuery
@@ -57,9 +148,9 @@ export default function ProductsPage() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={item} className="flex items-center justify-between">
+      <motion.div variants={item} className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg border border-primary/20">
+          <div className="p-2 bg-linear-to-br from-primary/20 to-primary/5 rounded-lg border border-primary/20">
             <Package className="h-5 w-5 text-primary" />
           </div>
           <div>
@@ -67,9 +158,28 @@ export default function ProductsPage() {
             <p className="text-muted-foreground text-xs sm:text-sm">Manage your inventory</p>
           </div>
         </div>
-        <Button onClick={openCreate} className="gap-2 h-9 sm:h-10 text-sm">
-          <Plus className="h-4 w-4" /> Add Product
-        </Button>
+        <div className="flex items-center gap-2">
+
+          <Button variant="outline" onClick={() => setBulkImportOpen(true)} className="gap-2 h-9 sm:h-10 text-sm">
+            <Upload className="h-4 w-4" /> Bulk Import
+          </Button>
+          <Button variant="outline" onClick={openScanLookup} className="gap-2 h-9 sm:h-10 text-sm">
+            <Camera className="h-4 w-4" /> Scan
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => exportProducts.mutate(undefined, { onError: (err: any) => alert(err.message ?? "Export failed") })}
+            disabled={exportProducts.isPending}
+            className="gap-2 h-9 sm:h-10 text-sm"
+          >
+            <Download className="h-4 w-4" /> {exportProducts.isPending ? "Exporting..." : "Export"}
+          </Button>
+
+          <Button onClick={openCreate} className="gap-2 h-9 sm:h-10 text-sm">
+            <Plus className="h-4 w-4" /> Add Product
+          </Button>
+        </div>
       </motion.div>
 
       <motion.div variants={item}>
@@ -113,9 +223,24 @@ export default function ProductsPage() {
                 {(filteredProducts as any[]).map((p) => (
                   <Card key={p.id} className="group hover:border-primary/40 hover:shadow-md transition-all duration-200">
                     <CardContent className="p-3 sm:p-4 space-y-2 sm:space-y-3">
-                      <div className="flex items-start justify-between mb-2 sm:mb-3">
+                      <div className="flex items-start gap-3">
+                        <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-lg border border-border bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
+                          {p.imageUrl ? (
+                            <img src={p.imageUrl} alt={p.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <Package className="h-5 w-5 text-muted-foreground/30" />
+                          )}
+                        </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs sm:text-sm font-semibold truncate">{p.name}</p>
+                          <div className="flex items-start justify-between gap-1">
+                            <p className="text-xs sm:text-sm font-semibold truncate">{p.name}</p>
+                            {p.stock <= p.lowStockAt && p.stock > 0 && (
+                              <Badge variant="warning" className="text-[9px] px-1.5 py-0 h-4 shrink-0">Low</Badge>
+                            )}
+                            {p.stock <= 0 && (
+                              <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4 shrink-0">Out</Badge>
+                            )}
+                          </div>
                           {p.category && (
                             <p className="text-[9px] sm:text-xs text-muted-foreground capitalize mt-0.5">{p.category}</p>
                           )}
@@ -123,12 +248,6 @@ export default function ProductsPage() {
                             <p className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5">SKU: {p.sku}</p>
                           )}
                         </div>
-                        {p.stock <= p.lowStockAt && p.stock > 0 && (
-                          <Badge variant="warning" className="text-[9px] px-1.5 py-0 h-4 shrink-0">Low</Badge>
-                        )}
-                        {p.stock <= 0 && (
-                          <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4 shrink-0">Out</Badge>
-                        )}
                       </div>
                       <div className="space-y-1.5 sm:space-y-2 mb-2 sm:mb-3">
                         <div className="flex items-center justify-between">
@@ -145,7 +264,6 @@ export default function ProductsPage() {
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] sm:text-xs text-muted-foreground">Cost</span>
                             <span className="text-xs sm:text-sm font-medium">{currency} {p.cost.toLocaleString()}</span>
-                            <span className="text-xs font-medium">{currency} {p.cost.toLocaleString()}</span>
                           </div>
                         )}
                       </div>
@@ -180,6 +298,25 @@ export default function ProductsPage() {
         </Card>
       </motion.div>
 
+      <AnimatePresence>
+        {scanFeedback && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] text-white text-sm px-4 py-2 rounded-full shadow-lg ${scanFeedback.type === "success" ? "bg-emerald-500" : "bg-destructive"}`}
+          >
+            {scanFeedback.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <CameraBarcodeScanner
+        open={cameraScannerOpen}
+        onOpenChange={setCameraScannerOpen}
+        onDetect={handleCameraDetect}
+      />
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -187,19 +324,66 @@ export default function ProductsPage() {
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 pt-2">
             <div className="space-y-1.5 sm:space-y-2">
+              <Label className="text-xs sm:text-sm">Product Image (optional)</Label>
+              <div className="flex items-center gap-3">
+                <div className="h-16 w-16 rounded-lg border border-border bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
+                  {uploadingImage ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  ) : form.imageUrl ? (
+                    <img src={form.imageUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <ImageIcon className="h-5 w-5 text-muted-foreground/40" />
+                  )}
+                </div>
+                <label className="flex-1">
+                  <input type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
+                  <span className="inline-flex h-9 items-center justify-center rounded-lg border border-input bg-background px-3 text-xs cursor-pointer hover:bg-muted/50 transition-colors">
+                    {form.imageUrl ? "Change image" : "Upload image"}
+                  </span>
+                </label>
+              </div>
+            </div>
+            <div className="space-y-1.5 sm:space-y-2">
               <Label className="text-xs sm:text-sm">Product Name</Label>
               <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Enter product name" required className="h-9 sm:h-10 text-sm" />
             </div>
             <div className="grid grid-cols-2 gap-2 sm:gap-3">
               <div className="space-y-1.5 sm:space-y-2">
                 <Label className="text-xs sm:text-sm">SKU (optional)</Label>
-                <Input value={form.sku} onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))} placeholder="SKU-001" className="h-9 sm:h-10 text-sm" />
+                <Input
+                  value={form.sku}
+                  onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
+                  placeholder="SKU-001"
+                  className="h-9 sm:h-10 text-sm"
+                />
               </div>
+
               <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">Barcode (optional)</Label>
+                <div className="flex gap-1.5">
+                  <Input
+                    placeholder="Barcode — scan or type"
+                    value={form.barcode}
+                    onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))}
+                    className="h-9 sm:h-10 text-sm flex-1"
+                  />
+                  <Button type="button" variant="outline" size="icon" className="h-9 w-9 sm:h-10 sm:w-10 shrink-0" onClick={openScanAssign}>
+                    <Camera className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5 sm:space-y-2 col-span-2">
                 <Label className="text-xs sm:text-sm">Category</Label>
-                <Input value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} placeholder="Electronics" className="h-9 sm:h-10 text-sm" />
+                <Input
+                  value={form.category}
+                  onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                  placeholder="Electronics"
+                  className="h-9 sm:h-10 text-sm"
+                />
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-2 sm:gap-3">
               <div className="space-y-1.5 sm:space-y-2">
                 <Label className="text-xs sm:text-sm">Selling Price</Label>
@@ -244,6 +428,8 @@ export default function ProductsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <BulkProductImport open={bulkImportOpen} onClose={() => setBulkImportOpen(false)} />
     </motion.div>
   );
 }

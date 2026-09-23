@@ -26,6 +26,8 @@ import merchantRoutes from "./routes/merchant.routes";
 import staffRoutes from "./routes/staff.routes";
 import staffPortalRoutes from "./routes/staff-portal.routes";
 import staffPosRoutes from "./routes/staff-pos.routes";
+import staffShiftPortalRoutes from "./routes/staff-shift-portal.routes";
+import storeRoutes from "./routes/store.routes";
 
 import businessRoutes from "./routes/business.routes";
 import settingsRoutes from "./routes/settings.routes";
@@ -106,6 +108,8 @@ app.use("/api/merchant", merchantRoutes);
 app.use("/api/merchant/staff", staffRoutes);
 app.use("/api/staff-portal", staffPortalRoutes);
 app.use("/api/staff-pos", staffPosRoutes);
+app.use("/api/my-shifts", staffShiftPortalRoutes);
+app.use("/api/stores", storeRoutes);
 app.use("/api/business", businessRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/platform-admin", platformAdminRoutes);

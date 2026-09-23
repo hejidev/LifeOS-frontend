@@ -14,6 +14,7 @@ exports.createStaffSchema = zod_1.z.object({
         religion: zod_1.z.string().trim().max(50).optional(),
         role: zod_1.z.enum(["MANAGER", "CASHIER", "SALES_REP", "INVENTORY_CLERK"]).default("CASHIER"),
         pin: zod_1.z.string().regex(/^\d{4,6}$/, "PIN must be 4-6 digits"),
+        storeId: zod_1.z.string().uuid().optional(),
     }),
 });
 exports.updateStaffSchema = zod_1.z.object({
@@ -29,6 +30,7 @@ exports.updateStaffSchema = zod_1.z.object({
         role: zod_1.z.enum(["MANAGER", "CASHIER", "SALES_REP", "INVENTORY_CLERK"]).optional(),
         status: zod_1.z.enum(["ACTIVE", "SUSPENDED"]).optional(),
         pin: zod_1.z.string().regex(/^\d{4,6}$/).optional(),
+        storeId: zod_1.z.string().uuid().optional(),
     }),
 });
 exports.clockInSchema = zod_1.z.object({

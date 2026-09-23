@@ -149,7 +149,7 @@ export default function FamilySpacePage() {
                   <Button size="sm" onClick={openCreateMember}><Plus className="mr-1 h-3 w-3" /> Add member</Button>
                 </div>
               ) : (
-                <ScrollArea className="max-h-[420px]">
+                <ScrollArea className="max-h-105">
                   <div className="space-y-2 pt-1">
                     {members.map((m: any) => (
                       <div key={m.id} className="flex items-center justify-between rounded-lg border border-border/60 bg-card/60 p-3 gap-2">

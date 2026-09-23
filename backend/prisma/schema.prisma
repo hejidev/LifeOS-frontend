@@ -556,40 +556,48 @@ model BizProfile {
   staffTokenVersion        Int                @default(1)
   user                     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   staff                    BizStaff[]
+  stores                   Store[]
+  loyaltyEnabled           Boolean @default(true)
+  loyaltyEarnRate          Int     @default(1)
+  loyaltyRedemptionValue   Int     @default(1)
 }
 
 model BizProduct {
-  id         String        @id @default(uuid())
-  userId     String
-  name       String
-  sku        String?
-  category   String?
-  price      Decimal
-  cost       Decimal?
-  stock      Int           @default(0)
-  lowStockAt Int           @default(3)
-  imageUrl   String?
-  active     Boolean       @default(true)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
-  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  saleItems  BizSaleItem[]
+  id             String        @id @default(uuid())
+  userId         String
+  name           String
+  sku            String?
+  barcode        String?
+  category       String?
+  price          Decimal
+  cost           Decimal?
+  stock          Int           @default(0)
+  lowStockAt     Int           @default(3)
+  imageUrl       String?
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  saleItems      BizSaleItem[]
+  storeInventory StoreInventory[]
 
   @@index([userId])
   @@index([userId, active])
+  @@unique([userId, barcode])
 }
 
 model BizCustomer {
-  id        String    @id @default(uuid())
-  userId    String
-  name      String
-  phone     String?
-  email     String?
-  notes     String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sales     BizSale[]
+  id            String    @id @default(uuid())
+  userId        String
+  name          String
+  phone         String?
+  email         String?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sales         BizSale[]
+  loyaltyPoints Int @default(0)
 
   @@index([userId])
 }
@@ -609,7 +617,10 @@ model BizSale {
   customer      BizCustomer?     @relation(fields: [customerId], references: [id])
   user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   items         BizSaleItem[]
+  storeId       String?
+  store         Store?  @relation(fields: [storeId], references: [id])
 
+  @@index([storeId])
   @@index([userId])
   @@index([userId, createdAt])
   @@index([userId, status])
@@ -640,6 +651,10 @@ model BizExpense {
   note      String?
   createdAt DateTime           @default(now())
   user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storeId   String?
+  store     Store?             @relation(fields: [storeId], references: [id])
+
+  @@index([storeId])
 
   @@index([userId])
   @@index([userId, date])
@@ -664,7 +679,12 @@ model BizStaff {
   updatedAt    DateTime           @updatedAt
   bizProfile   BizProfile         @relation(fields: [bizProfileId], references: [id], onDelete: Cascade)
   activityLogs BizStaffActivity[]
+  shifts       StaffShift[]
 
+  storeId      String?
+  store        Store?             @relation(fields: [storeId], references: [id])
+
+  @@index([storeId])
   @@index([bizProfileId])
 }
 
@@ -680,6 +700,60 @@ model BizStaffActivity {
 
   @@index([staffId])
   @@index([bizProfileId])
+}
+
+model StaffShift {
+  id           String   @id @default(uuid())
+  staffId      String
+  bizProfileId String
+  storeId      String?
+  startsAt     DateTime
+  endsAt       DateTime
+  note         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  staff        BizStaff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  store        Store?   @relation(fields: [storeId], references: [id])
+
+  @@index([staffId])
+  @@index([bizProfileId])
+  @@index([startsAt])
+}
+
+model Store {
+  id           String            @id @default(uuid())
+  bizProfileId String
+  name         String
+  address      String?
+  phone        String?
+  isDefault    Boolean           @default(false)
+  active       Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  bizProfile   BizProfile        @relation(fields: [bizProfileId], references: [id], onDelete: Cascade)
+  inventory    StoreInventory[]
+  sales        BizSale[]
+  expenses     BizExpense[]
+  staff        BizStaff[]
+  shifts       StaffShift[]
+
+  @@index([bizProfileId])
+}
+
+model StoreInventory {
+  id         String     @id @default(uuid())
+  storeId    String
+  productId  String
+  stock      Int        @default(0)
+  lowStockAt Int        @default(3)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  store      Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product    BizProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, productId])
+  @@index([storeId])
+  @@index([productId])
 }
 
 model WritingDocument {

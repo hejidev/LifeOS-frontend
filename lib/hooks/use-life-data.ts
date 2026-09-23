@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, setAccessToken, streamPost } from "@/lib/api/client";
+import { api, downloadFile, setAccessToken, streamPost } from "@/lib/api/client";
 import type {
   Task, TaskStatus, Note, HealthSummary,
   StudyMaterial, FinanceSummary, Transaction, 
@@ -17,6 +17,7 @@ import type {
 } from "@/types/life";
 import { useMemo, useState } from "react";
 import { DashboardRangeValue } from "@/components/merchant/dashboard-range-selector";
+import { useStoreContext } from "@/lib/context/store-context";
 
 export function useTodayOverview() {
   return useQuery({
@@ -937,8 +938,8 @@ export function useSearch(query: string) {
 type Range = "today" | "week" | "month";
 
 // ─── Dashboard ────────────────────────────────────────────────────────────
- 
 export function useBusinessDashboard(value: DashboardRangeValue) {
+  const { currentStoreId } = useStoreContext();
   const qs = new URLSearchParams();
   if (value.mode === "custom") {
     qs.set("from", value.from.toISOString());
@@ -946,27 +947,51 @@ export function useBusinessDashboard(value: DashboardRangeValue) {
   } else {
     qs.set("range", value.range);
   }
+  if (currentStoreId) qs.set("storeId", currentStoreId);
   return useQuery({
-    queryKey: ["businessDashboard", value],
+    queryKey: ["businessDashboard", value, currentStoreId],
     queryFn: () => api.get(`/business/dashboard?${qs.toString()}`),
     staleTime: 1000 * 30,
+    enabled: !!currentStoreId,
   });
 }
- 
+
+export type AnalyticsRangeValue =
+  | { mode: "preset"; range: "week" | "month" | "quarter" | "year" }
+  | { mode: "custom"; from: string; to: string };
+
+export function useBusinessAnalytics(value: AnalyticsRangeValue) {
+  const { currentStoreId } = useStoreContext();
+  const qs = new URLSearchParams();
+  if (value.mode === "custom") {
+    qs.set("from", value.from);
+    qs.set("to", value.to);
+  } else {
+    qs.set("range", value.range);
+  }
+  if (currentStoreId) qs.set("storeId", currentStoreId);
+  return useQuery({
+    queryKey: ["businessAnalytics", value, currentStoreId],
+    queryFn: () => api.get(`/business/analytics?${qs.toString()}`),
+    enabled: !!currentStoreId,
+  });
+}
+
 // ─── Products ─────────────────────────────────────────────────────────────
- 
 export function useBizProducts(activeOnly = true) {
+  const { currentStoreId } = useStoreContext();
   return useQuery<BizProduct[]>({
-    queryKey: ["bizProducts", activeOnly],
-    queryFn: () =>
-      api.get(`/business/products?active=${activeOnly}`).then((d) => d.products as BizProduct[]),
+    queryKey: ["bizProducts", activeOnly, currentStoreId],
+    queryFn: () => api.get(`/business/products?active=${activeOnly}&storeId=${currentStoreId}`).then((d) => d.products as BizProduct[]),
+    enabled: !!currentStoreId,
   });
 }
  
 export function useCreateBizProduct() {
   const qc = useQueryClient();
+  const { currentStoreId } = useStoreContext();
   return useMutation({
-    mutationFn: (data: Partial<BizProduct>) => api.post("/business/products", data),
+    mutationFn: (data: Partial<BizProduct>) => api.post("/business/products", { ...data, storeId: currentStoreId }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bizProducts"] });
       qc.invalidateQueries({ queryKey: ["businessDashboard"] });
@@ -976,9 +1001,10 @@ export function useCreateBizProduct() {
  
 export function useUpdateBizProduct() {
   const qc = useQueryClient();
+  const { currentStoreId } = useStoreContext();
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<BizProduct> }) =>
-      api.patch(`/business/products/${id}`, data),
+      api.patch(`/business/products/${id}`, { ...data, storeId: currentStoreId }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bizProducts"] });
       qc.invalidateQueries({ queryKey: ["businessDashboard"] });
@@ -996,9 +1022,44 @@ export function useDeleteBizProduct() {
     },
   });
 }
+
+export function useUploadProductImage() {
+  return useMutation({
+    mutationFn: (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return api.upload("/business/products/upload-image", formData) as Promise<{
+        url: string;
+        publicId: string;
+      }>;
+    },
+  });
+}
+
+export function useLookupProductByBarcode() {
+  const { currentStoreId } = useStoreContext();
+  return useMutation({
+    mutationFn: (barcode: string) => api.get(`/business/products/by-barcode/${encodeURIComponent(barcode)}?storeId=${currentStoreId}`),
+  });
+}
+
+export function useExportProducts() {
+  const { currentStoreId } = useStoreContext();
+  return useMutation({
+    mutationFn: () => downloadFile(`/business/products/export?storeId=${currentStoreId}`, "products-export.csv"),
+  });
+}
+
+export function useExportSales(range: "today" | "week" | "month" = "month") {
+  const { currentStoreId } = useStoreContext();
+  return useMutation({
+    mutationFn: () => downloadFile(`/business/sales/export?range=${range}&storeId=${currentStoreId}`, "sales-export.csv"),
+  });
+}
+
+
  
 // ─── Customers ────────────────────────────────────────────────────────────
- 
 export function useBizCustomers() {
   return useQuery<BizCustomer[]>({
     queryKey: ["bizCustomers"],
@@ -1014,13 +1075,35 @@ export function useCreateBizCustomer() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["bizCustomers"] }),
   });
 }
+
+export function useUpdateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => api.patch(`/business/customers/${id}`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["businessCustomers"] }),
+  });
+}
+
+export function useExportCustomers() {
+  return useMutation({
+    mutationFn: () => downloadFile("/business/customers/export", "customers-export.csv"),
+  });
+}
+
+export function useSendCustomerMessage() {
+  return useMutation({
+    mutationFn: (data: { customerIds: string[]; subject: string; body: string }) =>
+      api.post("/business/customers/message", data),
+  });
+}
  
 // ─── Sales (POS checkout) ───────────────────────────────────────────────
-
 export function useBizSales(range: Range = "month") {
+  const { currentStoreId } = useStoreContext();
   return useQuery<BizSale[]>({
-    queryKey: ["bizSales", range],
-    queryFn: () => api.get(`/business/sales?range=${range}`).then((d) => d.sales as BizSale[]),
+    queryKey: ["bizSales", range, currentStoreId],
+    queryFn: () => api.get(`/business/sales?range=${range}&storeId=${currentStoreId}`).then((d) => d.sales as BizSale[]),
+    enabled: !!currentStoreId,
   });
 }
  
@@ -1034,6 +1117,7 @@ export function useCreateBizSale() {
       paymentMethod?: string;
       status?: string;
       note?: string;
+      redeemPoints?: number;
     }) => api.post("/business/sales", data).then((d) => d.sale as BizSale),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bizSales"] });
@@ -1057,19 +1141,21 @@ export function useUpdateBizSaleStatus() {
 }
  
 // ─── Expenses ─────────────────────────────────────────────────────────────
- 
 export function useBizExpenses(range: Range = "month") {
+  const { currentStoreId } = useStoreContext();
   return useQuery<BizExpense[]>({
-    queryKey: ["bizExpenses", range],
-    queryFn: () => api.get(`/business/expenses?range=${range}`).then((d) => d.expenses as BizExpense[]),
+    queryKey: ["bizExpenses", range, currentStoreId],
+    queryFn: () => api.get(`/business/expenses?range=${range}&storeId=${currentStoreId}`).then((d) => d.expenses as BizExpense[]),
+    enabled: !!currentStoreId,
   });
 }
- 
+
 export function useCreateBizExpense() {
   const qc = useQueryClient();
+  const { currentStoreId } = useStoreContext();
   return useMutation({
     mutationFn: (data: { title: string; category?: string; amount: number; date?: string; note?: string }) =>
-      api.post("/business/expenses", data),
+      api.post("/business/expenses", { ...data, storeId: currentStoreId }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bizExpenses"] });
       qc.invalidateQueries({ queryKey: ["businessDashboard"] });
@@ -1182,6 +1268,13 @@ export function useMerchantStaff() {
   return useQuery({ queryKey: ["merchantStaff"], queryFn: () => api.get("/merchant/staff").then((d) => d.staff) });
 }
 
+export function useStaffPerformance(range: "today" | "week" | "month" = "month") {
+  return useQuery({
+    queryKey: ["staffPerformance", range],
+    queryFn: () => api.get(`/merchant/staff/performance?range=${range}`).then((d) => d.performance),
+  });
+}
+
 export function useCreateStaff() {
   const qc = useQueryClient();
   return useMutation({
@@ -1226,37 +1319,117 @@ export function useStaffActivityLog(staffId?: string) {
   });
 }
 
+export function useStaffShifts(params: { from?: string; to?: string; staffId?: string } = {}) {
+  const qs = new URLSearchParams();
+  if (params.from) qs.set("from", params.from);
+  if (params.to) qs.set("to", params.to);
+  if (params.staffId) qs.set("staffId", params.staffId);
+  return useQuery({
+    queryKey: ["staffShifts", params],
+    queryFn: () => api.get(`/merchant/staff/shifts?${qs.toString()}`).then((d) => d.shifts),
+  });
+}
+
+export function useCreateStaffShift() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => api.post("/merchant/staff/shifts", data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["staffShifts"] }),
+  });
+}
+
+export function useUpdateStaffShift() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => api.patch(`/merchant/staff/shifts/${id}`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["staffShifts"] }),
+  });
+}
+
+export function useDeleteStaffShift() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/merchant/staff/shifts/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["staffShifts"] }),
+  });
+}
+
 export function useBusinessProfile() {
   return useQuery({ queryKey: ["businessProfile"], queryFn: () => api.get("/business/profile").then((d) => d.profile) });
 }
+
+export function useBusinessProducts(active?: boolean) {
+  const { currentStoreId } = useStoreContext();
+  const params = new URLSearchParams();
+  if (active !== undefined) params.set("active", String(active));
+  if (currentStoreId) params.set("storeId", currentStoreId);
+  return useQuery({
+    queryKey: ["businessProducts", active, currentStoreId],
+    queryFn: () => api.get(`/business/products?${params.toString()}`).then((d) => d.products),
+    enabled: !!currentStoreId,
+  });
+}
+
 export function useUpdateBusinessProfile() {
   const qc = useQueryClient();
   return useMutation({ mutationFn: (data: any) => api.patch("/business/profile", data), onSuccess: () => qc.invalidateQueries({ queryKey: ["businessProfile"] }) });
 }
-export function useBusinessProducts(active?: boolean) {
-  return useQuery({ queryKey: ["businessProducts", active], queryFn: () => api.get(`/business/products${active !== undefined ? `?active=${active}` : ""}`).then((d) => d.products) });
-}
+
 export function useCreateProduct() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (data: any) => api.post("/business/products", data), onSuccess: () => qc.invalidateQueries({ queryKey: ["businessProducts"] }) });
+  const { currentStoreId } = useStoreContext();
+  return useMutation({
+    mutationFn: (data: any) => api.post("/business/products", { ...data, storeId: currentStoreId }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["businessProducts"] }),
+  });
 }
+
 export function useUpdateProduct() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: ({ id, data }: { id: string; data: any }) => api.patch(`/business/products/${id}`, data), onSuccess: () => qc.invalidateQueries({ queryKey: ["businessProducts"] }) });
-}
-export function useDeleteProduct() {
-  const qc = useQueryClient();
-  return useMutation({ mutationFn: (id: string) => api.delete(`/business/products/${id}`), onSuccess: () => qc.invalidateQueries({ queryKey: ["businessProducts"] }) });
+  const { currentStoreId } = useStoreContext();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => api.patch(`/business/products/${id}`, { ...data, storeId: currentStoreId }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["businessProducts"] }),
+  });
 }
 
 export function useBusinessProductsPaged(page: number, pageSize = 20, search?: string) {
+  const { currentStoreId } = useStoreContext();
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
   if (search) params.set("search", search);
+  if (currentStoreId) params.set("storeId", currentStoreId);
   return useQuery({
-    queryKey: ["businessProductsPaged", page, pageSize, search],
+    queryKey: ["businessProductsPaged", page, pageSize, search, currentStoreId],
     queryFn: () => api.get(`/business/products/paged?${params.toString()}`),
     placeholderData: (prev: any) => prev,
+    enabled: !!currentStoreId,
   });
+}
+
+export function useBusinessSales(range: "today" | "week" | "month" = "month") {
+  const { currentStoreId } = useStoreContext();
+  return useQuery({
+    queryKey: ["businessSales", range, currentStoreId],
+    queryFn: () => api.get(`/business/sales?range=${range}&storeId=${currentStoreId}`).then((d) => d.sales),
+    enabled: !!currentStoreId,
+  });
+}
+
+export function useCreateSale() {
+  const qc = useQueryClient();
+  const { currentStoreId } = useStoreContext();
+  return useMutation({
+    mutationFn: (data: any) => api.post("/business/sales", { ...data, storeId: currentStoreId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["businessSales"] });
+      qc.invalidateQueries({ queryKey: ["businessProducts"] });
+    },
+  });
+}
+
+export function useDeleteProduct() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (id: string) => api.delete(`/business/products/${id}`), onSuccess: () => qc.invalidateQueries({ queryKey: ["businessProducts"] }) });
 }
 
 export function useBusinessCustomers() {
@@ -1266,26 +1439,38 @@ export function useCreateCustomer() {
   const qc = useQueryClient();
   return useMutation({ mutationFn: (data: any) => api.post("/business/customers", data), onSuccess: () => qc.invalidateQueries({ queryKey: ["businessCustomers"] }) });
 }
-export function useBusinessSales(range: "today" | "week" | "month" = "month") {
-  return useQuery({ queryKey: ["businessSales", range], queryFn: () => api.get(`/business/sales?range=${range}`).then((d) => d.sales) });
+
+export function useBusinessExpenses(range: "today" | "week" | "month" = "month") {
+  const { currentStoreId } = useStoreContext();
+  return useQuery({
+    queryKey: ["businessExpenses", range, currentStoreId],
+    queryFn: () => api.get(`/business/expenses?range=${range}&storeId=${currentStoreId}`).then((d) => d.expenses),
+    enabled: !!currentStoreId,
+  });
 }
-export function useCreateSale() {
+
+export function useCreateExpense() {
   const qc = useQueryClient();
+  const { currentStoreId } = useStoreContext();
   return useMutation({
-    mutationFn: (data: any) => api.post("/business/sales", data),
+    mutationFn: (data: any) => api.post("/business/expenses", { ...data, storeId: currentStoreId }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["businessExpenses"] }),
+  });
+}
+
+export function useBulkImportProducts() {
+  const qc = useQueryClient();
+  const { currentStoreId } = useStoreContext();
+  return useMutation({
+    mutationFn: (products: any[]) => api.post("/business/products/bulk-import", { products, storeId: currentStoreId }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["businessSales"] });
+      qc.invalidateQueries({ queryKey: ["bizProducts"] });
       qc.invalidateQueries({ queryKey: ["businessProducts"] });
+      qc.invalidateQueries({ queryKey: ["businessDashboard"] });
     },
   });
 }
-export function useBusinessExpenses(range: "today" | "week" | "month" = "month") {
-  return useQuery({ queryKey: ["businessExpenses", range], queryFn: () => api.get(`/business/expenses?range=${range}`).then((d) => d.expenses) });
-}
-export function useCreateExpense() {
-  const qc = useQueryClient();
-  return useMutation({ mutationFn: (data: any) => api.post("/business/expenses", data), onSuccess: () => qc.invalidateQueries({ queryKey: ["businessExpenses"] }) });
-}
+
 export function useDeleteExpense() {
   const qc = useQueryClient();
   return useMutation({ mutationFn: (id: string) => api.delete(`/business/expenses/${id}`), onSuccess: () => qc.invalidateQueries({ queryKey: ["businessExpenses"] }) });

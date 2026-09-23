@@ -11,6 +11,7 @@ import { MerchantShell } from "@/components/merchant/merchant-shell";
 import { MerchantPlanPicker } from "@/components/merchant/merchant-plan-picker";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
+import { StoreProvider } from "@/lib/context/store-context";
 
 export default function MerchantLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -73,7 +74,7 @@ export default function MerchantLayout({ children }: { children: React.ReactNode
     );
   }
   
-  if (s.status === "APPROVED" && s.planStatus === "ACTIVE") return <MerchantShell>{children}</MerchantShell>;
+  if (s.status === "APPROVED" && s.planStatus === "ACTIVE") return <StoreProvider><MerchantShell>{children}</MerchantShell></StoreProvider>;
 
   return (
     <GateScreen icon={<Store className="h-10 w-10 text-primary" />} title="Become a merchant">

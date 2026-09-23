@@ -6,7 +6,7 @@ import {
   UserCog, Plus, Trash2, KeyRound, Search, Filter, 
   MoreVertical, Edit, Shield, ShieldAlert, Clock, 
   Mail, Phone, MapPin, Calendar, User, AlertTriangle,
-  CheckCircle, XCircle, Activity
+  CheckCircle, XCircle, Activity, Store as StoreIcon
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMerchantStaff, useCreateStaff, useUpdateStaff, useDeleteStaff } from "@/lib/hooks/use-life-data";
+import { useStoreContext } from "@/lib/context/store-context";
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
@@ -40,6 +41,7 @@ export default function StaffPage() {
   const createStaff = useCreateStaff();
   const updateStaff = useUpdateStaff();
   const deleteStaff = useDeleteStaff();
+  const { stores, currentStoreId } = useStoreContext();
 
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -48,10 +50,11 @@ export default function StaffPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [storeFilter, setStoreFilter] = useState<string>("ALL");
   
   const [form, setForm] = useState({ 
     name: "", email: "", phone: "", address: "", age: "", sex: "", 
-    tribe: "", religion: "", role: "CASHIER", pin: "" 
+    tribe: "", religion: "", role: "CASHIER", pin: "", storeId: "" 
   });
 
   const filteredStaff = (staff as any[]).filter((s) => {
@@ -61,8 +64,14 @@ export default function StaffPage() {
       s.phone?.includes(searchQuery);
     const matchesRole = roleFilter === "ALL" || s.role === roleFilter;
     const matchesStatus = statusFilter === "ALL" || s.status === statusFilter;
-    return matchesSearch && matchesRole && matchesStatus;
+    const matchesStore = storeFilter === "ALL" || s.storeId === storeFilter;
+    return matchesSearch && matchesRole && matchesStatus && matchesStore;
   });
+
+  function openCreateModal() {
+    setForm({ name: "", email: "", phone: "", address: "", age: "", sex: "", tribe: "", religion: "", role: "CASHIER", pin: "", storeId: currentStoreId ?? "" });
+    setOpen(true);
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -76,10 +85,11 @@ export default function StaffPage() {
         sex: form.sex || undefined,
         tribe: form.tribe || undefined,
         religion: form.religion || undefined,
+        storeId: form.storeId || undefined,
       },
       { onSuccess: () => { 
         setOpen(false); 
-        setForm({ name: "", email: "", phone: "", address: "", age: "", sex: "", tribe: "", religion: "", role: "CASHIER", pin: "" }); 
+        setForm({ name: "", email: "", phone: "", address: "", age: "", sex: "", tribe: "", religion: "", role: "CASHIER", pin: "", storeId: currentStoreId ?? "" }); 
       }}
     );
   }
@@ -98,6 +108,8 @@ export default function StaffPage() {
           sex: form.sex || undefined,
           tribe: form.tribe || undefined,
           religion: form.religion || undefined,
+          pin: form.pin || undefined,
+          storeId: form.storeId || undefined,
         }
       },
       { onSuccess: () => { 
@@ -120,6 +132,7 @@ export default function StaffPage() {
       religion: s.religion || "",
       role: s.role,
       pin: "",
+      storeId: s.storeId || currentStoreId || "",
     });
     setEditOpen(true);
   }
@@ -147,10 +160,10 @@ export default function StaffPage() {
 
   const activeCount = (staff as any[]).filter((s) => s.status === "ACTIVE").length;
   const suspendedCount = (staff as any[]).filter((s) => s.status === "SUSPENDED").length;
+  const showLocations = stores.length > 1;
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      {/* Header Section */}
       <motion.div variants={item} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold flex items-center gap-2.5">
@@ -161,12 +174,11 @@ export default function StaffPage() {
           </h1>
           <p className="text-muted-foreground text-xs sm:text-sm mt-1.5 sm:mt-2">Manage your team, roles, and access permissions</p>
         </div>
-        <Button onClick={() => setOpen(true)} size="lg" className="shadow-lg h-9 sm:h-11 text-sm">
+        <Button onClick={openCreateModal} size="lg" className="shadow-lg h-9 sm:h-11 text-sm">
           <Plus className="mr-2 h-4 w-4" /> Add Staff Member
         </Button>
       </motion.div>
 
-      {/* Stats Cards */}
       <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card className="bg-linear-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
           <CardContent className="pt-4 sm:pt-6">
@@ -209,7 +221,6 @@ export default function StaffPage() {
         </Card>
       </motion.div>
 
-      {/* Search and Filters */}
       <motion.div variants={item} className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -237,9 +248,18 @@ export default function StaffPage() {
           <option value="ACTIVE">Active</option>
           <option value="SUSPENDED">Suspended</option>
         </select>
+        {showLocations && (
+          <select
+            value={storeFilter}
+            onChange={(e) => setStoreFilter(e.target.value)}
+            className="h-9 sm:h-11 px-3 sm:px-4 rounded-lg border border-input bg-background text-xs sm:text-sm"
+          >
+            <option value="ALL">All Locations</option>
+            {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        )}
       </motion.div>
 
-      {/* Staff List */}
       <motion.div variants={item} className="space-y-3">
         {isLoading ? (
           <div className="text-center py-12 text-muted-foreground">Loading staff...</div>
@@ -273,13 +293,18 @@ export default function StaffPage() {
                             </div>
                             <div className="min-w-0">
                               <h3 className="text-xs sm:text-sm font-semibold truncate">{s.name}</h3>
-                              <div className="flex items-center gap-1.5 sm:gap-2 mt-1">
+                              <div className="flex items-center gap-1.5 sm:gap-2 mt-1 flex-wrap">
                                 <Badge className={`text-[9px] sm:text-xs ${ROLE_COLORS[s.role as keyof typeof ROLE_COLORS]}`}>
                                   {s.role.replace("_", " ")}
                                 </Badge>
                                 <Badge variant={s.status === "ACTIVE" ? "default" : "destructive"} className="text-[9px] sm:text-xs">
                                   {s.status === "ACTIVE" ? "Active" : "Suspended"}
                                 </Badge>
+                                {showLocations && s.store?.name && (
+                                  <Badge variant="outline" className="text-[9px] sm:text-xs gap-1">
+                                    <StoreIcon className="h-2.5 w-2.5" /> {s.store.name}
+                                  </Badge>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -360,7 +385,6 @@ export default function StaffPage() {
         )}
       </motion.div>
 
-      {/* Add Staff Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -394,6 +418,18 @@ export default function StaffPage() {
                     {ROLES.map((r) => <option key={r} value={r}>{r.replace("_", " ")}</option>)}
                   </select>
                 </div>
+                {showLocations && (
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label className="text-xs sm:text-sm">Location *</Label>
+                    <select 
+                      className="flex h-9 sm:h-10 w-full rounded-lg border border-input bg-background px-3 text-xs sm:text-sm" 
+                      value={form.storeId} 
+                      onChange={(e) => setForm((f) => ({ ...f, storeId: e.target.value }))}
+                    >
+                      {stores.map((s) => <option key={s.id} value={s.id}>{s.name}{s.isDefault ? " (Default)" : ""}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div className="space-y-1.5 sm:space-y-2">
                   <Label className="text-xs sm:text-sm">Email</Label>
                   <Input 
@@ -493,7 +529,6 @@ export default function StaffPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Staff Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -526,6 +561,18 @@ export default function StaffPage() {
                     {ROLES.map((r) => <option key={r} value={r}>{r.replace("_", " ")}</option>)}
                   </select>
                 </div>
+                {showLocations && (
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label className="text-xs sm:text-sm">Location *</Label>
+                    <select 
+                      className="flex h-9 sm:h-10 w-full rounded-lg border border-input bg-background px-3 text-xs sm:text-sm" 
+                      value={form.storeId} 
+                      onChange={(e) => setForm((f) => ({ ...f, storeId: e.target.value }))}
+                    >
+                      {stores.map((s) => <option key={s.id} value={s.id}>{s.name}{s.isDefault ? " (Default)" : ""}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div className="space-y-1.5 sm:space-y-2">
                   <Label className="text-xs sm:text-sm">Email</Label>
                   <Input 
@@ -617,7 +664,6 @@ export default function StaffPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>

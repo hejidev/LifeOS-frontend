@@ -21,7 +21,7 @@ export function MarketingPageHeader({ title, description, tagline, icon, size = 
         <div
           className={cn(
             "absolute left-1/2 -translate-x-1/2 rounded-full bg-primary/15 blur-[100px]",
-            isHero ? "-top-24 h-[420px] w-[420px]" : "-top-16 h-[260px] w-[260px]"
+            isHero ? "-top-24 h-105 w-105" : "-top-16 h-65 w-65"
           )}
         />
       </div>

@@ -12,6 +12,7 @@ export const createStaffSchema = z.object({
     religion: z.string().trim().max(50).optional(),
     role: z.enum(["MANAGER", "CASHIER", "SALES_REP", "INVENTORY_CLERK"]).default("CASHIER"),
     pin: z.string().regex(/^\d{4,6}$/, "PIN must be 4-6 digits"),
+    storeId: z.string().uuid().optional(),
   }),
 });
 
@@ -28,6 +29,7 @@ export const updateStaffSchema = z.object({
     role: z.enum(["MANAGER", "CASHIER", "SALES_REP", "INVENTORY_CLERK"]).optional(),
     status: z.enum(["ACTIVE", "SUSPENDED"]).optional(),
     pin: z.string().regex(/^\d{4,6}$/).optional(),
+    storeId: z.string().uuid().optional(),
   }),
 });
 

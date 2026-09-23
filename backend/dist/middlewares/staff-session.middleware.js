@@ -20,6 +20,10 @@ async function requireStaffSession(req, _res, next) {
             console.error("[staff-session] token type mismatch:", payload.type);
             return next(new errors_1.AppError("Invalid staff session", 401));
         }
+        if (!payload.storeId) {
+            console.error("[staff-session] token predates multi-location support — no storeId");
+            return next(new errors_1.AppError("Please log in again", 401));
+        }
         const profile = await prisma_1.prisma.bizProfile.findUnique({ where: { id: payload.bizProfileId } });
         if (!profile) {
             console.error("[staff-session] no bizProfile found for id", payload.bizProfileId);
@@ -29,7 +33,7 @@ async function requireStaffSession(req, _res, next) {
             console.error("[staff-session] token version mismatch — token has", payload.tokenVersion, "db has", profile.staffTokenVersion);
             return next(new errors_1.AppError("Staff session expired, please log in again", 401));
         }
-        req.staff = { staffId: payload.staffId, bizProfileId: payload.bizProfileId, role: payload.role };
+        req.staff = { staffId: payload.staffId, bizProfileId: payload.bizProfileId, storeId: payload.storeId, role: payload.role };
         next();
     }
     catch (err) {
