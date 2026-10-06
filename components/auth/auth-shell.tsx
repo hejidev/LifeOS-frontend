@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { Terminal, Shield, Zap, Lock, Activity, Cpu, } from "lucide-react";
+import { Terminal, Sparkles, Shield, Zap, Lock, Activity, Cpu, } from "lucide-react";
 
 interface Module {
   label: string;
@@ -281,17 +281,12 @@ export function AuthShell({ prompt, headline, modules, children, variant = "defa
           transition={{ duration: 0.6 }}
           className="relative z-10"
         >
-          <Link href="/" className="inline-flex items-center gap-2 group">
-            <div className="relative">
-              <motion.div
-                className="absolute inset-0 bg-primary blur-lg opacity-0 group-hover:opacity-50"
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 3, repeat: Infinity }}
-              />
-              <Terminal className="h-6 w-6 text-primary relative z-10" />
+          {/* <Link href="/" className="inline-flex items-center gap-2 group"> */}
+          <Link href="/" className="inline-flex items-center gap-2.5 group">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-bg">
+              <Sparkles className="h-5 w-5 text-white" />
             </div>
-            <span className="font-mono text-sm tracking-tight text-white/45">life</span>
-            <span className="font-mono text-sm font-semibold tracking-tight text-primary">os</span>
+            <span className="font-bold text-lg gradient-text">LifeOS</span>
             <motion.span
               aria-hidden
               animate={{ opacity: [1, 0, 1] }}
@@ -399,10 +394,11 @@ export function AuthShell({ prompt, headline, modules, children, variant = "defa
           transition={{ duration: 0.35 }}
           className="w-full max-w-md"
         >
-          <div className="mb-8 flex items-center gap-1.5 lg:hidden">
-                <Terminal className="h-5 w-5 text-primary" />
-            <span className="font-mono text-sm text-text-muted-foreground">life</span>
-            <span className="font-mono text-sm font-semibold">os</span>
+          <div className="mb-8 flex items-center gap-2.5 lg:hidden">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-bg">
+              <Sparkles className="h-5 w-5 text-white" />
+            </div>
+            <span className="font-bold text-lg gradient-text">LifeOS</span>
           </div>
           {children}
         </motion.div>

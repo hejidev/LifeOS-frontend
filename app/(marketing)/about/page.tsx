@@ -1,12 +1,12 @@
 "use client";
 
-import { Target, Compass } from "lucide-react";
+import { Target, Compass, Activity } from "lucide-react";
 import { FaXTwitter, FaLinkedin, FaGithub } from "react-icons/fa6";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTeam, useTestimonials, usePublishedContent } from "@/lib/hooks/use-life-data";
-import { MarketingPageHeader } from "@/components/marketing/page-header";
+import { ConsoleHero } from "@/components/marketing/console-hero";
 
 function getInitials(name: string) {
   return name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
@@ -49,12 +49,8 @@ function TestimonialMarquee({ testimonials }: { testimonials: any[] }) {
           from { transform: translateX(0); }
           to { transform: translateX(-50%); }
         }
-        .animate-marquee {
-          animation: marquee 40s linear infinite;
-        }
-        .animate-marquee:hover {
-          animation-play-state: paused;
-        }
+        .animate-marquee { animation: marquee 40s linear infinite; }
+        .animate-marquee:hover { animation-play-state: paused; }
       `}</style>
     </div>
   );
@@ -70,25 +66,31 @@ export default function AboutPage() {
 
   return (
     <div className="max-w-8xl">
-      {/* <section className="max-w-7xl px-4 pt-14 sm:pt-20 pb-10 text-center"> */}
-        <MarketingPageHeader
-          size="hero"
-          title={<>Run your whole life.<br />Not just a slice of it.</>}
-          description="LifeOS started from a simple frustration: tasks, notes, health, money, and work all live in different apps that don't talk to each other. We're building the one place that holds all of it — free at its core, and built to grow with whatever you're running, from a personal to-do list to a full merchant storefront."
-          tagline="Built solo. Live today. 20+ modules and counting."
-        />
-      {/* </section> */}
+      <ConsoleHero
+        icon={<Activity className="h-3 w-3" />}
+        prompt="about-lifeos"
+        title={<>Run your whole life.<br />Not just a slice of it.</>}
+        description="LifeOS started from a simple frustration: tasks, notes, health, money, and work all live in different apps that don't talk to each other. We're building the one place that holds all of it — free at its core, and built to grow with whatever you're running, from a personal to-do list to a full merchant storefront."
+        tagline="Built solo. Live today. 20+ modules and counting."
+        status={[
+          { label: "STATUS", value: "in active development" },
+          { label: "MODULES", value: "20+" },
+          { label: "CORE PLAN", value: "$0 forever" },
+        ]}
+      />
 
       <section className="max-w-7xl mx-auto px-4 py-10 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card>
+        <Card className="relative overflow-hidden">
           <CardContent className="pt-6">
+            <span className="absolute top-4 right-5 font-mono text-[10px] text-muted-foreground/60">01</span>
             <Compass className="h-6 w-6 text-primary mb-3" />
             <p className="font-semibold mb-2">Our vision</p>
             <p className="text-sm text-muted-foreground">A world where managing your life doesn't require ten different apps, ten different logins, and constant context-switching.</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="relative overflow-hidden">
           <CardContent className="pt-6">
+            <span className="absolute top-4 right-5 font-mono text-[10px] text-muted-foreground/60">02</span>
             <Target className="h-6 w-6 text-primary mb-3" />
             <p className="font-semibold mb-2">Our mission</p>
             <p className="text-sm text-muted-foreground">Give everyone a free, genuinely capable operating system for their life — and let those who need more, like merchants running a real business, grow into it.</p>
@@ -98,7 +100,9 @@ export default function AboutPage() {
 
       {founders.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 py-10">
-          <h2 className="text-2xl font-bold mb-6">{founders.length > 1 ? "Founders" : "Founder"}</h2>
+          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+            <span className="font-mono text-sm text-primary">&gt;</span> {founders.length > 1 ? "Founders" : "Founder"}
+          </h2>
           <div className="space-y-4">
             {founders.map((f) => (
               <Card key={f.id}>
@@ -122,7 +126,9 @@ export default function AboutPage() {
 
       {(teamLoading || others.length > 0) && (
         <section className="max-w-7xl mx-auto px-4 py-10">
-          <h2 className="text-2xl font-bold mb-6">The team</h2>
+          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+            <span className="font-mono text-sm text-primary">&gt;</span> The team
+          </h2>
           {teamLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-48 rounded-xl" />)}</div>
           ) : (
@@ -146,7 +152,9 @@ export default function AboutPage() {
       )}
 
       <section className="mt-10 px-4 max-w-7xl mx-auto">
-        <h2 className="text-2xl font-bold mb-6">What people say</h2>
+        <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+          <span className="font-mono text-sm text-primary">&gt;</span> What people say
+        </h2>
         {testimonialsLoading ? (
           <div className="max-w-3xl mx-auto px-2 grid grid-cols-1 sm:grid-cols-3 gap-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}</div>
         ) : (

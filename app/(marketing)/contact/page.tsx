@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useMe } from "@/lib/hooks/use-auth";
 import { useSubmitContactForm } from "@/lib/hooks/use-life-data";
 import Link from "next/link";
-import { MarketingPageHeader } from "@/components/marketing/page-header";
+import { ConsoleHero } from "@/components/marketing/console-hero";
 
 const REASONS = ["General enquiry", "Support", "Billing", "Partnership", "Other"];
 const INFO = [
@@ -35,17 +35,20 @@ export default function ContactPage() {
 
   return (
     <div className="relative overflow-hidden">
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 h-125 w-200 rounded-full bg-primary/10 blur-3xl -z-10" />
+      <ConsoleHero
+        icon={<MessageCircle className="h-3 w-3" />}
+        prompt="channel/contact"
+        title="Get in touch"
+        description="Questions, feedback, or something not working right? We read every message."
+        status={[
+          { label: "AVG RESPONSE", value: "< 24h" },
+          { label: "CHANNEL", value: "email + in-app" },
+        ]}
+      />
+
+      <div className="absolute top-112 left-1/2 -translate-x-1/2 h-125 w-200 rounded-full bg-primary/10 blur-3xl -z-10" />
 
       <div className="max-w-5xl mx-auto px-4 py-14 sm:py-20">
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
-        <MarketingPageHeader
-  title="Get in touch"
-  description="Questions, feedback, or something not working right? We read every message."
-  icon={<Mail className="h-5 w-5" />}
-/>
-        </motion.div>
-
         {(me as any)?.user && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="max-w-2xl mx-auto mb-8">
             <Card className="border-primary/20 bg-primary/5">
@@ -62,9 +65,10 @@ export default function ContactPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 max-w-4xl mx-auto">
           <motion.div initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }} className="lg:col-span-2 space-y-4">
-            {INFO.map((i) => (
-              <Card key={i.label}>
+            {INFO.map((i, idx) => (
+              <Card key={i.label} className="relative">
                 <CardContent className="pt-6 flex items-start gap-3">
+                  <span className="absolute top-3 right-4 font-mono text-[10px] text-muted-foreground/50">{String(idx + 1).padStart(2, "0")}</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 shrink-0"><i.icon className="h-4 w-4 text-primary" /></div>
                   <div>
                     <p className="text-xs text-muted-foreground">{i.label}</p>

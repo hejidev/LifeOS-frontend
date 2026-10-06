@@ -8,11 +8,21 @@ export interface StaffRequest extends Request {
   staff?: { staffId: string; bizProfileId: string; storeId: string; role: string };
 }
 
+function extractToken(req: Request): string | undefined {
+  const cookieToken = req.cookies?.lifeos_staff_token;
+  if (cookieToken) return cookieToken;
+
+  const header = req.headers.authorization;
+  if (header?.startsWith("Bearer ")) return header.slice(7);
+
+  return undefined;
+}
+
 export async function requireStaffSession(req: StaffRequest, _res: Response, next: NextFunction) {
   try {
-    const token = req.cookies?.lifeos_staff_token;
+    const token = extractToken(req);
     if (!token) {
-      console.error("[staff-session] no lifeos_staff_token cookie on", req.method, req.path);
+      console.error("[staff-session] no token (cookie or bearer) on", req.method, req.path);
       return next(new AppError("Not logged in as staff", 401));
     }
 

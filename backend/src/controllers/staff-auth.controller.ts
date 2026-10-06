@@ -21,7 +21,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   const { storeCode, name, pin } = req.body;
   const result = await staffAuthService.staffLogin(storeCode, name, pin);
   res.cookie(STAFF_COOKIE, result.token, STAFF_COOKIE_OPTIONS);
-  return res.json({ staff: result.staff, businessName: result.businessName });
+  return res.json({ staff: result.staff, businessName: result.businessName, storeName: result.storeName, token: result.token });
 });
 
 export const me = asyncHandler(async (req: StaffRequest, res: Response) => {
