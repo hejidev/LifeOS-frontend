@@ -31,7 +31,13 @@ export const me = asyncHandler(async (req: StaffRequest, res: Response) => {
   const [profile, store] = await Promise.all([
     prisma.bizProfile.findUnique({
       where: { id: req.staff!.bizProfileId },
-      select: { businessName: true, currency: true },
+      select: {
+        businessName: true,
+        currency: true,
+        loyaltyEnabled: true,
+        loyaltyRedemptionValue: true,
+        loyaltyEarnRate: true,
+      },
     }),
     prisma.store.findUnique({ where: { id: req.staff!.storeId }, select: { name: true } }),
   ]);
@@ -43,6 +49,11 @@ export const me = asyncHandler(async (req: StaffRequest, res: Response) => {
     storeName: store?.name,
     currency: profile?.currency ?? "USD",
     permissions: getStaffPermissions(req.staff!.role),
+    loyalty: {
+      enabled: profile?.loyaltyEnabled ?? false,
+      redemptionValue: profile?.loyaltyRedemptionValue ?? 1,
+      earnRate: profile?.loyaltyEarnRate ?? 1,
+    },
   });
 });
 
