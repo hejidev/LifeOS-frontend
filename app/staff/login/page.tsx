@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Delete, Sparkles, Store, User } from "lucide-react";
+import { Delete, Download, Sparkles, Store, User } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -117,6 +117,10 @@ export default function StaffLoginPage() {
             )}
           </CardContent>
         </Card>
+
+        <Link href="/download" className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground hover:text-foreground">
+          <Download className="h-3.5 w-3.5" /> Get the LifeOS Staff app
+        </Link>
       </motion.div>
     </div>
   );

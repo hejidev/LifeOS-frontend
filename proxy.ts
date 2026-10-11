@@ -15,6 +15,11 @@ export function proxy(req: NextRequest) {
     pathname === "/login" ||
     pathname === "/signup" ||
     pathname.startsWith("/staff") ||
+    pathname === "/download" ||
+    pathname === "/sw.js" ||
+    pathname === "/offline.html" ||
+    pathname.startsWith("/manifests/") ||
+    pathname.startsWith("/icons/") ||
     pathname === "/forgot-password" ||
     pathname === "/reset-password" ||
     pathname === "/family/join" ||
