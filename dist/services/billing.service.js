@@ -1,23 +1,51 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.stripe = void 0;
 exports.getOrCreateSubscription = getOrCreateSubscription;
 exports.getBillingSummary = getBillingSummary;
 exports.checkAndConsumeUsage = checkAndConsumeUsage;
 exports.createCheckoutSession = createCheckoutSession;
 exports.createPortalSession = createPortalSession;
 exports.handleWebhookEvent = handleWebhookEvent;
-const stripe_1 = __importDefault(require("stripe"));
 const prisma_1 = require("../config/prisma");
 const env_1 = require("../config/env");
 const errors_1 = require("../lib/errors");
 const plan_1 = require("../config/plan");
 const notification_service_1 = require("./notification.service");
 const email_service_1 = require("./email.service");
-exports.stripe = new stripe_1.default(env_1.env.STRIPE_SECRET_KEY);
+const paystack = __importStar(require("./paystack.service"));
 async function getOrCreateSubscription(userId) {
     let sub = await prisma_1.prisma.subscription.findUnique({ where: { userId } });
     if (!sub)
@@ -63,57 +91,45 @@ async function createCheckoutSession(userId, email, planKey, interval = "month")
     const plan = plan_1.PLANS[planKey];
     if (!plan)
         throw new errors_1.AppError("Invalid plan", 400);
-    const priceId = interval === "year" ? plan.priceIdYearly : plan.priceIdMonthly;
-    if (!priceId)
+    const planCode = interval === "year" ? plan.planCodeYearly : plan.planCodeMonthly;
+    if (!planCode)
         throw new errors_1.AppError("This plan isn't available for that billing interval", 400);
-    const sub = await getOrCreateSubscription(userId);
-    let customerId = sub.stripeCustomerId;
-    if (!customerId) {
-        const customer = await exports.stripe.customers.create({ email, metadata: { userId } });
-        customerId = customer.id;
-        await prisma_1.prisma.subscription.update({ where: { userId }, data: { stripeCustomerId: customerId } });
-    }
-    const session = await exports.stripe.checkout.sessions.create({
-        customer: customerId,
-        mode: "subscription",
-        line_items: [{ price: priceId, quantity: 1 }],
-        success_url: `${env_1.env.FRONTEND_URL}/app/billing?success=true`,
-        cancel_url: `${env_1.env.FRONTEND_URL}/app/billing?canceled=true`,
+    const result = await paystack.initializeTransaction({
+        email,
+        plan: planCode,
+        callback_url: `${env_1.env.FRONTEND_URL}/app/billing?success=true`,
         metadata: { userId },
     });
-    return session.url;
+    return result.authorization_url;
 }
 async function createPortalSession(userId) {
     const sub = await getOrCreateSubscription(userId);
-    if (!sub.stripeCustomerId)
+    if (!sub.paystackSubscriptionCode)
         throw new errors_1.AppError("No billing account found", 400);
-    const session = await exports.stripe.billingPortal.sessions.create({
-        customer: sub.stripeCustomerId,
-        return_url: `${env_1.env.FRONTEND_URL}/app/billing`,
-    });
-    return session.url;
+    const result = await paystack.getSubscriptionManageLink(sub.paystackSubscriptionCode);
+    return result.link;
 }
 async function handleWebhookEvent(event) {
-    switch (event.type) {
-        case "checkout.session.completed": {
-            const session = event.data.object;
-            const userId = session.metadata?.userId;
-            const type = session.metadata?.type;
-            if (!userId || !session.subscription)
+    switch (event.event) {
+        case "charge.success": {
+            const data = event.data;
+            const userId = data.metadata?.userId;
+            const type = data.metadata?.type;
+            const planCode = data.plan?.plan_code ?? data.plan_object?.plan_code;
+            if (!userId || !planCode)
                 break;
-            const stripeSub = await exports.stripe.subscriptions.retrieve(session.subscription);
-            const priceId = stripeSub.items.data[0]?.price.id;
-            const periodEnd = new Date(stripeSub.items.data[0].current_period_end * 1000);
             const user = await prisma_1.prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+            const periodEnd = data.plan_object?.next_payment_date ? new Date(data.plan_object.next_payment_date) : null;
             if (type === "merchant") {
-                const resolved = priceId ? (0, plan_1.merchantPriceIdToTier)(priceId) : null;
+                const resolved = (0, plan_1.merchantPlanCodeToTier)(planCode);
                 const updated = await prisma_1.prisma.bizProfile.update({
                     where: { userId },
                     data: {
                         planTier: resolved?.tier ?? "NONE",
                         planStatus: "ACTIVE",
-                        stripeSubscriptionId: stripeSub.id,
-                        currentPeriodEnd: periodEnd,
+                        paystackCustomerCode: data.customer?.customer_code,
+                        paystackSubscriptionCode: data.subscription?.subscription_code ?? undefined,
+                        currentPeriodEnd: periodEnd ?? undefined,
                     },
                 });
                 await (0, notification_service_1.createNotification)(userId, {
@@ -122,7 +138,7 @@ async function handleWebhookEvent(event) {
                     message: `Your ${resolved?.tier ?? "plan"} merchant plan is now active — your dashboard is unlocked.`,
                     actionUrl: "/merchant/dashboard",
                 });
-                if (user?.email) {
+                if (user?.email && periodEnd) {
                     await (0, email_service_1.sendSubscriptionConfirmationEmail)(user.email, {
                         planName: `Merchant ${resolved?.tier ?? "plan"}`,
                         interval: resolved?.interval === "year" ? "year" : "month",
@@ -131,14 +147,15 @@ async function handleWebhookEvent(event) {
                 }
             }
             else {
-                const resolved = priceId ? (0, plan_1.priceIdToTier)(priceId) : null;
+                const resolved = (0, plan_1.planCodeToTier)(planCode);
                 await prisma_1.prisma.subscription.update({
                     where: { userId },
                     data: {
                         tier: resolved?.tier ?? "FREE",
                         status: "ACTIVE",
-                        stripeSubscriptionId: stripeSub.id,
-                        currentPeriodEnd: periodEnd,
+                        paystackCustomerCode: data.customer?.customer_code,
+                        paystackSubscriptionCode: data.subscription?.subscription_code ?? undefined,
+                        currentPeriodEnd: periodEnd ?? undefined,
                     },
                 });
                 await (0, notification_service_1.createNotification)(userId, {
@@ -147,7 +164,7 @@ async function handleWebhookEvent(event) {
                     message: `Your ${resolved?.tier ?? "plan"} subscription is now active.`,
                     actionUrl: "/app/billing",
                 });
-                if (user?.email) {
+                if (user?.email && periodEnd) {
                     await (0, email_service_1.sendSubscriptionConfirmationEmail)(user.email, {
                         planName: resolved?.tier ?? "plan",
                         interval: resolved?.interval === "year" ? "year" : "month",
@@ -157,49 +174,33 @@ async function handleWebhookEvent(event) {
             }
             break;
         }
-        case "customer.subscription.updated": {
-            const stripeSub = event.data.object;
-            const priceId = stripeSub.items.data[0]?.price.id;
-            const periodEnd = new Date(stripeSub.items.data[0].current_period_end * 1000);
-            const status = stripeSub.status === "active" ? "ACTIVE" : stripeSub.status === "past_due" ? "PAST_DUE" : "CANCELED";
-            const toolSub = await prisma_1.prisma.subscription.findFirst({ where: { stripeSubscriptionId: stripeSub.id } });
+        case "subscription.disable": {
+            const data = event.data;
+            const subscriptionCode = data.subscription_code;
+            const toolSub = await prisma_1.prisma.subscription.findFirst({ where: { paystackSubscriptionCode: subscriptionCode } });
             if (toolSub) {
-                const resolved = priceId ? (0, plan_1.priceIdToTier)(priceId) : null;
-                await prisma_1.prisma.subscription.update({
-                    where: { id: toolSub.id },
-                    data: {
-                        tier: resolved?.tier ?? toolSub.tier,
-                        status,
-                        currentPeriodEnd: periodEnd,
-                        cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
-                    },
-                });
+                await prisma_1.prisma.subscription.update({ where: { id: toolSub.id }, data: { tier: "FREE", status: "CANCELED", paystackSubscriptionCode: null } });
                 break;
             }
-            const bizProfile = await prisma_1.prisma.bizProfile.findFirst({ where: { stripeSubscriptionId: stripeSub.id } });
+            const bizProfile = await prisma_1.prisma.bizProfile.findFirst({ where: { paystackSubscriptionCode: subscriptionCode } });
             if (bizProfile) {
-                const resolved = priceId ? (0, plan_1.merchantPriceIdToTier)(priceId) : null;
-                await prisma_1.prisma.bizProfile.update({
-                    where: { id: bizProfile.id },
-                    data: {
-                        planTier: resolved?.tier ?? bizProfile.planTier,
-                        planStatus: status,
-                        currentPeriodEnd: periodEnd,
-                    },
-                });
+                await prisma_1.prisma.bizProfile.update({ where: { id: bizProfile.id }, data: { planTier: "NONE", planStatus: "INACTIVE", paystackSubscriptionCode: null } });
             }
             break;
         }
-        case "customer.subscription.deleted": {
-            const stripeSub = event.data.object;
-            const toolSub = await prisma_1.prisma.subscription.findFirst({ where: { stripeSubscriptionId: stripeSub.id } });
+        case "invoice.payment_failed": {
+            const data = event.data;
+            const subscriptionCode = data.subscription?.subscription_code;
+            if (!subscriptionCode)
+                break;
+            const toolSub = await prisma_1.prisma.subscription.findFirst({ where: { paystackSubscriptionCode: subscriptionCode } });
             if (toolSub) {
-                await prisma_1.prisma.subscription.update({ where: { id: toolSub.id }, data: { tier: "FREE", status: "CANCELED", stripeSubscriptionId: null } });
+                await prisma_1.prisma.subscription.update({ where: { id: toolSub.id }, data: { status: "PAST_DUE" } });
                 break;
             }
-            const bizProfile = await prisma_1.prisma.bizProfile.findFirst({ where: { stripeSubscriptionId: stripeSub.id } });
+            const bizProfile = await prisma_1.prisma.bizProfile.findFirst({ where: { paystackSubscriptionCode: subscriptionCode } });
             if (bizProfile) {
-                await prisma_1.prisma.bizProfile.update({ where: { id: bizProfile.id }, data: { planTier: "NONE", planStatus: "INACTIVE", stripeSubscriptionId: null } });
+                await prisma_1.prisma.bizProfile.update({ where: { id: bizProfile.id }, data: { planStatus: "PAST_DUE" } });
             }
             break;
         }

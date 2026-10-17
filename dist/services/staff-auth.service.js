@@ -28,7 +28,15 @@ async function staffLogin(storeCode, staffName, pin) {
     const valid = await bcrypt_1.default.compare(pin, candidate.pinHash);
     if (!valid)
         throw new errors_1.AppError("Incorrect name or PIN", 401);
-    const token = jsonwebtoken_1.default.sign({ type: "staff", staffId: candidate.id, bizProfileId: bizProfile.id, role: candidate.role, tokenVersion: bizProfile.staffTokenVersion }, env_1.env.ACCESS_TOKEN_SECRET, { expiresIn: STAFF_TOKEN_TTL_SECONDS });
+    let storeId = candidate.storeId;
+    if (!storeId) {
+        const defaultStore = await prisma_1.prisma.store.findFirst({ where: { bizProfileId: bizProfile.id, isDefault: true } });
+        storeId = defaultStore?.id ?? null;
+    }
+    if (!storeId)
+        throw new errors_1.AppError("No location assigned to this account — contact your manager", 500);
+    const store = await prisma_1.prisma.store.findUnique({ where: { id: storeId } });
+    const token = jsonwebtoken_1.default.sign({ type: "staff", staffId: candidate.id, bizProfileId: bizProfile.id, storeId, role: candidate.role, tokenVersion: bizProfile.staffTokenVersion }, env_1.env.ACCESS_TOKEN_SECRET, { expiresIn: STAFF_TOKEN_TTL_SECONDS });
     const now = new Date();
     await prisma_1.prisma.bizStaff.update({ where: { id: candidate.id }, data: { lastActiveAt: now } });
     await prisma_1.prisma.bizStaffActivity.create({
@@ -37,10 +45,15 @@ async function staffLogin(storeCode, staffName, pin) {
     await (0, notification_service_1.createNotification)(bizProfile.userId, {
         type: "STAFF",
         title: "Staff clocked in",
-        message: `${candidate.name} (${candidate.role.replace("_", " ").toLowerCase()}) clocked in at ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+        message: `${candidate.name} (${candidate.role.replace("_", " ").toLowerCase()}) clocked in at ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${store ? ` — ${store.name}` : ""}`,
         actionUrl: "/merchant/staff/activity",
     });
-    return { token, staff: { id: candidate.id, name: candidate.name, role: candidate.role }, businessName: bizProfile.businessName };
+    return {
+        token,
+        staff: { id: candidate.id, name: candidate.name, role: candidate.role },
+        businessName: bizProfile.businessName,
+        storeName: store?.name,
+    };
 }
 function verifyStaffToken(token) {
     const payload = jsonwebtoken_1.default.verify(token, env_1.env.ACCESS_TOKEN_SECRET);

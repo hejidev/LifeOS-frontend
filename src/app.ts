@@ -6,6 +6,7 @@ import hpp from "hpp";
 import cookieParser from "cookie-parser";
 
 import { env } from "./config/env";
+import * as utilitiesController from "./controllers/utilities.controller";
 import authRoutes from "./routes/auth.routes";
 import oauthRoutes from "./routes/oauth.routes";
 import staffAuthRoutes from "./routes/staff-auth.routes";
@@ -25,6 +26,8 @@ import merchantRoutes from "./routes/merchant.routes";
 import staffRoutes from "./routes/staff.routes";
 import staffPortalRoutes from "./routes/staff-portal.routes";
 import staffPosRoutes from "./routes/staff-pos.routes";
+import staffShiftPortalRoutes from "./routes/staff-shift-portal.routes";
+import storeRoutes from "./routes/store.routes";
 
 import businessRoutes from "./routes/business.routes";
 import settingsRoutes from "./routes/settings.routes";
@@ -50,6 +53,7 @@ import contactSubmissionRoutes from "./routes/contact-submission.routes";
 import siteContentRoutes from "./routes/site-content.routes";
 
 import { errorHandler } from "./middlewares/errorHandler.middleware";
+import { startCronJobs } from "./config/cron";
 
 const app = express();
 
@@ -59,7 +63,8 @@ app.use(cors({
   origin: [
     env.FRONTEND_URL,
     "http://localhost:3000",
-    "https://life-os-vert-ten.vercel.app"
+    "https://life-os-vert-ten.vercel.app",
+    "https://www.lifeos.com.ng"
   ],
   credentials: true
 }));
@@ -72,6 +77,23 @@ app.use(hpp());
 app.use(compression());
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
+
+app.get(
+  "/api/public/social-profile/:slug",
+  (req, res, next) =>
+    utilitiesController
+      .getPublicSocialProfile(req.params.slug, {
+        userAgent: req.get("user-agent") ?? undefined,
+        referrer: req.get("referer") ?? undefined,
+      })
+      .then((data) => res.json(data))
+      .catch((err) => {
+        if (err.message === "Social profile not found") {
+          return res.status(404).json({ error: err.message });
+        }
+        return next(err);
+      })
+);
 
 // Auth-layer routers — no evidence these shadow anything, left in place
 app.use("/api", authRoutes);
@@ -86,6 +108,8 @@ app.use("/api/merchant", merchantRoutes);
 app.use("/api/merchant/staff", staffRoutes);
 app.use("/api/staff-portal", staffPortalRoutes);
 app.use("/api/staff-pos", staffPosRoutes);
+app.use("/api/my-shifts", staffShiftPortalRoutes);
+app.use("/api/stores", storeRoutes);
 app.use("/api/business", businessRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/platform-admin", platformAdminRoutes);
@@ -123,5 +147,7 @@ app.use("/api", emergencyRoutes);
 app.use("/api", notificationRoutes);
 
 app.use(errorHandler);
+
+startCronJobs();
 
 export default app;

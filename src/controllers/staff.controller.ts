@@ -38,3 +38,9 @@ export const getActivity = asyncHandler(async (req: AuthenticatedRequest, res: R
   const activity = await staffService.getStaffActivity(req.user!.id, staffId);
   return res.json({ activity });
 });
+
+export const getStaffPerformance = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const range = (req.query.range as "today" | "week" | "month") ?? "month";
+  const performance = await staffService.getStaffPerformance(req.user!.id, range);
+  return res.json({ performance });
+});

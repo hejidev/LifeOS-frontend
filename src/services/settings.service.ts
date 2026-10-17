@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../config/prisma";
 import { AppError } from "../lib/errors";
 import { assertStrongPassword } from "../lib/password-policy";
+import { sendPasswordChangedEmail } from "./email.service";
 
 function serializeUser(u: any) {
   return {
@@ -78,6 +79,7 @@ export async function changePassword(
     where: { id: userId },
     data: { passwordHash, sessionVersion: { increment: 1 } },
   });
+  await sendPasswordChangedEmail(user.email, user.name ?? "there");
 }
 
 // Aggregated snapshot of everything the user has across LifeOS — powers the

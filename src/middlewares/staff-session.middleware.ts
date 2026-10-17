@@ -5,14 +5,24 @@ import { env } from "../config/env";
 import { AppError } from "../lib/errors";
 
 export interface StaffRequest extends Request {
-  staff?: { staffId: string; bizProfileId: string; role: string };
+  staff?: { staffId: string; bizProfileId: string; storeId: string; role: string };
+}
+
+function extractToken(req: Request): string | undefined {
+  const cookieToken = req.cookies?.lifeos_staff_token;
+  if (cookieToken) return cookieToken;
+
+  const header = req.headers.authorization;
+  if (header?.startsWith("Bearer ")) return header.slice(7);
+
+  return undefined;
 }
 
 export async function requireStaffSession(req: StaffRequest, _res: Response, next: NextFunction) {
   try {
-    const token = req.cookies?.lifeos_staff_token;
+    const token = extractToken(req);
     if (!token) {
-      console.error("[staff-session] no lifeos_staff_token cookie on", req.method, req.path);
+      console.error("[staff-session] no token (cookie or bearer) on", req.method, req.path);
       return next(new AppError("Not logged in as staff", 401));
     }
 
@@ -20,6 +30,11 @@ export async function requireStaffSession(req: StaffRequest, _res: Response, nex
     if (payload.type !== "staff") {
       console.error("[staff-session] token type mismatch:", payload.type);
       return next(new AppError("Invalid staff session", 401));
+    }
+
+    if (!payload.storeId) {
+      console.error("[staff-session] token predates multi-location support — no storeId");
+      return next(new AppError("Please log in again", 401));
     }
 
     const profile = await prisma.bizProfile.findUnique({ where: { id: payload.bizProfileId } });
@@ -32,7 +47,7 @@ export async function requireStaffSession(req: StaffRequest, _res: Response, nex
       return next(new AppError("Staff session expired, please log in again", 401));
     }
 
-    req.staff = { staffId: payload.staffId, bizProfileId: payload.bizProfileId, role: payload.role };
+    req.staff = { staffId: payload.staffId, bizProfileId: payload.bizProfileId, storeId: payload.storeId, role: payload.role };
     next();
   } catch (err) {
     console.error("[staff-session] verify error:", err);

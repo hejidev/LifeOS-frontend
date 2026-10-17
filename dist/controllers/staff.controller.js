@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getActivity = exports.logActivity = exports.clockIn = exports.deleteStaff = exports.updateStaff = exports.createStaff = exports.listStaff = void 0;
+exports.getStaffPerformance = exports.getActivity = exports.logActivity = exports.clockIn = exports.deleteStaff = exports.updateStaff = exports.createStaff = exports.listStaff = void 0;
 const errors_1 = require("../lib/errors");
 const staffService = __importStar(require("../services/staff.service"));
 exports.listStaff = (0, errors_1.asyncHandler)(async (req, res) => {
@@ -64,4 +64,9 @@ exports.getActivity = (0, errors_1.asyncHandler)(async (req, res) => {
     const staffId = req.query.staffId;
     const activity = await staffService.getStaffActivity(req.user.id, staffId);
     return res.json({ activity });
+});
+exports.getStaffPerformance = (0, errors_1.asyncHandler)(async (req, res) => {
+    const range = req.query.range ?? "month";
+    const performance = await staffService.getStaffPerformance(req.user.id, range);
+    return res.json({ performance });
 });

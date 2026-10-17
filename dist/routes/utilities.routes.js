@@ -40,12 +40,11 @@ const utilitiesController = __importStar(require("../controllers/utilities.contr
 const utilities_validator_1 = require("../validators/utilities.validator");
 const social_profile_validator_1 = require("../validators/social-profile.validator");
 const router = (0, express_1.Router)();
-// Protected utilities
 router.use(auth_middleware_1.requireAuth);
 router.get("/utilities/exchange-rates", utilitiesController.getExchangeRates);
 router.post("/utilities/translate", (0, validate_middleware_1.validate)(utilities_validator_1.translateSchema), utilitiesController.translateText);
 router.get("/social-profile/me", utilitiesController.getMySocialProfile);
-// Protected social profile creation
 router.post("/utilities/social-profile", (0, validate_middleware_1.validate)(social_profile_validator_1.createSocialProfileSchema), utilitiesController.createSocialProfile);
-router.get("/public/social-profile/:slug", (req, res, next) => utilitiesController.getPublicSocialProfile(req.params.slug).then(data => res.json(data)).catch(next));
+router.patch("/utilities/social-profile", (0, validate_middleware_1.validate)(social_profile_validator_1.updateSocialProfileSchema), utilitiesController.updateSocialProfile);
+router.delete("/utilities/social-profile", utilitiesController.deleteSocialProfile);
 exports.default = router;

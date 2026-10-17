@@ -23,13 +23,18 @@ export const createSocialProfile = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user!.id;
 
-    const profile =
-      await socialProfileService.createSocialProfile({
+    try {
+      const profile = await socialProfileService.createSocialProfile({
         userId,
         ...req.body,
       });
-
-    return res.status(201).json(profile);
+      return res.status(201).json(profile);
+    } catch (err: any) {
+      if (err.message === "That username is already taken") {
+        return res.status(409).json({ error: err.message });
+      }
+      throw err;
+    }
   }
 );
 
@@ -76,5 +81,21 @@ export const getMySocialProfile = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
     const profile = await socialProfileService.getSocialProfileByUserId(req.user!.id);
     return res.json(profile); // null if the user hasn't created one yet — that's fine
+  }
+);
+
+export const updateSocialProfile = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user!.id;
+    const profile = await socialProfileService.updateSocialProfile(userId, req.body);
+    return res.json(profile);
+  }
+);
+
+export const deleteSocialProfile = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user!.id;
+    await socialProfileService.deleteSocialProfile(userId);
+    return res.status(204).send();
   }
 );

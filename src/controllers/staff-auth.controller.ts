@@ -4,6 +4,7 @@ import { env } from "../config/env";
 import { prisma } from "../config/prisma";
 import * as staffAuthService from "../services/staff-auth.service";
 import type { StaffRequest } from "../middlewares/staff-session.middleware";
+import { getStaffPermissions } from "../lib/staff-permissions";
 
 const STAFF_COOKIE = "lifeos_staff_token";
 const isProd = env.NODE_ENV !== "development";
@@ -20,23 +21,39 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   const { storeCode, name, pin } = req.body;
   const result = await staffAuthService.staffLogin(storeCode, name, pin);
   res.cookie(STAFF_COOKIE, result.token, STAFF_COOKIE_OPTIONS);
-  return res.json({ staff: result.staff, businessName: result.businessName });
+  return res.json({ staff: result.staff, businessName: result.businessName, storeName: result.storeName, token: result.token });
 });
 
 export const me = asyncHandler(async (req: StaffRequest, res: Response) => {
   const staff = await prisma.bizStaff.findUnique({ where: { id: req.staff!.staffId } });
   if (!staff) return res.status(404).json({ error: "Staff not found" });
 
-  const profile = await prisma.bizProfile.findUnique({
-    where: { id: req.staff!.bizProfileId },
-    select: { businessName: true, currency: true },
-  });
+  const [profile, store] = await Promise.all([
+    prisma.bizProfile.findUnique({
+      where: { id: req.staff!.bizProfileId },
+      select: {
+        businessName: true,
+        currency: true,
+        loyaltyEnabled: true,
+        loyaltyRedemptionValue: true,
+        loyaltyEarnRate: true,
+      },
+    }),
+    prisma.store.findUnique({ where: { id: req.staff!.storeId }, select: { name: true } }),
+  ]);
 
   const { pinHash: _hash, ...rest } = staff;
   return res.json({
     staff: rest,
     businessName: profile?.businessName,
+    storeName: store?.name,
     currency: profile?.currency ?? "USD",
+    permissions: getStaffPermissions(req.staff!.role),
+    loyalty: {
+      enabled: profile?.loyaltyEnabled ?? false,
+      redemptionValue: profile?.loyaltyRedemptionValue ?? 1,
+      earnRate: profile?.loyaltyEarnRate ?? 1,
+    },
   });
 });
 

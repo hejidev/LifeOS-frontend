@@ -4,6 +4,7 @@ import { env } from "../config/env";
 import { prisma } from "../config/prisma";
 import * as googleService from "../services/oauth/google.service";
 import * as authService from "../services/auth.service";
+import { sendWelcomeEmail } from "../services/email.service";
 
 const REFRESH_COOKIE = "lifeos_rt";
 const router = Router();
@@ -21,6 +22,7 @@ router.get("/auth/google/callback", asyncHandler(async (req, res) => {
 
   const googleUser = await googleService.exchangeCodeForGoogleUser(code);
   let user = await prisma.user.findUnique({ where: { email: googleUser.email } });
+  let isNewUser = false;
 
   if (!user) {
     user = await prisma.user.create({
@@ -33,13 +35,15 @@ router.get("/auth/google/callback", asyncHandler(async (req, res) => {
         emailVerified: true,
       },
     });
+    isNewUser = true;
   }
 
-  const { accessToken, refreshToken } = await authService.issueSession(user.id, user.role, user.sessionVersion);
+  const { accessToken, refreshToken } = await authService.issueSession(user.id, user.email, user.name, user.role, user.sessionVersion);
+
+  if (isNewUser) await sendWelcomeEmail(user.email, user.name ?? "there");
 
   const isProd = env.NODE_ENV !== "development";
 
-  // Set refresh token cookie
   res.cookie(REFRESH_COOKIE, refreshToken, {
     httpOnly: true,
     secure: isProd,
@@ -48,7 +52,6 @@ router.get("/auth/google/callback", asyncHandler(async (req, res) => {
     maxAge: 30 * 24 * 60 * 60 * 1000,
   });
 
-  // Set flag cookies for middleware
   res.cookie("lifeos_authed", "1", {
     httpOnly: false,
     secure: isProd,
@@ -65,8 +68,6 @@ router.get("/auth/google/callback", asyncHandler(async (req, res) => {
     maxAge: 30 * 24 * 60 * 60 * 1000,
   });
 
-  // Access token rides a one-time redirect; the frontend exchanges it
-  // for session state immediately and the URL never gets bookmarked/shared.
   res.redirect(`${env.FRONTEND_URL}/oauth/callback?accessToken=${accessToken}`);
 }));
 

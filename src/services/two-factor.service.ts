@@ -2,6 +2,7 @@ import { generateSecret as generateOtpSecret, generate, verify } from "otplib";
 import bcrypt from "bcrypt";
 import { prisma } from "../config/prisma";
 import { AppError } from "../lib/errors";
+import { sendTwoFactorEnabledEmail } from "./email.service";
 
 function buildOtpauthUri(email: string, secret: string) {
   const issuer = "LifeOS";
@@ -28,6 +29,7 @@ export async function enableTwoFactor(userId: string, code: string) {
   if (!result.valid) throw new AppError("Invalid code", 401);
 
   await prisma.user.update({ where: { id: userId }, data: { twoFactorEnabled: true } });
+  await sendTwoFactorEnabledEmail(user.email, user.name ?? "there");
 }
 
 export async function disableTwoFactor(userId: string, password: string, code: string) {

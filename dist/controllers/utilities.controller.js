@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getMySocialProfile = exports.createSocialProfile = exports.translateText = exports.getExchangeRates = void 0;
+exports.deleteSocialProfile = exports.updateSocialProfile = exports.getMySocialProfile = exports.createSocialProfile = exports.translateText = exports.getExchangeRates = void 0;
 exports.getPublicSocialProfile = getPublicSocialProfile;
 const errors_1 = require("../lib/errors");
 const utilitiesService = __importStar(require("../services/utilities.service"));
@@ -52,11 +52,19 @@ exports.translateText = (0, errors_1.asyncHandler)(async (req, res) => {
 });
 exports.createSocialProfile = (0, errors_1.asyncHandler)(async (req, res) => {
     const userId = req.user.id;
-    const profile = await socialProfileService.createSocialProfile({
-        userId,
-        ...req.body,
-    });
-    return res.status(201).json(profile);
+    try {
+        const profile = await socialProfileService.createSocialProfile({
+            userId,
+            ...req.body,
+        });
+        return res.status(201).json(profile);
+    }
+    catch (err) {
+        if (err.message === "That username is already taken") {
+            return res.status(409).json({ error: err.message });
+        }
+        throw err;
+    }
 });
 async function getPublicSocialProfile(slug, viewData) {
     const profile = await prisma_1.prisma.socialProfile.findFirst({
@@ -87,4 +95,14 @@ async function getPublicSocialProfile(slug, viewData) {
 exports.getMySocialProfile = (0, errors_1.asyncHandler)(async (req, res) => {
     const profile = await socialProfileService.getSocialProfileByUserId(req.user.id);
     return res.json(profile); // null if the user hasn't created one yet — that's fine
+});
+exports.updateSocialProfile = (0, errors_1.asyncHandler)(async (req, res) => {
+    const userId = req.user.id;
+    const profile = await socialProfileService.updateSocialProfile(userId, req.body);
+    return res.json(profile);
+});
+exports.deleteSocialProfile = (0, errors_1.asyncHandler)(async (req, res) => {
+    const userId = req.user.id;
+    await socialProfileService.deleteSocialProfile(userId);
+    return res.status(204).send();
 });

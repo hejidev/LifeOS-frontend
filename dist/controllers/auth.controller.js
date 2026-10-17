@@ -85,7 +85,7 @@ exports.login = (0, errors_1.asyncHandler)(async (req, res) => {
         const pendingToken = jsonwebtoken_1.default.sign({ sub: user.id, purpose: "2fa_pending" }, env_1.env.ACCESS_TOKEN_SECRET, { expiresIn: 300 });
         return res.status(200).json({ requires2FA: true, pendingToken });
     }
-    const { accessToken, refreshToken } = await authService.issueSession(user.id, user.role, user.sessionVersion);
+    const { accessToken, refreshToken } = await authService.issueSession(user.id, user.email, user.name, user.role, user.sessionVersion);
     setSessionCookies(res, refreshToken, user.role);
     return res.status(200).json({ accessToken, user });
 });
@@ -122,7 +122,7 @@ exports.verifyTwoFactor = (0, errors_1.asyncHandler)(async (req, res) => {
     const valid = await twoFactorService.verifyCode(user.twoFactorSecret, code);
     if (!valid)
         throw new errors_1.AppError("Incorrect code", 401);
-    const { accessToken, refreshToken } = await authService.issueSession(user.id, user.role, user.sessionVersion);
+    const { accessToken, refreshToken } = await authService.issueSession(user.id, user.email, user.name, user.role, user.sessionVersion);
     setSessionCookies(res, refreshToken, user.role);
     return res.status(200).json({ accessToken, user: authService.sanitizeUser(user) });
 });
@@ -159,7 +159,8 @@ exports.verifyLoginCode = (0, errors_1.asyncHandler)(async (req, res) => {
             pendingToken: createPendingTwoFactorToken(user.id),
         });
     }
-    const { accessToken, refreshToken } = await authService.issueSession(user.id, user.role, user.sessionVersion);
+    // in login
+    const { accessToken, refreshToken } = await authService.issueSession(user.id, user.email, user.name, user.role, user.sessionVersion);
     setSessionCookies(res, refreshToken, user.role);
     return res.status(200).json({ accessToken, user: authService.sanitizeUser(user) });
 });

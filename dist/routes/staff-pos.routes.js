@@ -35,13 +35,15 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const staff_session_middleware_1 = require("../middlewares/staff-session.middleware");
+const staff_permission_middleware_1 = require("../middlewares/staff-permission.middleware");
 const validate_middleware_1 = require("../middlewares/validate.middleware");
 const business_validator_1 = require("../validators/business.validator");
 const staffPosController = __importStar(require("../controllers/staff-pos.controller"));
 const router = (0, express_1.Router)();
 router.use(staff_session_middleware_1.requireStaffSession);
 router.get("/products", staffPosController.getProducts);
+router.get("/products/by-barcode/:barcode", staffPosController.getProductByBarcode);
 router.get("/customers", staffPosController.getCustomers);
-router.post("/customers", (0, validate_middleware_1.validate)(business_validator_1.createCustomerSchema), staffPosController.createCustomer);
-router.post("/sales", (0, validate_middleware_1.validate)(business_validator_1.createSaleSchema), staffPosController.createSale);
+router.post("/customers", (0, validate_middleware_1.validate)(business_validator_1.createCustomerSchema), (0, staff_permission_middleware_1.requireStaffPermission)("CREATE_CUSTOMER"), staffPosController.createCustomer);
+router.post("/sales", (0, validate_middleware_1.validate)(business_validator_1.createSaleSchema), (0, staff_permission_middleware_1.requireStaffPermission)("CREATE_SALE"), staffPosController.createSale);
 exports.default = router;

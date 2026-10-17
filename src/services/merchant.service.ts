@@ -4,9 +4,10 @@ import crypto from "crypto";
 import { BillingInterval, MERCHANT_PLANS, MerchantPlanKey } from "../config/plan";
 import { prisma } from "../config/prisma";
 import { AppError } from "../lib/errors";
-import { stripe } from "./billing.service";
+import * as paystack from "./paystack.service";
 import { createNotification } from "./notification.service";
 import { logAdminAction } from "./audit.service";
+import { sendMerchantApprovedEmail, sendMerchantReactivatedEmail, sendMerchantRejectedEmail, sendMerchantSuspendedEmail } from "./email.service";
 
 export async function getApplicationStatus(userId: string) {
   const profile = await prisma.bizProfile.findUnique({ where: { userId } });
@@ -111,37 +112,25 @@ export async function createMerchantCheckout(userId: string, email: string, plan
   const plan = MERCHANT_PLANS[planKey];
   if (!plan) throw new AppError("Invalid plan", 400);
 
-  const priceId = interval === "year" ? plan.priceIdYearly : plan.priceIdMonthly;
-  if (!priceId) throw new AppError("This plan isn't available for that billing interval", 400);
+  const planCode = interval === "year" ? plan.planCodeYearly : plan.planCodeMonthly;
+  if (!planCode) throw new AppError("This plan isn't available for that billing interval", 400);
 
-  let customerId = profile.stripeCustomerId;
-  if (!customerId) {
-    const customer = await stripe.customers.create({ email, metadata: { userId, type: "merchant" } });
-    customerId = customer.id;
-    await prisma.bizProfile.update({ where: { userId }, data: { stripeCustomerId: customerId } });
-  }
-
-  const session = await stripe.checkout.sessions.create({
-    customer: customerId,
-    mode: "subscription",
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${env.FRONTEND_URL}/merchant/dashboard?merchantPlanActive=true`,
-    cancel_url: `${env.FRONTEND_URL}/merchant/billing?canceled=true`,
+  const result = await paystack.initializeTransaction({
+    email,
+    plan: planCode,
+    callback_url: `${env.FRONTEND_URL}/merchant/dashboard?merchantPlanActive=true`,
     metadata: { userId, type: "merchant" },
   });
 
-  return session.url;
+  return result.authorization_url;
 }
 
 export async function createMerchantPortalSession(userId: string) {
   const profile = await prisma.bizProfile.findUnique({ where: { userId } });
-  if (!profile?.stripeCustomerId) throw new AppError("No merchant billing account found", 400);
+  if (!profile?.paystackSubscriptionCode) throw new AppError("No merchant billing account found", 400);
 
-  const session = await stripe.billingPortal.sessions.create({
-    customer: profile.stripeCustomerId,
-    return_url: `${env.FRONTEND_URL}/merchant/billing`,
-  });
-  return session.url;
+  const result = await paystack.getSubscriptionManageLink(profile.paystackSubscriptionCode);
+  return result.link;
 }
 
 // ─── Admin review ──────────────────────────────────────────────────────────
@@ -192,8 +181,13 @@ export async function changeMerchantStatus(
     });
     await logAdminAction(reviewerId, "MERCHANT_APPROVED", "BizProfile", bizProfileId, `Approved ${updated.businessName}`);
     await createNotification(updated.userId, { type: "MERCHANT", title: "You're approved!", message: `${updated.businessName} was approved. Choose a plan to activate your dashboard.`, actionUrl: "/merchant/billing" });
+
+    const owner = await prisma.user.findUnique({ where: { id: updated.userId }, select: { email: true } });
+    if (owner) await sendMerchantApprovedEmail(owner.email, updated.businessName);
+
     return updated;
   }
+
   if (action === "REJECT") {
     if (profile.status !== "PENDING") throw new AppError("Only pending applications can be rejected", 409);
     const updated = await prisma.bizProfile.update({
@@ -202,8 +196,13 @@ export async function changeMerchantStatus(
     });
     await logAdminAction(reviewerId, "MERCHANT_REJECTED", "BizProfile", bizProfileId, `Rejected ${updated.businessName}`);    
     await createNotification(updated.userId, { type: "MERCHANT", title: "Application not approved", message: reason ?? "Your merchant application was not approved.", actionUrl: "/merchant/apply" });
+
+    const owner = await prisma.user.findUnique({ where: { id: updated.userId }, select: { email: true } });
+    if (owner) await sendMerchantRejectedEmail(owner.email, updated.businessName, reason);
+
     return updated;
   }
+
   if (action === "SUSPEND") {
     if (profile.status !== "APPROVED") throw new AppError("Only approved merchants can be suspended", 409);
     const updated = await prisma.bizProfile.update({
@@ -212,8 +211,13 @@ export async function changeMerchantStatus(
     });
     await logAdminAction(reviewerId, "MERCHANT_SUSPENDED", "BizProfile", bizProfileId, `Suspended ${updated.businessName}`);  
     await createNotification(updated.userId, { type: "ALERT", title: "Merchant account suspended", message: reason ?? "Your merchant account has been suspended." });
+
+    const owner = await prisma.user.findUnique({ where: { id: updated.userId }, select: { email: true } });
+    if (owner) await sendMerchantSuspendedEmail(owner.email, updated.businessName, reason);
+
     return updated;
   }
+
   if (action === "REACTIVATE") {
     if (profile.status !== "SUSPENDED") throw new AppError("Only suspended merchants can be reactivated", 409);
     const updated = await prisma.bizProfile.update({
@@ -222,6 +226,10 @@ export async function changeMerchantStatus(
     });
     await logAdminAction(reviewerId, "MERCHANT_REACTIVATED", "BizProfile", bizProfileId, `Reactivated ${updated.businessName}`);
     await createNotification(updated.userId, { type: "SUCCESS", title: "Merchant account reactivated", message: "Your merchant account is active again." });
+
+    const owner = await prisma.user.findUnique({ where: { id: updated.userId }, select: { email: true } });
+    if (owner) await sendMerchantReactivatedEmail(owner.email, updated.businessName);
+
     return updated;
   }
   throw new AppError("Invalid action", 400);
