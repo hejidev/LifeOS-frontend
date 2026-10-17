@@ -93,6 +93,7 @@ export const createSaleSchema = z.object({
     note: z.string().max(500).optional(),
     storeId: z.string().uuid().optional(),
     redeemPoints: z.number().int().nonnegative().optional(),
+    clientRequestId: z.string().uuid().optional(),
   }),
 });
 

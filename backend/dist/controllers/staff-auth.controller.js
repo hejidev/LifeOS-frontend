@@ -52,7 +52,7 @@ exports.login = (0, errors_1.asyncHandler)(async (req, res) => {
     const { storeCode, name, pin } = req.body;
     const result = await staffAuthService.staffLogin(storeCode, name, pin);
     res.cookie(STAFF_COOKIE, result.token, STAFF_COOKIE_OPTIONS);
-    return res.json({ staff: result.staff, businessName: result.businessName });
+    return res.json({ staff: result.staff, businessName: result.businessName, storeName: result.storeName, token: result.token });
 });
 exports.me = (0, errors_1.asyncHandler)(async (req, res) => {
     const staff = await prisma_1.prisma.bizStaff.findUnique({ where: { id: req.staff.staffId } });
@@ -61,7 +61,13 @@ exports.me = (0, errors_1.asyncHandler)(async (req, res) => {
     const [profile, store] = await Promise.all([
         prisma_1.prisma.bizProfile.findUnique({
             where: { id: req.staff.bizProfileId },
-            select: { businessName: true, currency: true },
+            select: {
+                businessName: true,
+                currency: true,
+                loyaltyEnabled: true,
+                loyaltyRedemptionValue: true,
+                loyaltyEarnRate: true,
+            },
         }),
         prisma_1.prisma.store.findUnique({ where: { id: req.staff.storeId }, select: { name: true } }),
     ]);
@@ -72,6 +78,11 @@ exports.me = (0, errors_1.asyncHandler)(async (req, res) => {
         storeName: store?.name,
         currency: profile?.currency ?? "USD",
         permissions: (0, staff_permissions_1.getStaffPermissions)(req.staff.role),
+        loyalty: {
+            enabled: profile?.loyaltyEnabled ?? false,
+            redemptionValue: profile?.loyaltyRedemptionValue ?? 1,
+            earnRate: profile?.loyaltyEarnRate ?? 1,
+        },
     });
 });
 exports.logout = (0, errors_1.asyncHandler)(async (_req, res) => {

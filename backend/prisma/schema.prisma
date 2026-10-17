@@ -603,27 +603,29 @@ model BizCustomer {
 }
 
 model BizSale {
-  id            String           @id @default(uuid())
-  userId        String
-  customerId    String?
-  receiptNumber String           @unique
-  subtotal      Decimal
-  discount      Decimal          @default(0)
-  total         Decimal
-  paymentMethod BizPaymentMethod @default(CASH)
-  status        BizSaleStatus    @default(PAID)
-  note          String?
-  createdAt     DateTime         @default(now())
-  customer      BizCustomer?     @relation(fields: [customerId], references: [id])
-  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items         BizSaleItem[]
-  storeId       String?
-  store         Store?  @relation(fields: [storeId], references: [id])
+  id              String           @id @default(uuid())
+  userId          String
+  customerId      String?
+  receiptNumber   String           @unique
+  subtotal        Decimal
+  discount        Decimal          @default(0)
+  total           Decimal
+  paymentMethod   BizPaymentMethod @default(CASH)
+  status          BizSaleStatus    @default(PAID)
+  note            String?
+  createdAt       DateTime         @default(now())
+  customer        BizCustomer?     @relation(fields: [customerId], references: [id])
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items           BizSaleItem[]
+  storeId         String?
+  store           Store?           @relation(fields: [storeId], references: [id])
+  clientRequestId String?
 
   @@index([storeId])
   @@index([userId])
   @@index([userId, createdAt])
   @@index([userId, status])
+  @@unique([userId, clientRequestId])
 }
 
 model BizSaleItem {

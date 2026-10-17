@@ -8,11 +8,20 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const prisma_1 = require("../config/prisma");
 const env_1 = require("../config/env");
 const errors_1 = require("../lib/errors");
+function extractToken(req) {
+    const cookieToken = req.cookies?.lifeos_staff_token;
+    if (cookieToken)
+        return cookieToken;
+    const header = req.headers.authorization;
+    if (header?.startsWith("Bearer "))
+        return header.slice(7);
+    return undefined;
+}
 async function requireStaffSession(req, _res, next) {
     try {
-        const token = req.cookies?.lifeos_staff_token;
+        const token = extractToken(req);
         if (!token) {
-            console.error("[staff-session] no lifeos_staff_token cookie on", req.method, req.path);
+            console.error("[staff-session] no token (cookie or bearer) on", req.method, req.path);
             return next(new errors_1.AppError("Not logged in as staff", 401));
         }
         const payload = jsonwebtoken_1.default.verify(token, env_1.env.ACCESS_TOKEN_SECRET);

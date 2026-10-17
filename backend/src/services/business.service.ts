@@ -303,6 +303,7 @@ export async function createSale(
     status?: string;
     note?: string;
     redeemPoints?: number;
+    clientRequestId?: string;
   },
   storeId?: string
 ) {
@@ -370,6 +371,7 @@ export async function createSale(
         paymentMethod: (data.paymentMethod as any) ?? "CASH",
         status,
         note: data.note,
+        clientRequestId: data.clientRequestId,
         items: {
           create: data.items.map((it) => ({
             productId: it.productId,
@@ -416,6 +418,14 @@ export async function listSales(userId: string, range: "today" | "week" | "month
     orderBy: { createdAt: "desc" },
   });
   return sales.map(serializeSale);
+}
+
+export async function findSaleByRequestId(userId: string, clientRequestId: string) {
+  const sale = await prisma.bizSale.findFirst({
+    where: { userId, clientRequestId },
+    include: { items: true, customer: true, store: true },
+  });
+  return sale ? serializeSale(sale) : null;
 }
 
 export async function updateSaleStatus(userId: string, id: string, status: string) {
