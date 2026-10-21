@@ -86,8 +86,13 @@ exports.createSaleSchema = zod_1.z.object({
         paymentMethod: zod_1.z.enum(["CASH", "CARD", "TRANSFER", "MOBILE_MONEY"]).default("CASH"),
         status: zod_1.z.enum(["PAID", "PENDING", "REFUNDED", "CANCELLED"]).default("PAID"),
         note: zod_1.z.string().max(500).optional(),
-        storeId: zod_1.z.string().uuid().optional(),
         redeemPoints: zod_1.z.number().int().nonnegative().optional(),
+        storeId: zod_1.z.string().uuid().optional(),
+        clientRequestId: zod_1.z.string().uuid().optional(),
+        receiptNumber: zod_1.z.string().regex(/^RCPT-[A-Z0-9]{4,12}-[A-Z0-9]{3,6}$/).optional(),
+        soldAt: zod_1.z.string().datetime().optional(),
+        offline: zod_1.z.boolean().optional(),
+        staffId: zod_1.z.string().uuid().optional(),
     }),
 });
 exports.updateSaleStatusSchema = zod_1.z.object({

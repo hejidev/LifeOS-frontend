@@ -83,6 +83,7 @@ exports.me = (0, errors_1.asyncHandler)(async (req, res) => {
             redemptionValue: profile?.loyaltyRedemptionValue ?? 1,
             earnRate: profile?.loyaltyEarnRate ?? 1,
         },
+        scope: { bizProfileId: req.staff.bizProfileId, storeId: req.staff.storeId },
     });
 });
 exports.logout = (0, errors_1.asyncHandler)(async (_req, res) => {
