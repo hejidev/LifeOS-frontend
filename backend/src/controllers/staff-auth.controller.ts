@@ -54,6 +54,7 @@ export const me = asyncHandler(async (req: StaffRequest, res: Response) => {
       redemptionValue: profile?.loyaltyRedemptionValue ?? 1,
       earnRate: profile?.loyaltyEarnRate ?? 1,
     },
+    scope: { bizProfileId: req.staff!.bizProfileId, storeId: req.staff!.storeId },
   });
 });
 

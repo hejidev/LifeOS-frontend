@@ -91,9 +91,13 @@ export const createSaleSchema = z.object({
     paymentMethod: z.enum(["CASH", "CARD", "TRANSFER", "MOBILE_MONEY"]).default("CASH"),
     status: z.enum(["PAID", "PENDING", "REFUNDED", "CANCELLED"]).default("PAID"),
     note: z.string().max(500).optional(),
-    storeId: z.string().uuid().optional(),
     redeemPoints: z.number().int().nonnegative().optional(),
+    storeId: z.string().uuid().optional(),
     clientRequestId: z.string().uuid().optional(),
+    receiptNumber: z.string().regex(/^RCPT-[A-Z0-9]{4,12}-[A-Z0-9]{3,6}$/).optional(),
+    soldAt: z.string().datetime().optional(),
+    offline: z.boolean().optional(),
+    staffId: z.string().uuid().optional(),
   }),
 });
 
