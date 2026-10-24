@@ -18,6 +18,7 @@ import { usePosDisplayBroadcast } from "@/lib/hooks/use-pos-display";
 import { cn } from "@/lib/utils";
 import { FaHandHolding } from "react-icons/fa6";
 import Link from "next/link";
+import { PrintArea } from "@/components/pos/print-area";
 
 type CartItem = { productId: string; name: string; quantity: number; unitPrice: number };
 
@@ -566,6 +567,8 @@ export default function POSPage() {
           #receipt-print-area { position: fixed; top: 0; left: 0; width: 100%; padding: 24px; background: #fff; }
         }
       `}</style>
+
+      <PrintArea text={receipt ? buildReceiptText(receipt, businessName, currency) : null} />
     </div>
   );
 }
