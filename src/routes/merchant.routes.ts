@@ -2,7 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import { requireAuth } from "../middlewares/auth.middleware";
 import { requireRole } from "../middlewares/roles.middleware";
-import { requireMerchant } from "../middlewares/merchant.middleware";
+import { requireMerchant, requireMerchantAllowPaused } from "../middlewares/merchant.middleware";
 import { requirePermission } from "../middlewares/permission.middleware";
 import { validate } from "../middlewares/validate.middleware";
 import { applyMerchantSchema, reviewApplicationSchema, merchantCheckoutSchema, notificationSettingsSchema, pauseStoreSchema } from "../validators/merchant.validator";
@@ -35,6 +35,6 @@ router.get("/staff-login-code", requireMerchant, merchantController.getStaffLogi
 router.post("/staff-login-code/regenerate", requireMerchant, merchantController.regenerateStoreCode);
 router.post("/staff/force-logout", requireMerchant, merchantController.forceStaffLogout);
 router.patch("/notifications", requireMerchant, validate(notificationSettingsSchema), merchantController.updateNotificationSettings);
-router.patch("/pause", requireMerchant, validate(pauseStoreSchema), merchantController.setPaused);
+router.patch("/pause", requireMerchantAllowPaused, validate(pauseStoreSchema), merchantController.setPaused);
 
 export default router;

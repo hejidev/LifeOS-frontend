@@ -621,6 +621,12 @@ model BizSale {
   store           Store?           @relation(fields: [storeId], references: [id])
   clientRequestId String?
 
+  soldOffline     Boolean          @default(false)
+  needsReview     Boolean          @default(false)
+  reviewNotes     String?
+
+  @@index([userId, needsReview])
+
   @@index([storeId])
   @@index([userId])
   @@index([userId, createdAt])

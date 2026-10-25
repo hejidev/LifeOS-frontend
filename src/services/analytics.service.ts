@@ -37,6 +37,11 @@ export async function getAnalytics(userId: string, params: { range?: string; fro
   const { start, end } = resolveRange(params);
   const resolvedStoreId = storeId ? await storeService.resolveStoreId(userId, storeId) : undefined;
 
+  const profile = await prisma.bizProfile.findUnique({
+    where: { userId },
+    select: { currency: true, businessName: true },
+  });
+
   const salesWhere: any = { userId, status: "PAID", createdAt: { gte: start, lt: end } };
   if (resolvedStoreId) salesWhere.storeId = resolvedStoreId;
 
@@ -72,17 +77,23 @@ export async function getAnalytics(userId: string, params: { range?: string; fro
 
   const soldProductIds = new Set(sales.flatMap((s) => s.items.map((it) => it.productId).filter(Boolean) as string[]));
 
-  let deadStock: { id: string; name: string; stock: number }[] = [];
-  if (resolvedStoreId) {
-    const inventory = await prisma.storeInventory.findMany({
-      where: { storeId: resolvedStoreId, stock: { gt: 0 }, product: { userId, active: true } },
-      include: { product: { select: { id: true, name: true } } },
-    });
-    deadStock = inventory
-      .filter((inv) => !soldProductIds.has(inv.product.id))
-      .map((inv) => ({ id: inv.product.id, name: inv.product.name, stock: inv.stock }))
-      .slice(0, 10);
+  const inventory = await prisma.storeInventory.findMany({
+    where: {
+      ...(resolvedStoreId ? { storeId: resolvedStoreId } : {}),
+      stock: { gt: 0 },
+      product: { userId, active: true },
+    },
+    include: { product: { select: { id: true, name: true } } },
+  });
+
+  const unsold = new Map<string, { id: string; name: string; stock: number }>();
+  for (const inv of inventory) {
+    if (soldProductIds.has(inv.product.id)) continue;
+    const current = unsold.get(inv.product.id);
+    if (current) current.stock += inv.stock;
+    else unsold.set(inv.product.id, { id: inv.product.id, name: inv.product.name, stock: inv.stock });
   }
+  const deadStock = [...unsold.values()].sort((a, b) => b.stock - a.stock).slice(0, 10);
 
   const customerIdsInPeriod = [...new Set(sales.map((s) => s.customerId).filter(Boolean) as string[])];
   let newCustomers = 0;
@@ -116,5 +127,8 @@ export async function getAnalytics(userId: string, params: { range?: string; fro
     deadStock,
     customerRetention: { newCustomers, returningCustomers, repeatBuyers, totalCustomersInPeriod: customerIdsInPeriod.length },
     summary: { totalRevenue, orderCount, avgOrderValue },
+
+    currency: profile?.currency ?? "NGN",
+    businessName: profile?.businessName ?? "",
   };
 }

@@ -24,22 +24,32 @@ const FLAG_COOKIE_OPTIONS = {
   maxAge: 30 * 24 * 60 * 60 * 1000,
 };
 
-function setSessionCookies(res: Response, refreshToken: string, role: string) {
-  res.cookie(REFRESH_COOKIE, refreshToken, REFRESH_COOKIE_OPTIONS);
-  res.cookie("lifeos_authed", "1", FLAG_COOKIE_OPTIONS);
-  res.cookie("lifeos_role", role, FLAG_COOKIE_OPTIONS);
+const isMobileClient = (req: Request) => req.headers["x-client"] === "mobile";
+
+function readRefreshToken(req: Request): string | undefined {
+  if (isMobileClient(req)) {
+    return typeof req.body?.refreshToken === "string" ? req.body.refreshToken : undefined;
+  }
+  return req.cookies?.[REFRESH_COOKIE];
 }
 
-function sendRefreshCookie(res: Response, refreshToken: string) {
-  res.cookie(REFRESH_COOKIE, refreshToken, REFRESH_COOKIE_OPTIONS);
+function sendSession(
+  req: Request,
+  res: Response,
+  session: { accessToken: string; refreshToken: string },
+  user: { role: string }
+) {
+  if (isMobileClient(req)) {
+    return res.status(200).json({ accessToken: session.accessToken, refreshToken: session.refreshToken, user });
+  }
+  res.cookie(REFRESH_COOKIE, session.refreshToken, REFRESH_COOKIE_OPTIONS);
+  res.cookie("lifeos_authed", "1", FLAG_COOKIE_OPTIONS);
+  res.cookie("lifeos_role", user.role, FLAG_COOKIE_OPTIONS);
+  return res.status(200).json({ accessToken: session.accessToken, user });
 }
 
 function createPendingTwoFactorToken(userId: string) {
-  return jwt.sign(
-    { sub: userId, purpose: "2fa_pending" },
-    env.ACCESS_TOKEN_SECRET,
-    { expiresIn: 300 }
-  );
+  return jwt.sign({ sub: userId, purpose: "2fa_pending" }, env.ACCESS_TOKEN_SECRET, { expiresIn: 300 });
 }
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
@@ -56,30 +66,19 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 
   const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
   if (fullUser?.twoFactorEnabled) {
-    const pendingToken = jwt.sign({ sub: user.id, purpose: "2fa_pending" }, env.ACCESS_TOKEN_SECRET, { expiresIn: 300 });
-    return res.status(200).json({ requires2FA: true, pendingToken });
+    return res.status(200).json({ requires2FA: true, pendingToken: createPendingTwoFactorToken(user.id) });
   }
 
-const { accessToken, refreshToken } = await authService.issueSession(user.id, user.email, user.name, user.role, user.sessionVersion);
-  setSessionCookies(res, refreshToken, user.role);
-
-  return res.status(200).json({ accessToken, user });
+  const session = await authService.issueSession(user.id, user.email, user.name, user.role, user.sessionVersion);
+  return sendSession(req, res, session, user);
 });
 
 export const refresh = asyncHandler(async (req: Request, res: Response) => {
-  const token = req.cookies?.[REFRESH_COOKIE];
-  console.log("[refresh] Token present:", !!token, "Token length:", token?.length);
+  const token = readRefreshToken(req);
   if (!token) throw new AppError("Not authenticated", 401);
 
-  try {
-    const { accessToken, refreshToken, user } = await authService.refreshSession(token);
-    console.log("[refresh] Session refreshed for user:", user.id);
-    setSessionCookies(res, refreshToken, user.role);
-    return res.status(200).json({ accessToken, user });
-  } catch (err: any) {
-    console.error("[refresh] Error:", err.message);
-    throw err;
-  }
+  const { accessToken, refreshToken, user } = await authService.refreshSession(token);
+  return sendSession(req, res, { accessToken, refreshToken }, user);
 });
 
 export const verifyTwoFactor = asyncHandler(async (req: Request, res: Response) => {
@@ -99,11 +98,8 @@ export const verifyTwoFactor = asyncHandler(async (req: Request, res: Response) 
   const valid = await twoFactorService.verifyCode(user.twoFactorSecret, code);
   if (!valid) throw new AppError("Incorrect code", 401);
 
-
-const { accessToken, refreshToken } = await authService.issueSession(user.id, user.email, user.name, user.role, user.sessionVersion);
-  setSessionCookies(res, refreshToken, user.role);
-
-  return res.status(200).json({ accessToken, user: authService.sanitizeUser(user) });
+  const session = await authService.issueSession(user.id, user.email, user.name, user.role, user.sessionVersion);
+  return sendSession(req, res, session, authService.sanitizeUser(user));
 });
 
 export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
@@ -118,11 +114,13 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const logout = asyncHandler(async (req: Request, res: Response) => {
-  const token = req.cookies?.[REFRESH_COOKIE];
+  const token = readRefreshToken(req);
   if (token) await authService.endSession(token);
-  res.clearCookie(REFRESH_COOKIE, REFRESH_COOKIE_OPTIONS);
-  res.clearCookie("lifeos_authed", FLAG_COOKIE_OPTIONS);
-  res.clearCookie("lifeos_role", FLAG_COOKIE_OPTIONS);
+  if (!isMobileClient(req)) {
+    res.clearCookie(REFRESH_COOKIE, REFRESH_COOKIE_OPTIONS);
+    res.clearCookie("lifeos_authed", FLAG_COOKIE_OPTIONS);
+    res.clearCookie("lifeos_role", FLAG_COOKIE_OPTIONS);
+  }
   return res.status(204).send();
 });
 
@@ -139,15 +137,9 @@ export const verifyLoginCode = asyncHandler(async (req: Request, res: Response) 
   const user = await authService.verifyEmailLoginCode(req.body.challengeId, req.body.code);
 
   if (user.twoFactorEnabled) {
-    return res.status(200).json({
-      requires2FA: true,
-      pendingToken: createPendingTwoFactorToken(user.id),
-    });
+    return res.status(200).json({ requires2FA: true, pendingToken: createPendingTwoFactorToken(user.id) });
   }
 
-  // in login
-const { accessToken, refreshToken } = await authService.issueSession(user.id, user.email, user.name, user.role, user.sessionVersion);
-  setSessionCookies(res, refreshToken, user.role);
-  return res.status(200).json({ accessToken, user: authService.sanitizeUser(user) });
-
+  const session = await authService.issueSession(user.id, user.email, user.name, user.role, user.sessionVersion);
+  return sendSession(req, res, session, authService.sanitizeUser(user));
 });

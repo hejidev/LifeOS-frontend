@@ -69,5 +69,5 @@ router.get("/staff-login-code", merchant_middleware_1.requireMerchant, merchantC
 router.post("/staff-login-code/regenerate", merchant_middleware_1.requireMerchant, merchantController.regenerateStoreCode);
 router.post("/staff/force-logout", merchant_middleware_1.requireMerchant, merchantController.forceStaffLogout);
 router.patch("/notifications", merchant_middleware_1.requireMerchant, (0, validate_middleware_1.validate)(merchant_validator_1.notificationSettingsSchema), merchantController.updateNotificationSettings);
-router.patch("/pause", merchant_middleware_1.requireMerchant, (0, validate_middleware_1.validate)(merchant_validator_1.pauseStoreSchema), merchantController.setPaused);
+router.patch("/pause", merchant_middleware_1.requireMerchantAllowPaused, (0, validate_middleware_1.validate)(merchant_validator_1.pauseStoreSchema), merchantController.setPaused);
 exports.default = router;

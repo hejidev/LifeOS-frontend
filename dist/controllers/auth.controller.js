@@ -59,13 +59,21 @@ const FLAG_COOKIE_OPTIONS = {
     path: "/",
     maxAge: 30 * 24 * 60 * 60 * 1000,
 };
-function setSessionCookies(res, refreshToken, role) {
-    res.cookie(REFRESH_COOKIE, refreshToken, REFRESH_COOKIE_OPTIONS);
-    res.cookie("lifeos_authed", "1", FLAG_COOKIE_OPTIONS);
-    res.cookie("lifeos_role", role, FLAG_COOKIE_OPTIONS);
+const isMobileClient = (req) => req.headers["x-client"] === "mobile";
+function readRefreshToken(req) {
+    if (isMobileClient(req)) {
+        return typeof req.body?.refreshToken === "string" ? req.body.refreshToken : undefined;
+    }
+    return req.cookies?.[REFRESH_COOKIE];
 }
-function sendRefreshCookie(res, refreshToken) {
-    res.cookie(REFRESH_COOKIE, refreshToken, REFRESH_COOKIE_OPTIONS);
+function sendSession(req, res, session, user) {
+    if (isMobileClient(req)) {
+        return res.status(200).json({ accessToken: session.accessToken, refreshToken: session.refreshToken, user });
+    }
+    res.cookie(REFRESH_COOKIE, session.refreshToken, REFRESH_COOKIE_OPTIONS);
+    res.cookie("lifeos_authed", "1", FLAG_COOKIE_OPTIONS);
+    res.cookie("lifeos_role", user.role, FLAG_COOKIE_OPTIONS);
+    return res.status(200).json({ accessToken: session.accessToken, user });
 }
 function createPendingTwoFactorToken(userId) {
     return jsonwebtoken_1.default.sign({ sub: userId, purpose: "2fa_pending" }, env_1.env.ACCESS_TOKEN_SECRET, { expiresIn: 300 });
@@ -82,28 +90,17 @@ exports.login = (0, errors_1.asyncHandler)(async (req, res) => {
     });
     const fullUser = await prisma_1.prisma.user.findUnique({ where: { id: user.id } });
     if (fullUser?.twoFactorEnabled) {
-        const pendingToken = jsonwebtoken_1.default.sign({ sub: user.id, purpose: "2fa_pending" }, env_1.env.ACCESS_TOKEN_SECRET, { expiresIn: 300 });
-        return res.status(200).json({ requires2FA: true, pendingToken });
+        return res.status(200).json({ requires2FA: true, pendingToken: createPendingTwoFactorToken(user.id) });
     }
-    const { accessToken, refreshToken } = await authService.issueSession(user.id, user.email, user.name, user.role, user.sessionVersion);
-    setSessionCookies(res, refreshToken, user.role);
-    return res.status(200).json({ accessToken, user });
+    const session = await authService.issueSession(user.id, user.email, user.name, user.role, user.sessionVersion);
+    return sendSession(req, res, session, user);
 });
 exports.refresh = (0, errors_1.asyncHandler)(async (req, res) => {
-    const token = req.cookies?.[REFRESH_COOKIE];
-    console.log("[refresh] Token present:", !!token, "Token length:", token?.length);
+    const token = readRefreshToken(req);
     if (!token)
         throw new errors_1.AppError("Not authenticated", 401);
-    try {
-        const { accessToken, refreshToken, user } = await authService.refreshSession(token);
-        console.log("[refresh] Session refreshed for user:", user.id);
-        setSessionCookies(res, refreshToken, user.role);
-        return res.status(200).json({ accessToken, user });
-    }
-    catch (err) {
-        console.error("[refresh] Error:", err.message);
-        throw err;
-    }
+    const { accessToken, refreshToken, user } = await authService.refreshSession(token);
+    return sendSession(req, res, { accessToken, refreshToken }, user);
 });
 exports.verifyTwoFactor = (0, errors_1.asyncHandler)(async (req, res) => {
     const { pendingToken, code } = req.body;
@@ -122,9 +119,8 @@ exports.verifyTwoFactor = (0, errors_1.asyncHandler)(async (req, res) => {
     const valid = await twoFactorService.verifyCode(user.twoFactorSecret, code);
     if (!valid)
         throw new errors_1.AppError("Incorrect code", 401);
-    const { accessToken, refreshToken } = await authService.issueSession(user.id, user.email, user.name, user.role, user.sessionVersion);
-    setSessionCookies(res, refreshToken, user.role);
-    return res.status(200).json({ accessToken, user: authService.sanitizeUser(user) });
+    const session = await authService.issueSession(user.id, user.email, user.name, user.role, user.sessionVersion);
+    return sendSession(req, res, session, authService.sanitizeUser(user));
 });
 exports.forgotPassword = (0, errors_1.asyncHandler)(async (req, res) => {
     await authService.forgotPassword(req.body.email);
@@ -136,12 +132,14 @@ exports.resetPassword = (0, errors_1.asyncHandler)(async (req, res) => {
     return res.status(200).json({ message: "Password updated successfully." });
 });
 exports.logout = (0, errors_1.asyncHandler)(async (req, res) => {
-    const token = req.cookies?.[REFRESH_COOKIE];
+    const token = readRefreshToken(req);
     if (token)
         await authService.endSession(token);
-    res.clearCookie(REFRESH_COOKIE, REFRESH_COOKIE_OPTIONS);
-    res.clearCookie("lifeos_authed", FLAG_COOKIE_OPTIONS);
-    res.clearCookie("lifeos_role", FLAG_COOKIE_OPTIONS);
+    if (!isMobileClient(req)) {
+        res.clearCookie(REFRESH_COOKIE, REFRESH_COOKIE_OPTIONS);
+        res.clearCookie("lifeos_authed", FLAG_COOKIE_OPTIONS);
+        res.clearCookie("lifeos_role", FLAG_COOKIE_OPTIONS);
+    }
     return res.status(204).send();
 });
 exports.me = (0, errors_1.asyncHandler)(async (req, res) => {
@@ -154,13 +152,8 @@ exports.requestLoginCode = (0, errors_1.asyncHandler)(async (req, res) => {
 exports.verifyLoginCode = (0, errors_1.asyncHandler)(async (req, res) => {
     const user = await authService.verifyEmailLoginCode(req.body.challengeId, req.body.code);
     if (user.twoFactorEnabled) {
-        return res.status(200).json({
-            requires2FA: true,
-            pendingToken: createPendingTwoFactorToken(user.id),
-        });
+        return res.status(200).json({ requires2FA: true, pendingToken: createPendingTwoFactorToken(user.id) });
     }
-    // in login
-    const { accessToken, refreshToken } = await authService.issueSession(user.id, user.email, user.name, user.role, user.sessionVersion);
-    setSessionCookies(res, refreshToken, user.role);
-    return res.status(200).json({ accessToken, user: authService.sanitizeUser(user) });
+    const session = await authService.issueSession(user.id, user.email, user.name, user.role, user.sessionVersion);
+    return sendSession(req, res, session, authService.sanitizeUser(user));
 });

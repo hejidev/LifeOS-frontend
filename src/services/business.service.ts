@@ -71,6 +71,9 @@ function serializeSale(s: any) {
     paymentMethod: s.paymentMethod,
     status: s.status,
     note: s.note ?? undefined,
+    soldOffline: s.soldOffline ?? false,
+    needsReview: s.needsReview ?? false,
+    reviewNotes: s.reviewNotes ?? undefined,
     createdAt: s.createdAt.toISOString(),
   };
 }
@@ -304,17 +307,23 @@ export async function createSale(
     note?: string;
     redeemPoints?: number;
     clientRequestId?: string;
+    receiptNumber?: string;
+    soldAt?: Date;
+    offline?: boolean;
+    reviewNotes?: string[];
   },
   storeId?: string
 ) {
   const resolvedStoreId = await storeService.resolveStoreId(userId, storeId);
   const profile = await getOrCreateProfile(userId);
   const status = (data.status as any) ?? "PAID";
+  const offline = data.offline === true;
 
   const subtotal = data.items.reduce((sum, it) => sum + it.quantity * it.unitPrice, 0);
   const manualDiscount = data.discount ?? 0;
   let pointsToRedeem = 0;
   const lowStockCrossings: { productName: string; remaining: number }[] = [];
+  const issues: string[] = [...(data.reviewNotes ?? [])];
 
   const sale = await prisma.$transaction(async (tx) => {
     let customer: any = null;
@@ -339,24 +348,39 @@ export async function createSale(
 
     for (const it of data.items) {
       if (!it.productId) continue;
+      const where = { storeId_productId: { storeId: resolvedStoreId, productId: it.productId } };
       const inv = await tx.storeInventory.findUnique({
-        where: { storeId_productId: { storeId: resolvedStoreId, productId: it.productId } },
+        where,
         include: { product: { select: { name: true } } },
       });
       if (!inv) continue;
-      if (inv.stock < it.quantity) {
-        throw new AppError(`Not enough stock for "${inv.product.name}" (${inv.stock} left)`, 400);
-      }
 
-      const nextStock = inv.stock - it.quantity;
-      await tx.storeInventory.update({
-        where: { storeId_productId: { storeId: resolvedStoreId, productId: it.productId } },
+      const moved = await tx.storeInventory.updateMany({
+        where: { storeId: resolvedStoreId, productId: it.productId, stock: { gte: it.quantity } },
         data: { stock: { decrement: it.quantity } },
       });
 
+      if (moved.count === 0) {
+        if (!offline) {
+          throw new AppError(`Not enough stock for "${inv.product.name}" (${inv.stock} left)`, 400);
+        }
+        const latest = await tx.storeInventory.findUnique({ where });
+        issues.push(`${inv.product.name}: sold ${it.quantity} but only ${latest?.stock ?? 0} in stock`);
+        await tx.storeInventory.update({ where, data: { stock: 0 } });
+        if (inv.stock > inv.lowStockAt) lowStockCrossings.push({ productName: inv.product.name, remaining: 0 });
+        continue;
+      }
+
+      const nextStock = inv.stock - it.quantity;
       if (inv.stock > inv.lowStockAt && nextStock <= inv.lowStockAt) {
         lowStockCrossings.push({ productName: inv.product.name, remaining: nextStock });
       }
+    }
+
+    let receiptNumber = data.receiptNumber ?? genReceiptNumber();
+    if (data.receiptNumber) {
+      const taken = await tx.bizSale.findUnique({ where: { receiptNumber }, select: { id: true } });
+      if (taken) receiptNumber = genReceiptNumber();
     }
 
     const created = await tx.bizSale.create({
@@ -364,7 +388,7 @@ export async function createSale(
         userId,
         storeId: resolvedStoreId,
         customerId: data.customerId,
-        receiptNumber: genReceiptNumber(),
+        receiptNumber,
         subtotal,
         discount: totalDiscount,
         total,
@@ -372,6 +396,10 @@ export async function createSale(
         status,
         note: data.note,
         clientRequestId: data.clientRequestId,
+        createdAt: offline && data.soldAt ? data.soldAt : undefined,
+        soldOffline: offline,
+        needsReview: issues.length > 0,
+        reviewNotes: issues.length > 0 ? issues.join("\n") : undefined,
         items: {
           create: data.items.map((it) => ({
             productId: it.productId,
@@ -406,6 +434,15 @@ export async function createSale(
         actionUrl: "/merchant/products",
       });
     }
+  }
+
+  if (issues.length > 0) {
+    await createNotification(userId, {
+      type: "ALERT",
+      title: "Offline sale needs review",
+      message: `${sale.receiptNumber}: ${issues[0]}${issues.length > 1 ? ` (+${issues.length - 1} more)` : ""}`,
+      actionUrl: "/merchant/dashboard",
+    });
   }
 
   return serializeSale(sale);
