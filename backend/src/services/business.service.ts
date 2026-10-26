@@ -748,3 +748,10 @@ export async function markSaleReviewed(userId: string, saleId: string) {
   });
   return serializeSale(sale);
 }
+
+// ----------------- Archive Product ---------------------
+export async function archiveProduct(userId: string, productId: string) {
+  const product = await prisma.bizProduct.findFirst({ where: { id: productId, userId }, select: { id: true } });
+  if (!product) throw new AppError("Product not found", 404);
+  await prisma.bizProduct.update({ where: { id: productId }, data: { active: false, barcode: null } });
+}

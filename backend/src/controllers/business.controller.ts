@@ -154,3 +154,8 @@ export const markSaleReviewed = asyncHandler(async (req: AuthenticatedRequest, r
   const sale = await businessService.markSaleReviewed(req.user!.id, req.params.id);
   return res.json({ sale });
 });
+
+export const archiveProduct = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  await businessService.archiveProduct(req.user!.id, req.params.id);
+  return res.status(204).send();
+});
