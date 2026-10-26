@@ -26,6 +26,7 @@ export async function getApplicationStatus(userId: string) {
     planTier: profile.planTier,
     planStatus: profile.planStatus,
     billingInterval,
+    paused: profile.paused,
     currentPeriodEnd: profile.currentPeriodEnd?.toISOString(),
   };
 }

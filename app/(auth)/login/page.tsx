@@ -323,10 +323,7 @@ function StaffLoginForm() {
   function handlePinKey(key: string) {
     if (key === "del") return setPin((p) => p.slice(0, -1));
     if (key === "") return;
-    if (pin.length >= 6) return;
-    const next = pin + key;
-    setPin(next);
-    if (next.length === 4) submitLogin(next);
+    setPin((p) => (p.length >= 6 ? p : p + key));
   }
 
   return (
@@ -374,6 +371,9 @@ function StaffLoginForm() {
           <button type="button" onClick={() => { setStep("identify"); setPin(""); setError(null); }} className="w-full text-xs text-muted-foreground hover:text-background cursor-pointer">
             ← Not {name}?
           </button>
+          <Button type="button" className="w-full h-12" disabled={loading || pin.length < 4} onClick={() => submitLogin(pin)}>
+            {loading ? "Signing in..." : "Sign in"}
+          </Button>
         </div>
       )}
     </div>

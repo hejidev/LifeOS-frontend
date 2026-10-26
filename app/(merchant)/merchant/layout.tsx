@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Store, Clock, XCircle, ShieldOff, ArrowRight } from "lucide-react";
+import { Store, Clock, XCircle, ShieldOff, ArrowRight, PauseCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,6 +58,24 @@ export default function MerchantLayout({ children }: { children: React.ReactNode
       <GateScreen icon={<ShieldOff className="h-10 w-10 text-destructive" />} title="Merchant account suspended">
         {s.rejectionReason && <p className="text-sm text-muted-foreground">{s.rejectionReason}</p>}
         <p className="text-xs text-muted-foreground">Contact support if you believe this is a mistake.</p>
+      </GateScreen>
+    );
+  }
+
+  if (s.status === "APPROVED" && s.planStatus === "ACTIVE" && s.paused) {
+    return (
+      <GateScreen icon={<PauseCircle className="h-10 w-10 text-amber-500" />} title="Your store is paused">
+        <p className="text-sm text-muted-foreground">
+          Your dashboard and your staff's access are switched off. Billing continues while the store is paused.
+        </p>
+        <Button
+          onClick={async () => {
+            await api.patch("/merchant/pause", { paused: false });
+            window.location.reload();
+          }}
+        >
+          Reactivate store
+        </Button>
       </GateScreen>
     );
   }

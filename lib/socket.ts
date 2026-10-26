@@ -1,7 +1,7 @@
 import { io, type Socket } from "socket.io-client";
 import { getAccessToken } from "@/lib/api/client";
 
-const SOCKET_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api").replace("/api", "");
+const SOCKET_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api").replace("/api", "");
 
 let socket: Socket | null = null;
 

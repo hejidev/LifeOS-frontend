@@ -76,6 +76,7 @@ async function getApplicationStatus(userId) {
         planTier: profile.planTier,
         planStatus: profile.planStatus,
         billingInterval,
+        paused: profile.paused,
         currentPeriodEnd: profile.currentPeriodEnd?.toISOString(),
     };
 }
