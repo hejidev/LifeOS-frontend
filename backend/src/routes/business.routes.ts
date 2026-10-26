@@ -55,6 +55,7 @@ router.patch("/customers/:id", validate(updateCustomerSchema), businessControlle
 router.get("/sales", businessController.getSales);
 router.post("/sales", validate(createSaleSchema), businessController.createSale);
 router.patch("/sales/:id/status", validate(updateSaleStatusSchema), businessController.updateSaleStatus);
+router.patch("/sales/:id/reviewed", businessController.markSaleReviewed);
 
 router.get("/expenses", businessController.getExpenses);
 router.post("/expenses", validate(createExpenseSchema), businessController.createExpense);

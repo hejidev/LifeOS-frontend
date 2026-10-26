@@ -735,3 +735,16 @@ export async function exportCustomersCSV(userId: string) {
     { key: "createdAt", label: "Customer Since", value: (c) => new Date(c.createdAt).toISOString() },
   ]);
 }
+
+// -------------------- Mark Sale Reviewed ----------------------------------------------
+export async function markSaleReviewed(userId: string, saleId: string) {
+  const existing = await prisma.bizSale.findFirst({ where: { id: saleId, userId }, select: { id: true } });
+  if (!existing) throw new AppError("Sale not found", 404);
+
+  const sale = await prisma.bizSale.update({
+    where: { id: saleId },
+    data: { needsReview: false },
+    include: { items: true, customer: true, store: true },
+  });
+  return serializeSale(sale);
+}
