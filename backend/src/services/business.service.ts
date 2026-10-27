@@ -122,7 +122,18 @@ export async function getOrCreateProfile(userId: string) {
   return profile;
 }
 
-export async function updateProfile(userId: string, data: { businessName?: string; currency?: string; logoUrl?: string }) {
+export async function updateProfile(
+  userId: string,
+  data: {
+    businessName?: string;
+    currency?: string;
+    description?: string;
+    logoUrl?: string;
+    loyaltyEnabled?: boolean;
+    loyaltyEarnRate?: number;
+    loyaltyRedemptionValue?: number;
+  }
+) {
   await getOrCreateProfile(userId);
   return prisma.bizProfile.update({ where: { userId }, data });
 }

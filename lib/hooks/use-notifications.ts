@@ -10,7 +10,11 @@ export function useNotifications() {
 }
 
 export function useUnreadCount() {
-  return useQuery({ queryKey: ["notificationsUnreadCount"], queryFn: () => api.get("/notifications/unread-count").then((d) => d.count) });
+  return useQuery({
+    queryKey: ["notificationsUnreadCount"],
+    queryFn: () => api.get("/notifications/unread-count").then((d) => d.count),
+    refetchInterval: 60_000,
+  });
 }
 
 export function useMarkNotificationRead() {

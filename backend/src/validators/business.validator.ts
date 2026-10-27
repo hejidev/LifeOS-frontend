@@ -3,11 +3,17 @@ import { z } from "zod";
 export const updateBizProfileSchema = z.object({
   body: z.object({
     businessName: z.string().trim().min(1).max(120).optional(),
-    currency: z.string().trim().length(3).optional(),
-    logoUrl: z.string().url().optional(),
+    currency: z
+      .string()
+      .trim()
+      .length(3)
+      .transform((value) => value.toUpperCase())
+      .optional(),
+    description: z.string().trim().max(1000).optional(),
+    logoUrl: z.union([z.string().trim().url(), z.literal("")]).optional(),
     loyaltyEnabled: z.boolean().optional(),
     loyaltyEarnRate: z.number().int().min(0).max(1000).optional(),
-    loyaltyRedemptionValue: z.number().int().min(0).max(1000).optional(),
+    loyaltyRedemptionValue: z.number().positive().max(1000000).optional(),
   }),
 });
 
