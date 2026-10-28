@@ -45,6 +45,7 @@ router.post("/products/upload-image", upload.single("file"), businessController.
 router.post("/products/bulk-import", businessController.bulkImportProducts);
 router.patch("/products/:id", validate(updateProductSchema), businessController.updateProduct);
 router.delete("/products/:id", businessController.deleteProduct);
+router.delete("/products/:id", businessController.archiveProduct);
 
 router.get("/customers", businessController.getCustomers);
 router.post("/customers", validate(createCustomerSchema), businessController.createCustomer);
@@ -55,6 +56,7 @@ router.patch("/customers/:id", validate(updateCustomerSchema), businessControlle
 router.get("/sales", businessController.getSales);
 router.post("/sales", validate(createSaleSchema), businessController.createSale);
 router.patch("/sales/:id/status", validate(updateSaleStatusSchema), businessController.updateSaleStatus);
+router.patch("/sales/:id/reviewed", businessController.markSaleReviewed);
 
 router.get("/expenses", businessController.getExpenses);
 router.post("/expenses", validate(createExpenseSchema), businessController.createExpense);

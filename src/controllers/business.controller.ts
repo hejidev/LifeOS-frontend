@@ -148,3 +148,14 @@ export const exportSales = asyncHandler(async (req: AuthenticatedRequest, res: R
   res.setHeader("Content-Disposition", `attachment; filename="sales-export-${new Date().toISOString().slice(0, 10)}.csv"`);
   return res.send(csv);
 });
+
+
+export const markSaleReviewed = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const sale = await businessService.markSaleReviewed(req.user!.id, req.params.id);
+  return res.json({ sale });
+});
+
+export const archiveProduct = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  await businessService.archiveProduct(req.user!.id, req.params.id);
+  return res.status(204).send();
+});

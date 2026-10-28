@@ -624,6 +624,8 @@ model BizSale {
   soldOffline     Boolean          @default(false)
   needsReview     Boolean          @default(false)
   reviewNotes     String?
+  pointsEarned    Int              @default(0)
+  pointsRedeemed  Int              @default(0)
 
   @@index([userId, needsReview])
 
@@ -762,6 +764,68 @@ model StoreInventory {
   @@unique([storeId, productId])
   @@index([storeId])
   @@index([productId])
+}
+
+enum ChatThreadKind {
+  TEAM
+  DIRECT
+}
+
+enum ChatSenderType {
+  OWNER
+  STAFF
+}
+
+model ChatThread {
+  id            String         @id
+  bizProfileId  String
+  kind          ChatThreadKind
+  staffId       String?
+  lastMessageAt DateTime       @default(now())
+  createdAt     DateTime       @default(now())
+  bizProfile    BizProfile     @relation(fields: [bizProfileId], references: [id], onDelete: Cascade)
+  staff         BizStaff?      @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  messages      ChatMessage[]
+  reads         ChatRead[]
+
+  @@index([bizProfileId, lastMessageAt])
+}
+
+model ChatMessage {
+  id         String         @id @default(uuid())
+  threadId   String
+  senderType ChatSenderType
+  senderId   String
+  senderName String
+  body       String
+  createdAt  DateTime       @default(now())
+  thread     ChatThread     @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+}
+
+model ChatRead {
+  threadId   String
+  readerType ChatSenderType
+  readerId   String
+  lastReadAt DateTime       @default(now())
+  thread     ChatThread     @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@id([threadId, readerType, readerId])
+}
+
+model PushToken {
+  id           String   @id @default(uuid())
+  token        String   @unique
+  userId       String?
+  staffId      String?
+  bizProfileId String?
+  platform     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([staffId])
 }
 
 model WritingDocument {
