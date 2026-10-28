@@ -10,9 +10,11 @@ exports.sendMessage = sendMessage;
 const prisma_1 = require("../config/prisma");
 const errors_1 = require("../lib/errors");
 const push_service_1 = require("./push.service");
+const PAYMENT_LABELS = { CASH: "Cash", CARD: "Card", TRANSFER: "Transfer", MOBILE_MONEY: "Mobile money" };
 const teamId = (bizProfileId) => `team_${bizProfileId}`;
 const dmId = (staffId) => `dm_${staffId}`;
 const actorKey = (actor) => (actor.type === "OWNER" ? actor.userId : actor.staffId);
+const money = (currency, amount) => `${currency} ${Number(amount).toLocaleString("en-US")}`;
 async function ownerActor(userId, name) {
     const profile = await prisma_1.prisma.bizProfile.findUnique({ where: { userId }, select: { id: true, businessName: true } });
     if (!profile)
@@ -33,9 +35,7 @@ async function ensureThread(bizProfileId, kind, staffId) {
     if (existing)
         return existing;
     try {
-        return await prisma_1.prisma.chatThread.create({
-            data: { id, bizProfileId, kind, staffId: kind === "DIRECT" ? staffId : null },
-        });
+        return await prisma_1.prisma.chatThread.create({ data: { id, bizProfileId, kind, staffId: kind === "DIRECT" ? staffId : null } });
     }
     catch (err) {
         if (err?.code === "P2002")
@@ -57,6 +57,41 @@ async function resolveThread(actor, threadId) {
     }
     throw new errors_1.AppError("Conversation not found", 404);
 }
+async function buildAttachment(actor, ref) {
+    const profile = await prisma_1.prisma.bizProfile.findUnique({ where: { id: actor.bizProfileId }, select: { userId: true, currency: true } });
+    if (!profile)
+        throw new errors_1.AppError("Business not found", 404);
+    if (ref.type === "PRODUCT") {
+        const product = await prisma_1.prisma.bizProduct.findFirst({
+            where: { id: ref.id, userId: profile.userId },
+            include: { storeInventory: { select: { stock: true } } },
+        });
+        if (!product)
+            throw new errors_1.AppError("That product no longer exists", 404);
+        const stock = product.storeInventory.reduce((sum, row) => sum + row.stock, 0);
+        return { type: "PRODUCT", id: product.id, title: product.name, subtitle: money(profile.currency, product.price), detail: `${stock} in stock` };
+    }
+    const sale = await prisma_1.prisma.bizSale.findFirst({
+        where: { id: ref.id, userId: profile.userId, ...(actor.type === "STAFF" ? { staffId: actor.staffId } : {}) },
+        include: { items: { select: { quantity: true } } },
+    });
+    if (!sale)
+        throw new errors_1.AppError("That sale isn't available to share", 404);
+    const count = sale.items.reduce((sum, item) => sum + item.quantity, 0);
+    return {
+        type: "SALE",
+        id: sale.id,
+        title: sale.receiptNumber,
+        subtitle: `${money(profile.currency, sale.total)} · ${count} item${count === 1 ? "" : "s"}`,
+        detail: `${PAYMENT_LABELS[sale.paymentMethod] ?? sale.paymentMethod} · ${sale.status.toLowerCase()}`,
+    };
+}
+function describe(message) {
+    if (message.body)
+        return message.body;
+    const attachment = message.attachment;
+    return attachment ? `Shared a ${attachment.type === "PRODUCT" ? "product" : "sale"}: ${attachment.title}` : "";
+}
 function serializeMessage(message) {
     return {
         id: message.id,
@@ -65,6 +100,7 @@ function serializeMessage(message) {
         senderId: message.senderId,
         senderName: message.senderName,
         body: message.body,
+        attachment: message.attachment ?? null,
         createdAt: message.createdAt.toISOString(),
     };
 }
@@ -89,11 +125,11 @@ async function listThreads(actor) {
     }
     const ids = entries.map((entry) => entry.id);
     const [latest, reads] = await Promise.all([
-        prisma_1.prisma.chatMessage.findMany({ where: { threadId: { in: ids } }, orderBy: { createdAt: "desc" }, distinct: ["threadId"] }),
+        Promise.all(ids.map((threadId) => prisma_1.prisma.chatMessage.findFirst({ where: { threadId }, orderBy: { createdAt: "desc" } }))),
         prisma_1.prisma.chatRead.findMany({ where: { threadId: { in: ids }, readerType: actor.type, readerId: actorKey(actor) } }),
     ]);
     const readAt = new Map(reads.map((read) => [read.threadId, read.lastReadAt]));
-    const lastByThread = new Map(latest.map((message) => [message.threadId, message]));
+    const lastByThread = new Map(latest.flatMap((message) => (message ? [[message.threadId, message]] : [])));
     const unread = await Promise.all(ids.map((threadId) => prisma_1.prisma.chatMessage.count({
         where: {
             threadId,
@@ -107,7 +143,7 @@ async function listThreads(actor) {
         return {
             ...entry,
             unread: unread[index],
-            lastMessage: last ? { body: last.body, senderName: last.senderName, createdAt: last.createdAt.toISOString() } : null,
+            lastMessage: last ? { body: describe(last), senderName: last.senderName, createdAt: last.createdAt.toISOString() } : null,
         };
     })
         .sort((a, b) => {
@@ -131,11 +167,7 @@ async function listMessages(actor, threadId, after, limit = 100) {
         });
         return rows.map(serializeMessage);
     }
-    const rows = await prisma_1.prisma.chatMessage.findMany({
-        where: { threadId: thread.id },
-        orderBy: { createdAt: "desc" },
-        take: limit,
-    });
+    const rows = await prisma_1.prisma.chatMessage.findMany({ where: { threadId: thread.id }, orderBy: { createdAt: "desc" }, take: limit });
     return rows.reverse().map(serializeMessage);
 }
 async function markRead(actor, threadId) {
@@ -151,8 +183,8 @@ async function unreadTotal(actor) {
     const threads = await listThreads(actor);
     return threads.reduce((sum, thread) => sum + thread.unread, 0);
 }
-async function notifyRecipients(actor, thread, body) {
-    const preview = body.length > 120 ? `${body.slice(0, 117)}...` : body;
+async function notifyRecipients(actor, thread, preview) {
+    const text = preview.length > 120 ? `${preview.slice(0, 117)}...` : preview;
     const profile = await prisma_1.prisma.bizProfile.findUnique({ where: { id: actor.bizProfileId }, select: { userId: true } });
     if (!profile)
         return;
@@ -177,27 +209,27 @@ async function notifyRecipients(actor, thread, body) {
     }
     const jobs = [];
     if (actor.type === "STAFF") {
-        jobs.push((0, push_service_1.sendPushToUser)(profile.userId, {
-            title,
-            body: preview,
-            data: { kind: "chat", threadId: thread.id, threadTitle: team ? "Team chat" : actor.name },
-        }));
+        jobs.push((0, push_service_1.sendPushToUser)(profile.userId, { title, body: text, data: { kind: "chat", threadId: thread.id, threadTitle: team ? "Team chat" : actor.name } }));
     }
     if (staffTargets.length > 0) {
-        jobs.push((0, push_service_1.sendPushToStaff)(staffTargets, {
-            title,
-            body: preview,
-            data: { kind: "chat", threadId: thread.id, threadTitle: team ? "Team chat" : "Owner" },
-        }));
+        jobs.push((0, push_service_1.sendPushToStaff)(staffTargets, { title, body: text, data: { kind: "chat", threadId: thread.id, threadTitle: team ? "Team chat" : "Owner" } }));
     }
     await Promise.allSettled(jobs);
 }
-async function sendMessage(actor, threadId, body) {
+async function sendMessage(actor, threadId, body, ref) {
     const thread = await resolveThread(actor, threadId);
+    const attachment = ref ? await buildAttachment(actor, ref) : null;
     const key = actorKey(actor);
     const message = await prisma_1.prisma.$transaction(async (tx) => {
         const created = await tx.chatMessage.create({
-            data: { threadId: thread.id, senderType: actor.type, senderId: key, senderName: actor.name, body },
+            data: {
+                threadId: thread.id,
+                senderType: actor.type,
+                senderId: key,
+                senderName: actor.name,
+                body,
+                attachment: attachment ? attachment : undefined,
+            },
         });
         await tx.chatThread.update({ where: { id: thread.id }, data: { lastMessageAt: created.createdAt } });
         await tx.chatRead.upsert({
@@ -207,6 +239,6 @@ async function sendMessage(actor, threadId, body) {
         });
         return created;
     });
-    void notifyRecipients(actor, thread, body).catch(() => { });
+    void notifyRecipients(actor, thread, describe(message)).catch(() => { });
     return serializeMessage(message);
 }

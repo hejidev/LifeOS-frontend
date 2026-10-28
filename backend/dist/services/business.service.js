@@ -249,23 +249,45 @@ async function updateProduct(userId, id, data, storeId) {
             : []),
     ]);
     const inv = await prisma_1.prisma.storeInventory.findUnique({ where: { storeId_productId: { storeId: resolvedStoreId, productId: id } } });
-    if (inv && previousInv) {
-        const wasAbove = previousInv.stock > previousInv.lowStockAt;
-        const nowAtOrBelow = inv.stock <= inv.lowStockAt;
-        if (wasAbove && nowAtOrBelow) {
-            const profile = await getOrCreateProfile(userId);
-            if (profile.notifyLowStock) {
-                const store = await prisma_1.prisma.store.findUnique({ where: { id: resolvedStoreId }, select: { name: true } });
-                const storeLabel = store?.name ? ` at ${store.name}` : "";
-                await (0, notification_service_1.createNotification)(userId, {
-                    type: "ALERT",
-                    title: "Low stock alert",
-                    message: `${product.name} is running low${storeLabel} — ${inv.stock} left`,
-                    actionUrl: "/merchant/products",
-                });
-            }
+    if (stock !== undefined && inv) {
+        const before = previousInv?.stock ?? 0;
+        if (inv.stock !== before) {
+            const [profile, owner] = await Promise.all([
+                getOrCreateProfile(userId),
+                prisma_1.prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
+            ]);
+            await prisma_1.prisma.stockMovement.create({
+                data: {
+                    bizProfileId: profile.id,
+                    storeId: resolvedStoreId,
+                    productId: id,
+                    delta: inv.stock - before,
+                    stockAfter: inv.stock,
+                    reason: "MANUAL_EDIT",
+                    actorType: "OWNER",
+                    actorId: userId,
+                    actorName: owner?.name ?? "Owner",
+                },
+            });
         }
     }
+    // if (inv && previousInv) {
+    //   const wasAbove = previousInv.stock > previousInv.lowStockAt;
+    //   const nowAtOrBelow = inv.stock <= inv.lowStockAt;
+    //   if (wasAbove && nowAtOrBelow) {
+    //     const profile = await getOrCreateProfile(userId);
+    //     if (profile.notifyLowStock) {
+    //       const store = await prisma.store.findUnique({ where: { id: resolvedStoreId }, select: { name: true } });
+    //       const storeLabel = store?.name ? ` at ${store.name}` : "";
+    //       await createNotification(userId, {
+    //         type: "ALERT",
+    //         title: "Low stock alert",
+    //         message: `${product.name} is running low${storeLabel} — ${inv.stock} left`,
+    //         actionUrl: "/merchant/products",
+    //       });
+    //     }
+    //   }
+    // }
     return serializeProduct(product, inv ? { stock: inv.stock, lowStockAt: inv.lowStockAt } : undefined);
 }
 async function deleteProduct(userId, id) {
@@ -403,6 +425,7 @@ async function createSale(userId, data, storeId) {
                 status,
                 note: data.note,
                 clientRequestId: data.clientRequestId,
+                staffId: data.staffId,
                 pointsEarned,
                 pointsRedeemed,
                 createdAt: offline && data.soldAt ? data.soldAt : undefined,

@@ -228,23 +228,46 @@ export async function updateProduct(userId: string, id: string, data: any, store
 
   const inv = await prisma.storeInventory.findUnique({ where: { storeId_productId: { storeId: resolvedStoreId, productId: id } } });
 
-  if (inv && previousInv) {
-    const wasAbove = previousInv.stock > previousInv.lowStockAt;
-    const nowAtOrBelow = inv.stock <= inv.lowStockAt;
-    if (wasAbove && nowAtOrBelow) {
-      const profile = await getOrCreateProfile(userId);
-      if (profile.notifyLowStock) {
-        const store = await prisma.store.findUnique({ where: { id: resolvedStoreId }, select: { name: true } });
-        const storeLabel = store?.name ? ` at ${store.name}` : "";
-        await createNotification(userId, {
-          type: "ALERT",
-          title: "Low stock alert",
-          message: `${product.name} is running low${storeLabel} — ${inv.stock} left`,
-          actionUrl: "/merchant/products",
-        });
-      }
+  if (stock !== undefined && inv) {
+    const before = previousInv?.stock ?? 0;
+    if (inv.stock !== before) {
+      const [profile, owner] = await Promise.all([
+        getOrCreateProfile(userId),
+        prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
+      ]);
+      await prisma.stockMovement.create({
+        data: {
+          bizProfileId: profile.id,
+          storeId: resolvedStoreId,
+          productId: id,
+          delta: inv.stock - before,
+          stockAfter: inv.stock,
+          reason: "MANUAL_EDIT",
+          actorType: "OWNER",
+          actorId: userId,
+          actorName: owner?.name ?? "Owner",
+        },
+      });
     }
   }
+
+  // if (inv && previousInv) {
+  //   const wasAbove = previousInv.stock > previousInv.lowStockAt;
+  //   const nowAtOrBelow = inv.stock <= inv.lowStockAt;
+  //   if (wasAbove && nowAtOrBelow) {
+  //     const profile = await getOrCreateProfile(userId);
+  //     if (profile.notifyLowStock) {
+  //       const store = await prisma.store.findUnique({ where: { id: resolvedStoreId }, select: { name: true } });
+  //       const storeLabel = store?.name ? ` at ${store.name}` : "";
+  //       await createNotification(userId, {
+  //         type: "ALERT",
+  //         title: "Low stock alert",
+  //         message: `${product.name} is running low${storeLabel} — ${inv.stock} left`,
+  //         actionUrl: "/merchant/products",
+  //       });
+  //     }
+  //   }
+  // }
 
   return serializeProduct(product, inv ? { stock: inv.stock, lowStockAt: inv.lowStockAt } : undefined);
 }
@@ -322,6 +345,7 @@ export async function createSale(
     soldAt?: Date;
     offline?: boolean;
     reviewNotes?: string[];
+    staffId?: string;
   },
   storeId?: string
 ) {
@@ -411,6 +435,7 @@ export async function createSale(
         status,
         note: data.note,
         clientRequestId: data.clientRequestId,
+        staffId: data.staffId,
         pointsEarned,
         pointsRedeemed,
         createdAt: offline && data.soldAt ? data.soldAt : undefined,

@@ -118,6 +118,7 @@ export async function createSale(staffId: string, bizProfileId: string, storeId:
         discount: 0,
         status: "PAID",
         clientRequestId,
+        staffId: actingStaffId,
         receiptNumber,
         soldAt: soldAtDate,
         offline: isOffline,

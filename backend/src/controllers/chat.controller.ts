@@ -15,9 +15,9 @@ function handlers<R extends Request>(actorOf: (req: R) => Promise<chatService.Ch
       return res.json({ messages: await chatService.listMessages(await actorOf(req as R), req.params.threadId, after) });
     }),
     send: asyncHandler(async (req: Request, res: Response) => {
-      const message = await chatService.sendMessage(await actorOf(req as R), req.params.threadId, req.body.body);
-      return res.status(201).json({ message });
-    }),
+        const message = await chatService.sendMessage(await actorOf(req as R), req.params.threadId, req.body.body ?? "", req.body.attachment);
+        return res.status(201).json({ message });
+      }),
     read: asyncHandler(async (req: Request, res: Response) => {
       await chatService.markRead(await actorOf(req as R), req.params.threadId);
       return res.status(204).send();

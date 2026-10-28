@@ -627,6 +627,9 @@ model BizSale {
   reviewNotes     String?
   pointsEarned    Int              @default(0)
   pointsRedeemed  Int              @default(0)
+  staffId         String?
+
+  @@index([userId, staffId])
 
   @@index([userId, needsReview])
 
@@ -803,6 +806,7 @@ model ChatMessage {
   body       String
   createdAt  DateTime       @default(now())
   thread     ChatThread     @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  attachment Json?
 
   @@index([threadId, createdAt])
 }
@@ -829,6 +833,34 @@ model PushToken {
 
   @@index([userId])
   @@index([staffId])
+}
+
+enum StockReason {
+  RECEIVED
+  DAMAGED
+  EXPIRED
+  COUNT_CORRECTION
+  RETURNED_TO_SUPPLIER
+  MANUAL_EDIT
+  OTHER
+}
+
+model StockMovement {
+  id           String      @id @default(uuid())
+  bizProfileId String
+  storeId      String
+  productId    String
+  delta        Int
+  stockAfter   Int
+  reason       StockReason
+  note         String?
+  actorType    String
+  actorId      String
+  actorName    String
+  createdAt    DateTime    @default(now())
+
+  @@index([productId, storeId, createdAt])
+  @@index([bizProfileId, createdAt])
 }
 
 model WritingDocument {

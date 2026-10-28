@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { AppError } from "../lib/errors";
 import { sendPushToStaff, sendPushToUser } from "./push.service";
@@ -6,9 +7,25 @@ export type ChatActor =
   | { type: "OWNER"; userId: string; bizProfileId: string; name: string }
   | { type: "STAFF"; staffId: string; bizProfileId: string; name: string };
 
+export interface AttachmentRef {
+  type: "PRODUCT" | "SALE";
+  id: string;
+}
+
+interface AttachmentSnapshot {
+  type: "PRODUCT" | "SALE";
+  id: string;
+  title: string;
+  subtitle: string;
+  detail: string;
+}
+
+const PAYMENT_LABELS: Record<string, string> = { CASH: "Cash", CARD: "Card", TRANSFER: "Transfer", MOBILE_MONEY: "Mobile money" };
+
 const teamId = (bizProfileId: string) => `team_${bizProfileId}`;
 const dmId = (staffId: string) => `dm_${staffId}`;
 const actorKey = (actor: ChatActor) => (actor.type === "OWNER" ? actor.userId : actor.staffId);
+const money = (currency: string, amount: unknown) => `${currency} ${Number(amount).toLocaleString("en-US")}`;
 
 export async function ownerActor(userId: string, name: string | null): Promise<ChatActor> {
   const profile = await prisma.bizProfile.findUnique({ where: { userId }, select: { id: true, businessName: true } });
@@ -28,9 +45,7 @@ async function ensureThread(bizProfileId: string, kind: "TEAM" | "DIRECT", staff
   const existing = await prisma.chatThread.findUnique({ where: { id } });
   if (existing) return existing;
   try {
-    return await prisma.chatThread.create({
-      data: { id, bizProfileId, kind, staffId: kind === "DIRECT" ? staffId : null },
-    });
+    return await prisma.chatThread.create({ data: { id, bizProfileId, kind, staffId: kind === "DIRECT" ? staffId : null } });
   } catch (err: any) {
     if (err?.code === "P2002") return prisma.chatThread.findUniqueOrThrow({ where: { id } });
     throw err;
@@ -51,6 +66,41 @@ async function resolveThread(actor: ChatActor, threadId: string) {
   throw new AppError("Conversation not found", 404);
 }
 
+async function buildAttachment(actor: ChatActor, ref: AttachmentRef): Promise<AttachmentSnapshot> {
+  const profile = await prisma.bizProfile.findUnique({ where: { id: actor.bizProfileId }, select: { userId: true, currency: true } });
+  if (!profile) throw new AppError("Business not found", 404);
+
+  if (ref.type === "PRODUCT") {
+    const product = await prisma.bizProduct.findFirst({
+      where: { id: ref.id, userId: profile.userId },
+      include: { storeInventory: { select: { stock: true } } },
+    });
+    if (!product) throw new AppError("That product no longer exists", 404);
+    const stock = product.storeInventory.reduce((sum, row) => sum + row.stock, 0);
+    return { type: "PRODUCT", id: product.id, title: product.name, subtitle: money(profile.currency, product.price), detail: `${stock} in stock` };
+  }
+
+  const sale = await prisma.bizSale.findFirst({
+    where: { id: ref.id, userId: profile.userId, ...(actor.type === "STAFF" ? { staffId: actor.staffId } : {}) },
+    include: { items: { select: { quantity: true } } },
+  });
+  if (!sale) throw new AppError("That sale isn't available to share", 404);
+  const count = sale.items.reduce((sum, item) => sum + item.quantity, 0);
+  return {
+    type: "SALE",
+    id: sale.id,
+    title: sale.receiptNumber,
+    subtitle: `${money(profile.currency, sale.total)} · ${count} item${count === 1 ? "" : "s"}`,
+    detail: `${PAYMENT_LABELS[sale.paymentMethod] ?? sale.paymentMethod} · ${sale.status.toLowerCase()}`,
+  };
+}
+
+function describe(message: { body: string; attachment: unknown }) {
+  if (message.body) return message.body;
+  const attachment = message.attachment as AttachmentSnapshot | null;
+  return attachment ? `Shared a ${attachment.type === "PRODUCT" ? "product" : "sale"}: ${attachment.title}` : "";
+}
+
 function serializeMessage(message: {
   id: string;
   threadId: string;
@@ -58,6 +108,7 @@ function serializeMessage(message: {
   senderId: string;
   senderName: string;
   body: string;
+  attachment: unknown;
   createdAt: Date;
 }) {
   return {
@@ -67,6 +118,7 @@ function serializeMessage(message: {
     senderId: message.senderId,
     senderName: message.senderName,
     body: message.body,
+    attachment: (message.attachment as AttachmentSnapshot | null) ?? null,
     createdAt: message.createdAt.toISOString(),
   };
 }
@@ -94,12 +146,12 @@ export async function listThreads(actor: ChatActor) {
 
   const ids = entries.map((entry) => entry.id);
   const [latest, reads] = await Promise.all([
-    prisma.chatMessage.findMany({ where: { threadId: { in: ids } }, orderBy: { createdAt: "desc" }, distinct: ["threadId"] }),
+    Promise.all(ids.map((threadId) => prisma.chatMessage.findFirst({ where: { threadId }, orderBy: { createdAt: "desc" } }))),
     prisma.chatRead.findMany({ where: { threadId: { in: ids }, readerType: actor.type, readerId: actorKey(actor) } }),
   ]);
 
   const readAt = new Map(reads.map((read) => [read.threadId, read.lastReadAt]));
-  const lastByThread = new Map(latest.map((message) => [message.threadId, message]));
+  const lastByThread = new Map(latest.flatMap((message) => (message ? [[message.threadId, message] as const] : [])));
 
   const unread = await Promise.all(
     ids.map((threadId) =>
@@ -119,7 +171,7 @@ export async function listThreads(actor: ChatActor) {
       return {
         ...entry,
         unread: unread[index],
-        lastMessage: last ? { body: last.body, senderName: last.senderName, createdAt: last.createdAt.toISOString() } : null,
+        lastMessage: last ? { body: describe(last), senderName: last.senderName, createdAt: last.createdAt.toISOString() } : null,
       };
     })
     .sort((a, b) => {
@@ -144,11 +196,7 @@ export async function listMessages(actor: ChatActor, threadId: string, after?: s
     return rows.map(serializeMessage);
   }
 
-  const rows = await prisma.chatMessage.findMany({
-    where: { threadId: thread.id },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-  });
+  const rows = await prisma.chatMessage.findMany({ where: { threadId: thread.id }, orderBy: { createdAt: "desc" }, take: limit });
   return rows.reverse().map(serializeMessage);
 }
 
@@ -167,8 +215,8 @@ export async function unreadTotal(actor: ChatActor) {
   return threads.reduce((sum, thread) => sum + thread.unread, 0);
 }
 
-async function notifyRecipients(actor: ChatActor, thread: { id: string; kind: string; staffId: string | null }, body: string) {
-  const preview = body.length > 120 ? `${body.slice(0, 117)}...` : body;
+async function notifyRecipients(actor: ChatActor, thread: { id: string; kind: string; staffId: string | null }, preview: string) {
+  const text = preview.length > 120 ? `${preview.slice(0, 117)}...` : preview;
   const profile = await prisma.bizProfile.findUnique({ where: { id: actor.bizProfileId }, select: { userId: true } });
   if (!profile) return;
 
@@ -193,33 +241,29 @@ async function notifyRecipients(actor: ChatActor, thread: { id: string; kind: st
 
   const jobs: Promise<unknown>[] = [];
   if (actor.type === "STAFF") {
-    jobs.push(
-      sendPushToUser(profile.userId, {
-        title,
-        body: preview,
-        data: { kind: "chat", threadId: thread.id, threadTitle: team ? "Team chat" : actor.name },
-      })
-    );
+    jobs.push(sendPushToUser(profile.userId, { title, body: text, data: { kind: "chat", threadId: thread.id, threadTitle: team ? "Team chat" : actor.name } }));
   }
   if (staffTargets.length > 0) {
-    jobs.push(
-      sendPushToStaff(staffTargets, {
-        title,
-        body: preview,
-        data: { kind: "chat", threadId: thread.id, threadTitle: team ? "Team chat" : "Owner" },
-      })
-    );
+    jobs.push(sendPushToStaff(staffTargets, { title, body: text, data: { kind: "chat", threadId: thread.id, threadTitle: team ? "Team chat" : "Owner" } }));
   }
   await Promise.allSettled(jobs);
 }
 
-export async function sendMessage(actor: ChatActor, threadId: string, body: string) {
+export async function sendMessage(actor: ChatActor, threadId: string, body: string, ref?: AttachmentRef) {
   const thread = await resolveThread(actor, threadId);
+  const attachment = ref ? await buildAttachment(actor, ref) : null;
   const key = actorKey(actor);
 
   const message = await prisma.$transaction(async (tx) => {
     const created = await tx.chatMessage.create({
-      data: { threadId: thread.id, senderType: actor.type, senderId: key, senderName: actor.name, body },
+      data: {
+        threadId: thread.id,
+        senderType: actor.type,
+        senderId: key,
+        senderName: actor.name,
+        body,
+        attachment: attachment ? (attachment as unknown as Prisma.InputJsonValue) : undefined,
+      },
     });
     await tx.chatThread.update({ where: { id: thread.id }, data: { lastMessageAt: created.createdAt } });
     await tx.chatRead.upsert({
@@ -230,6 +274,6 @@ export async function sendMessage(actor: ChatActor, threadId: string, body: stri
     return created;
   });
 
-  void notifyRecipients(actor, thread, body).catch(() => {});
+  void notifyRecipients(actor, thread, describe(message)).catch(() => {});
   return serializeMessage(message);
 }

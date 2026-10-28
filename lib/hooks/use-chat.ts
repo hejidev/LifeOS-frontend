@@ -19,6 +19,7 @@ export interface ChatMessage {
   senderId: string;
   senderName: string;
   body: string;
+  attachment?: { type: "PRODUCT" | "SALE"; id: string; title: string; subtitle: string; detail: string } | null;
   createdAt: string;
 }
 

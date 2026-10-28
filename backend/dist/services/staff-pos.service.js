@@ -137,6 +137,7 @@ async function createSale(staffId, bizProfileId, storeId, data) {
             discount: 0,
             status: "PAID",
             clientRequestId,
+            staffId: actingStaffId,
             receiptNumber,
             soldAt: soldAtDate,
             offline: isOffline,

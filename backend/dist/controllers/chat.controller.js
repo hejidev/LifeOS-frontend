@@ -47,7 +47,7 @@ function handlers(actorOf) {
             return res.json({ messages: await chatService.listMessages(await actorOf(req), req.params.threadId, after) });
         }),
         send: (0, errors_1.asyncHandler)(async (req, res) => {
-            const message = await chatService.sendMessage(await actorOf(req), req.params.threadId, req.body.body);
+            const message = await chatService.sendMessage(await actorOf(req), req.params.threadId, req.body.body ?? "", req.body.attachment);
             return res.status(201).json({ message });
         }),
         read: (0, errors_1.asyncHandler)(async (req, res) => {
