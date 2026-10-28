@@ -69,6 +69,7 @@ router.post("/products/upload-image", upload.single("file"), businessController.
 router.post("/products/bulk-import", businessController.bulkImportProducts);
 router.patch("/products/:id", (0, validate_middleware_1.validate)(business_validator_1.updateProductSchema), businessController.updateProduct);
 router.delete("/products/:id", businessController.deleteProduct);
+router.delete("/products/:id", businessController.archiveProduct);
 router.get("/customers", businessController.getCustomers);
 router.post("/customers", (0, validate_middleware_1.validate)(business_validator_1.createCustomerSchema), businessController.createCustomer);
 router.post("/customers/message", (0, validate_middleware_1.validate)(customer_messaging_validator_1.sendCustomerMessageSchema), customerMessagingController.sendMessage);
@@ -76,6 +77,7 @@ router.patch("/customers/:id", (0, validate_middleware_1.validate)(business_vali
 router.get("/sales", businessController.getSales);
 router.post("/sales", (0, validate_middleware_1.validate)(business_validator_1.createSaleSchema), businessController.createSale);
 router.patch("/sales/:id/status", (0, validate_middleware_1.validate)(business_validator_1.updateSaleStatusSchema), businessController.updateSaleStatus);
+router.patch("/sales/:id/reviewed", businessController.markSaleReviewed);
 router.get("/expenses", businessController.getExpenses);
 router.post("/expenses", (0, validate_middleware_1.validate)(business_validator_1.createExpenseSchema), businessController.createExpense);
 router.delete("/expenses/:id", businessController.deleteExpense);

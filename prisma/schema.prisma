@@ -557,6 +557,7 @@ model BizProfile {
   user                     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   staff                    BizStaff[]
   stores                   Store[]
+  chatThreads              ChatThread[]
   loyaltyEnabled           Boolean @default(true)
   loyaltyEarnRate          Int     @default(1)
   loyaltyRedemptionValue   Int     @default(1)
@@ -689,7 +690,9 @@ model BizStaff {
   updatedAt    DateTime           @updatedAt
   bizProfile   BizProfile         @relation(fields: [bizProfileId], references: [id], onDelete: Cascade)
   activityLogs BizStaffActivity[]
+
   shifts       StaffShift[]
+  chatThreads  ChatThread[]
 
   storeId      String?
   store        Store?             @relation(fields: [storeId], references: [id])

@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.exportSales = exports.exportProducts = exports.bulkImportProducts = exports.uploadProductImage = exports.getProductByBarcode = exports.deleteExpense = exports.getExpenses = exports.createExpense = exports.updateSaleStatus = exports.getSales = exports.createSale = exports.exportCustomers = exports.updateCustomer = exports.createCustomer = exports.getCustomers = exports.deleteProduct = exports.updateProduct = exports.createProduct = exports.getProducts = exports.updateProfile = exports.getProfile = exports.getProductsPaged = exports.getDashboard = void 0;
+exports.archiveProduct = exports.markSaleReviewed = exports.exportSales = exports.exportProducts = exports.bulkImportProducts = exports.uploadProductImage = exports.getProductByBarcode = exports.deleteExpense = exports.getExpenses = exports.createExpense = exports.updateSaleStatus = exports.getSales = exports.createSale = exports.exportCustomers = exports.updateCustomer = exports.createCustomer = exports.getCustomers = exports.deleteProduct = exports.updateProduct = exports.createProduct = exports.getProducts = exports.updateProfile = exports.getProfile = exports.getProductsPaged = exports.getDashboard = void 0;
 const errors_1 = require("../lib/errors");
 const businessService = __importStar(require("../services/business.service"));
 exports.getDashboard = (0, errors_1.asyncHandler)(async (req, res) => {
@@ -158,4 +158,12 @@ exports.exportSales = (0, errors_1.asyncHandler)(async (req, res) => {
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="sales-export-${new Date().toISOString().slice(0, 10)}.csv"`);
     return res.send(csv);
+});
+exports.markSaleReviewed = (0, errors_1.asyncHandler)(async (req, res) => {
+    const sale = await businessService.markSaleReviewed(req.user.id, req.params.id);
+    return res.json({ sale });
+});
+exports.archiveProduct = (0, errors_1.asyncHandler)(async (req, res) => {
+    await businessService.archiveProduct(req.user.id, req.params.id);
+    return res.status(204).send();
 });

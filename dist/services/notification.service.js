@@ -8,6 +8,7 @@ exports.markAllAsRead = markAllAsRead;
 exports.deleteNotification = deleteNotification;
 const prisma_1 = require("../config/prisma");
 const io_instance_1 = require("../sockets/io-instance");
+const push_service_1 = require("./push.service");
 async function createNotification(userId, data) {
     const notification = await prisma_1.prisma.notification.create({
         data: { userId, type: data.type ?? "INFO", title: data.title, message: data.message, actionUrl: data.actionUrl },
@@ -24,6 +25,11 @@ async function createNotification(userId, data) {
             createdAt: notification.createdAt.toISOString(),
         });
     }
+    void (0, push_service_1.sendPushToUser)(userId, {
+        title: data.title,
+        body: data.message,
+        data: { actionUrl: data.actionUrl ?? null },
+    }).catch(() => { });
     return notification;
 }
 async function listNotifications(userId, unreadOnly = false) {
