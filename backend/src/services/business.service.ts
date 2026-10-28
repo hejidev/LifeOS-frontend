@@ -183,8 +183,8 @@ export async function createProduct(userId: string, data: any, storeId?: string)
 export async function uploadProductImage(buffer: Buffer, fileName: string) {
   const uploaded = await new Promise<any>((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { 
-        folder: "lifeos/product-images", 
+      {
+        folder: "lifeos/product-images",
         resource_type: "image",
         public_id: `product-${Date.now()}-${fileName.replace(/\.[^/.]+$/, "")}`,
         transformation: [
@@ -217,12 +217,12 @@ export async function updateProduct(userId: string, id: string, data: any, store
     prisma.bizProduct.update({ where: { id }, data: productData }),
     ...(stock !== undefined || lowStockAt !== undefined
       ? [
-          prisma.storeInventory.upsert({
-            where: { storeId_productId: { storeId: resolvedStoreId, productId: id } },
-            update: { ...(stock !== undefined && { stock }), ...(lowStockAt !== undefined && { lowStockAt }) },
-            create: { storeId: resolvedStoreId, productId: id, stock: stock ?? 0, lowStockAt: lowStockAt ?? 3 },
-          }),
-        ]
+        prisma.storeInventory.upsert({
+          where: { storeId_productId: { storeId: resolvedStoreId, productId: id } },
+          update: { ...(stock !== undefined && { stock }), ...(lowStockAt !== undefined && { lowStockAt }) },
+          create: { storeId: resolvedStoreId, productId: id, stock: stock ?? 0, lowStockAt: lowStockAt ?? 3 },
+        }),
+      ]
       : []),
   ]);
 
@@ -394,6 +394,10 @@ export async function createSale(
       if (taken) receiptNumber = genReceiptNumber();
     }
 
+    const pointsEarned =
+      customer && status === "PAID" && profile.loyaltyEnabled ? Math.floor(total / 100) * profile.loyaltyEarnRate : 0;
+    const pointsRedeemed = status === "PAID" ? pointsToRedeem : 0;
+
     const created = await tx.bizSale.create({
       data: {
         userId,
@@ -407,6 +411,8 @@ export async function createSale(
         status,
         note: data.note,
         clientRequestId: data.clientRequestId,
+        pointsEarned,
+        pointsRedeemed,
         createdAt: offline && data.soldAt ? data.soldAt : undefined,
         soldOffline: offline,
         needsReview: issues.length > 0,
@@ -425,7 +431,6 @@ export async function createSale(
     });
 
     if (customer && status === "PAID") {
-      const pointsEarned = profile.loyaltyEnabled ? Math.floor(total / 100) * profile.loyaltyEarnRate : 0;
       const netChange = pointsEarned - pointsToRedeem;
       if (netChange !== 0) {
         await tx.bizCustomer.update({ where: { id: customer.id }, data: { loyaltyPoints: { increment: netChange } } });
@@ -476,14 +481,46 @@ export async function findSaleByRequestId(userId: string, clientRequestId: strin
   return sale ? serializeSale(sale) : null;
 }
 
+const RESTORING = new Set(["REFUNDED", "CANCELLED"]);
+
 export async function updateSaleStatus(userId: string, id: string, status: string) {
-  const existing = await prisma.bizSale.findFirst({ where: { id, userId } });
+  const existing = await prisma.bizSale.findFirst({ where: { id, userId }, include: { items: true } });
   if (!existing) throw new AppError("Sale not found", 404);
-  const sale = await prisma.bizSale.update({
-    where: { id },
-    data: { status: status as any },
-    include: { items: true, customer: true },
+
+  if (existing.status === status) {
+    const unchanged = await prisma.bizSale.findUniqueOrThrow({ where: { id }, include: { items: true, customer: true, store: true } });
+    return serializeSale(unchanged);
+  }
+  if (RESTORING.has(existing.status)) {
+    throw new AppError(`This sale is already ${existing.status.toLowerCase()} and can't be changed.`, 409);
+  }
+
+  const sale = await prisma.$transaction(async (tx) => {
+    if (RESTORING.has(status)) {
+      if (existing.storeId) {
+        for (const item of existing.items) {
+          if (!item.productId) continue;
+          await tx.storeInventory.updateMany({
+            where: { storeId: existing.storeId, productId: item.productId },
+            data: { stock: { increment: item.quantity } },
+          });
+        }
+      }
+      if (existing.customerId && (existing.pointsEarned > 0 || existing.pointsRedeemed > 0)) {
+        const customer = await tx.bizCustomer.findUnique({ where: { id: existing.customerId } });
+        if (customer) {
+          const next = Math.max(0, customer.loyaltyPoints - existing.pointsEarned + existing.pointsRedeemed);
+          await tx.bizCustomer.update({ where: { id: customer.id }, data: { loyaltyPoints: next } });
+        }
+      }
+    }
+    return tx.bizSale.update({
+      where: { id },
+      data: { status: status as any },
+      include: { items: true, customer: true, store: true },
+    });
   });
+
   return serializeSale(sale);
 }
 

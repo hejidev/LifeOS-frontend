@@ -57,6 +57,8 @@ exports.bulkImportProducts = bulkImportProducts;
 exports.exportProductsCSV = exportProductsCSV;
 exports.exportSalesCSV = exportSalesCSV;
 exports.exportCustomersCSV = exportCustomersCSV;
+exports.markSaleReviewed = markSaleReviewed;
+exports.archiveProduct = archiveProduct;
 const prisma_1 = require("../config/prisma");
 const errors_1 = require("../lib/errors");
 const cloudinary_1 = require("../config/cloudinary");
@@ -386,6 +388,8 @@ async function createSale(userId, data, storeId) {
             if (taken)
                 receiptNumber = genReceiptNumber();
         }
+        const pointsEarned = customer && status === "PAID" && profile.loyaltyEnabled ? Math.floor(total / 100) * profile.loyaltyEarnRate : 0;
+        const pointsRedeemed = status === "PAID" ? pointsToRedeem : 0;
         const created = await tx.bizSale.create({
             data: {
                 userId,
@@ -399,6 +403,8 @@ async function createSale(userId, data, storeId) {
                 status,
                 note: data.note,
                 clientRequestId: data.clientRequestId,
+                pointsEarned,
+                pointsRedeemed,
                 createdAt: offline && data.soldAt ? data.soldAt : undefined,
                 soldOffline: offline,
                 needsReview: issues.length > 0,
@@ -416,7 +422,6 @@ async function createSale(userId, data, storeId) {
             include: { items: true, customer: true, store: true },
         });
         if (customer && status === "PAID") {
-            const pointsEarned = profile.loyaltyEnabled ? Math.floor(total / 100) * profile.loyaltyEarnRate : 0;
             const netChange = pointsEarned - pointsToRedeem;
             if (netChange !== 0) {
                 await tx.bizCustomer.update({ where: { id: customer.id }, data: { loyaltyPoints: { increment: netChange } } });
@@ -460,14 +465,43 @@ async function findSaleByRequestId(userId, clientRequestId) {
     });
     return sale ? serializeSale(sale) : null;
 }
+const RESTORING = new Set(["REFUNDED", "CANCELLED"]);
 async function updateSaleStatus(userId, id, status) {
-    const existing = await prisma_1.prisma.bizSale.findFirst({ where: { id, userId } });
+    const existing = await prisma_1.prisma.bizSale.findFirst({ where: { id, userId }, include: { items: true } });
     if (!existing)
         throw new errors_1.AppError("Sale not found", 404);
-    const sale = await prisma_1.prisma.bizSale.update({
-        where: { id },
-        data: { status: status },
-        include: { items: true, customer: true },
+    if (existing.status === status) {
+        const unchanged = await prisma_1.prisma.bizSale.findUniqueOrThrow({ where: { id }, include: { items: true, customer: true, store: true } });
+        return serializeSale(unchanged);
+    }
+    if (RESTORING.has(existing.status)) {
+        throw new errors_1.AppError(`This sale is already ${existing.status.toLowerCase()} and can't be changed.`, 409);
+    }
+    const sale = await prisma_1.prisma.$transaction(async (tx) => {
+        if (RESTORING.has(status)) {
+            if (existing.storeId) {
+                for (const item of existing.items) {
+                    if (!item.productId)
+                        continue;
+                    await tx.storeInventory.updateMany({
+                        where: { storeId: existing.storeId, productId: item.productId },
+                        data: { stock: { increment: item.quantity } },
+                    });
+                }
+            }
+            if (existing.customerId && (existing.pointsEarned > 0 || existing.pointsRedeemed > 0)) {
+                const customer = await tx.bizCustomer.findUnique({ where: { id: existing.customerId } });
+                if (customer) {
+                    const next = Math.max(0, customer.loyaltyPoints - existing.pointsEarned + existing.pointsRedeemed);
+                    await tx.bizCustomer.update({ where: { id: customer.id }, data: { loyaltyPoints: next } });
+                }
+            }
+        }
+        return tx.bizSale.update({
+            where: { id },
+            data: { status: status },
+            include: { items: true, customer: true, store: true },
+        });
     });
     return serializeSale(sale);
 }
@@ -709,4 +743,23 @@ async function exportCustomersCSV(userId) {
         { key: "loyaltyPoints", label: "Loyalty Points" },
         { key: "createdAt", label: "Customer Since", value: (c) => new Date(c.createdAt).toISOString() },
     ]);
+}
+// -------------------- Mark Sale Reviewed ----------------------------------------------
+async function markSaleReviewed(userId, saleId) {
+    const existing = await prisma_1.prisma.bizSale.findFirst({ where: { id: saleId, userId }, select: { id: true } });
+    if (!existing)
+        throw new errors_1.AppError("Sale not found", 404);
+    const sale = await prisma_1.prisma.bizSale.update({
+        where: { id: saleId },
+        data: { needsReview: false },
+        include: { items: true, customer: true, store: true },
+    });
+    return serializeSale(sale);
+}
+// ----------------- Archive Product ---------------------
+async function archiveProduct(userId, productId) {
+    const product = await prisma_1.prisma.bizProduct.findFirst({ where: { id: productId, userId }, select: { id: true } });
+    if (!product)
+        throw new errors_1.AppError("Product not found", 404);
+    await prisma_1.prisma.bizProduct.update({ where: { id: productId }, data: { active: false, barcode: null } });
 }

@@ -5,11 +5,17 @@ const zod_1 = require("zod");
 exports.updateBizProfileSchema = zod_1.z.object({
     body: zod_1.z.object({
         businessName: zod_1.z.string().trim().min(1).max(120).optional(),
-        currency: zod_1.z.string().trim().length(3).optional(),
-        logoUrl: zod_1.z.string().url().optional(),
+        currency: zod_1.z
+            .string()
+            .trim()
+            .length(3)
+            .transform((value) => value.toUpperCase())
+            .optional(),
+        description: zod_1.z.string().trim().max(1000).optional(),
+        logoUrl: zod_1.z.union([zod_1.z.string().trim().url(), zod_1.z.literal("")]).optional(),
         loyaltyEnabled: zod_1.z.boolean().optional(),
         loyaltyEarnRate: zod_1.z.number().int().min(0).max(1000).optional(),
-        loyaltyRedemptionValue: zod_1.z.number().int().min(0).max(1000).optional(),
+        loyaltyRedemptionValue: zod_1.z.number().positive().max(1000000).optional(),
     }),
 });
 exports.createProductSchema = zod_1.z.object({

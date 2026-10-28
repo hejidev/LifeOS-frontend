@@ -28,6 +28,8 @@ import { useOfflineQueue } from "@/lib/offline/use-offline-queue";
 import type {
   CachedSession, LoyaltyConfig, PaymentMethod, Product, SalePayload, SaleRecord, StaffMe, StaffProfile,
 } from "@/lib/offline/types";
+import { StaffChatDialog, useStaffChatUnread } from "@/components/staff/staff-chat-dialog";
+
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
 const SESSION_KEY = "session";
@@ -124,6 +126,7 @@ export default function StaffShiftPage() {
   const [activity, setActivity] = useState<any[]>([]);
   const [team, setTeam] = useState<any[]>([]);
   const [myShifts, setMyShifts] = useState<any[]>([]);
+  const [chatOpen, setChatOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState("");
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -166,6 +169,8 @@ export default function StaffShiftPage() {
     refresh: refreshCatalog, findByBarcode,
   } = useCatalog({ scope, online, pending, syncVersion, markOffline, markSessionExpired });
 
+  const chatUnread = useStaffChatUnread(sessionState === "ready" && online);
+
   const showToast = useCallback((type: "success" | "error", message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 2500);
@@ -199,7 +204,7 @@ export default function StaffShiftPage() {
     try {
       const data = await staffApi.get<StaffMe>("/staff-session/me", { timeoutMs: 8000, redirectOnExpire: false });
       const cached: CachedSession = { me: data, savedAt: Date.now() };
-      void setMeta(SESSION_KEY, cached).catch(() => {});
+      void setMeta(SESSION_KEY, cached).catch(() => { });
       applySession(data);
     } catch (err) {
       if (err instanceof StaffSessionExpiredError) {
@@ -546,11 +551,11 @@ export default function StaffShiftPage() {
     try {
       await staffApi.post("/staff-portal/clock-out", undefined, { redirectOnExpire: false, timeoutMs: 10000 });
       await fetch(`${API_URL}/staff-session/logout`, { method: "POST", credentials: "include" });
-      await deleteMeta(SESSION_KEY).catch(() => {});
+      await deleteMeta(SESSION_KEY).catch(() => { });
       router.push("/staff/login");
     } catch (err) {
       if (err instanceof StaffSessionExpiredError) {
-        await deleteMeta(SESSION_KEY).catch(() => {});
+        await deleteMeta(SESSION_KEY).catch(() => { });
         router.push("/staff/login");
         return;
       }
@@ -636,7 +641,7 @@ export default function StaffShiftPage() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-[1fr_auto] gap-2">
+        <div className="grid grid-cols-[1fr_auto_auto] gap-2">
           {canSell ? (
             <button
               onClick={openSale}
@@ -655,6 +660,19 @@ export default function StaffShiftPage() {
             className="h-16 w-16 rounded-2xl border border-border bg-card flex items-center justify-center hover:bg-muted transition-colors"
           >
             <Monitor className="h-5 w-5 text-muted-foreground" />
+          </button>
+
+          <button
+            onClick={() => setChatOpen(true)}
+            title="Team chat"
+            className="relative h-16 w-16 rounded-2xl border border-border bg-card flex items-center justify-center hover:bg-muted transition-colors"
+          >
+            <MessageSquare className="h-5 w-5 text-muted-foreground" />
+            {chatUnread > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                {chatUnread > 99 ? "99+" : chatUnread}
+              </span>
+            )}
           </button>
         </div>
 
@@ -997,6 +1015,8 @@ export default function StaffShiftPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <StaffChatDialog open={chatOpen} onOpenChange={setChatOpen} staffId={staff.id} enabled={online && !sessionExpired} />
 
       <PendingSalesDialog
         open={queueOpen}

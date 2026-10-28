@@ -6,7 +6,7 @@ import {
   UserCog, Activity, Settings, Sparkles, Store as StoreIcon,
   TrendingUp,
   Calendar,
-  BarChart3,
+  BarChart3, Bell, MessageSquare
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarHeader,
@@ -27,6 +27,8 @@ const nav = [
   { href: "/merchant/staff/activity", label: "Staff Activity", icon: Activity },
   { href: "/merchant/staff/performance", label: "Performance", icon: TrendingUp },
   { href: "/merchant/staff/schedule", label: "Schedule", icon: Calendar },
+  { href: "/merchant/chat", label: "Team Chat", icon: MessageSquare },
+  { href: "/merchant/notifications", label: "Notifications", icon: Bell },
   { href: "/merchant/settings", label: "Settings", icon: Settings },
 ];
 

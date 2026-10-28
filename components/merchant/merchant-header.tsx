@@ -1,10 +1,12 @@
 "use client";
 
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { NotificationBell } from "../notifications/notification-bell";
 import { MerchantCommandPalette } from "./merchant-command-palette";
 import { MerchantUserNav } from "./merchant-user-nav";
 import { MerchantQuickActions } from "./merchant-quick-actions";
+import { ChatButton } from "./chat-button";
+import { NotificationBell } from "./notification-bell";
+
 
 export function MerchantHeader() {
   return (
@@ -21,6 +23,7 @@ export function MerchantHeader() {
         <div className="hidden sm:flex">
           <MerchantQuickActions />
         </div>
+        <ChatButton />
         <NotificationBell />
         <MerchantUserNav />
       </div>

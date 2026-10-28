@@ -1,5 +1,6 @@
 import { prisma } from "../config/prisma";
 import { getIO } from "../sockets/io-instance";
+import { sendPushToUser } from "./push.service";
 
 export async function createNotification(userId: string, data: {
   type?: string; title: string; message: string; actionUrl?: string;
@@ -20,6 +21,12 @@ export async function createNotification(userId: string, data: {
       createdAt: notification.createdAt.toISOString(),
     });
   }
+
+  void sendPushToUser(userId, {
+    title: data.title,
+    body: data.message,
+    data: { actionUrl: data.actionUrl ?? null },
+  }).catch(() => {});
 
   return notification;
 }

@@ -65,6 +65,7 @@ const staff_portal_routes_1 = __importDefault(require("./routes/staff-portal.rou
 const staff_pos_routes_1 = __importDefault(require("./routes/staff-pos.routes"));
 const staff_shift_portal_routes_1 = __importDefault(require("./routes/staff-shift-portal.routes"));
 const store_routes_1 = __importDefault(require("./routes/store.routes"));
+const chat_routes_1 = __importDefault(require("./routes/chat.routes"));
 const business_routes_1 = __importDefault(require("./routes/business.routes"));
 const settings_routes_1 = __importDefault(require("./routes/settings.routes"));
 const billing_routes_1 = __importDefault(require("./routes/billing.routes"));
@@ -133,6 +134,7 @@ app.use("/api/staff-portal", staff_portal_routes_1.default);
 app.use("/api/staff-pos", staff_pos_routes_1.default);
 app.use("/api/my-shifts", staff_shift_portal_routes_1.default);
 app.use("/api/stores", store_routes_1.default);
+app.use("/api", chat_routes_1.default);
 app.use("/api/business", business_routes_1.default);
 app.use("/api/settings", settings_routes_1.default);
 app.use("/api/platform-admin", platform_admin_routes_1.default);
