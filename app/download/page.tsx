@@ -58,7 +58,7 @@ export default function DownloadPage() {
     setDetected(detectPlatform());
     setInstalled(
       window.matchMedia("(display-mode: standalone)").matches ||
-        (navigator as Navigator & { standalone?: boolean }).standalone === true
+      (navigator as Navigator & { standalone?: boolean }).standalone === true
     );
 
     const onPrompt = (event: Event) => {
@@ -137,15 +137,15 @@ export default function DownloadPage() {
             items={
               APK_URL
                 ? [
-                    "Open the downloaded file. If Chrome warns about the file type, choose Keep.",
-                    "If Android asks, allow installs from your browser, then tap Install. Play Protect may show an unrecognised app notice: choose More details, then Install anyway.",
-                    "Open LifeOS Staff and sign in with your store code, name and PIN.",
-                  ]
+                  "Open the downloaded file. If Chrome warns about the file type, choose Keep.",
+                  "If Android asks, allow installs from your browser, then tap Install. Play Protect may show an unrecognised app notice: choose More details, then Install anyway.",
+                  "Open LifeOS Staff and sign in with your store code, name and PIN.",
+                ]
                 : [
-                    "Open this page in Chrome.",
-                    "Open the browser menu and choose Install app.",
-                    "Open LifeOS Staff and sign in.",
-                  ]
+                  "Open this page in Chrome.",
+                  "Open the browser menu and choose Install app.",
+                  "Open LifeOS Staff and sign in.",
+                ]
             }
           />
         </>
@@ -155,9 +155,12 @@ export default function DownloadPage() {
     return (
       <>
         {APP_STORE_URL ? (
-          <Button asChild className="w-full">
-            <a href={APP_STORE_URL}>Download on the App Store</a>
-          </Button>
+          <>
+            <Button asChild className="w-full">
+              <a href={APP_STORE_URL}>Download on the App Store</a>
+            </Button>
+            <Link href="/start" className="text-primary underline">Open the start page, then Add to Home Screen</Link>
+          </>
         ) : null}
         <Steps
           items={[

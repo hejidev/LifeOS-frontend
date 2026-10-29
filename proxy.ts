@@ -16,6 +16,7 @@ export function proxy(req: NextRequest) {
     pathname === "/signup" ||
     pathname.startsWith("/staff") ||
     pathname === "/download" ||
+    pathname === "/start" ||
     pathname === "/sw.js" ||
     pathname === "/offline.html" ||
     pathname.startsWith("/manifests/") ||

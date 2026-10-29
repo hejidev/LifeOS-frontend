@@ -41,12 +41,22 @@ const staff_session_middleware_1 = require("../middlewares/staff-session.middlew
 const validate_middleware_1 = require("../middlewares/validate.middleware");
 const ops = __importStar(require("../controllers/operations.controller"));
 const operations_validator_1 = require("../validators/operations.validator");
+const prisma_1 = require("../config/prisma");
 const router = (0, express_1.Router)();
 const owner = [auth_middleware_1.requireAuth, merchant_middleware_1.requireMerchant];
-function stockRole(req, _res, next) {
-    if (req.staff && ["INVENTORY_CLERK", "MANAGER"].includes(req.staff.role))
-        return next();
-    next(new errors_1.AppError("Your role can't change stock levels.", 403));
+async function stockRole(req, _res, next) {
+    try {
+        const member = await prisma_1.prisma.bizStaff.findFirst({
+            where: { id: req.staff.staffId, bizProfileId: req.staff.bizProfileId },
+            select: { role: true, status: true },
+        });
+        if (member && member.status === "ACTIVE" && ["INVENTORY_CLERK", "MANAGER"].includes(member.role))
+            return next();
+        next(new errors_1.AppError("Your role can't change stock levels.", 403));
+    }
+    catch (err) {
+        next(err);
+    }
 }
 router.post("/ops/products/:id/stock", ...owner, (0, validate_middleware_1.validate)(operations_validator_1.adjustStockSchema), ops.ownerAdjustStock);
 router.get("/ops/products/:id/stock-history", ...owner, ops.ownerStockHistory);

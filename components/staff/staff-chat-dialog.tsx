@@ -4,14 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ChatWorkspace } from "@/components/chat/chat-workspace";
 import { staffApi } from "@/lib/api/staff-client";
-import type { ChatMessage, ChatThread } from "@/lib/hooks/use-chat";
+import type { AttachmentRef, ChatMessage, ChatThread, PickItem } from "@/lib/hooks/use-chat";
 
 const OPTIONS = { redirectOnExpire: false, timeoutMs: 8000 };
 const enc = encodeURIComponent;
 
 export function useStaffChatUnread(enabled: boolean) {
   const [count, setCount] = useState(0);
-
+  
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
@@ -30,7 +30,7 @@ export function useStaffChatUnread(enabled: boolean) {
       clearInterval(timer);
     };
   }, [enabled]);
-
+  
   return count;
 }
 
@@ -45,6 +45,7 @@ export function StaffChatDialog({ open, onOpenChange, staffId, enabled }: StaffC
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [products, setProducts] = useState<PickItem[]>([]);
   const [loading, setLoading] = useState(false);
 
   const loadThreads = useCallback(async () => {
@@ -66,6 +67,22 @@ export function StaffChatDialog({ open, onOpenChange, staffId, enabled }: StaffC
   useEffect(() => {
     if (open && !activeId && threads.length > 0) setActiveId(threads[0].id);
   }, [open, activeId, threads]);
+
+  useEffect(() => {
+    if (!open || !enabled) return;
+    staffApi
+      .get<{ products: { id: string; name: string; price: number; stock: number }[] }>("/staff-pos/products", OPTIONS)
+      .then((result) =>
+        setProducts(
+          result.products.map((product) => ({
+            id: product.id,
+            title: product.name,
+            subtitle: `${Number(product.price).toLocaleString()} · ${product.stock} in stock`,
+          }))
+        )
+      )
+      .catch(() => undefined);
+  }, [open, enabled]);
 
   useEffect(() => {
     if (!open || !enabled || !activeId) return;
@@ -102,9 +119,9 @@ export function StaffChatDialog({ open, onOpenChange, staffId, enabled }: StaffC
       .catch(() => undefined);
   }, [open, enabled, activeId, lastId, loadThreads]);
 
-  async function send(body: string) {
+  async function send(body: string, attachment?: AttachmentRef) {
     if (!activeId) return;
-    const result = await staffApi.post<{ message: ChatMessage }>(`/staff-chat/threads/${enc(activeId)}/messages`, { body }, OPTIONS);
+    const result = await staffApi.post<{ message: ChatMessage }>(`/staff-chat/threads/${enc(activeId)}/messages`, { body, attachment }, OPTIONS);
     setMessages((current) => (current.some((item) => item.id === result.message.id) ? current : [...current, result.message]));
     void loadThreads();
   }
@@ -119,6 +136,7 @@ export function StaffChatDialog({ open, onOpenChange, staffId, enabled }: StaffC
           <ChatWorkspace
             className="flex-1"
             threads={threads}
+            pickers={{ products }}
             activeId={activeId}
             onSelect={setActiveId}
             messages={messages}

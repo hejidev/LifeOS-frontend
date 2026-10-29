@@ -12,6 +12,25 @@ export interface ChatThread {
   lastMessage: { body: string; senderName: string; createdAt: string } | null;
 }
 
+export interface ChatAttachment {
+  type: "PRODUCT" | "SALE";
+  id: string;
+  title: string;
+  subtitle: string;
+  detail: string;
+}
+
+export interface AttachmentRef {
+  type: "PRODUCT" | "SALE";
+  id: string;
+}
+
+export interface PickItem {
+  id: string;
+  title: string;
+  subtitle: string;
+}
+
 export interface ChatMessage {
   id: string;
   threadId: string;
@@ -19,7 +38,7 @@ export interface ChatMessage {
   senderId: string;
   senderName: string;
   body: string;
-  attachment?: { type: "PRODUCT" | "SALE"; id: string; title: string; subtitle: string; detail: string } | null;
+  attachment?: ChatAttachment | null;
   createdAt: string;
 }
 
@@ -53,8 +72,8 @@ export function useChatUnread() {
 export function useSendChatMessage() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ threadId, body }: { threadId: string; body: string }) =>
-      api.post(`/merchant/chat/threads/${enc(threadId)}/messages`, { body }),
+    mutationFn: ({ threadId, body, attachment }: { threadId: string; body: string; attachment?: AttachmentRef }) =>
+      api.post(`/merchant/chat/threads/${enc(threadId)}/messages`, { body, attachment }),
     onSuccess: (_data, { threadId }) => {
       qc.invalidateQueries({ queryKey: ["chatMessages", threadId] });
       qc.invalidateQueries({ queryKey: ["chatThreads"] });

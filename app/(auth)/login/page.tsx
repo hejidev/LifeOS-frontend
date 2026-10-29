@@ -42,6 +42,7 @@ export default function LoginPage() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("mode") === "staff") setMode("staff");
   }, []);
+  
 
   return (
     <AuthShell
@@ -79,6 +80,27 @@ export default function LoginPage() {
   );
 }
 
+async function routeAfterLogin(role: string) {
+  if (role === "SUPER_ADMIN") {
+    window.location.href = "/super-admin";
+    return;
+  }
+  if (role === "ADMIN") {
+    window.location.href = "/admin";
+    return;
+  }
+  try {
+    const status = await api.get("/merchant/status");
+    if (status.status === "APPROVED" && status.planStatus === "ACTIVE") {
+      window.location.href = "/merchant/dashboard";
+      return;
+    }
+  } catch {
+    // not a merchant
+  }
+  window.location.href = "/app/dashboard";
+}
+
 function UserLoginForm() {
   const login = useLogin();
   const [method, setMethod] = useState<"password" | "email-code">("password");
@@ -99,28 +121,12 @@ function UserLoginForm() {
     setAccessToken(data.accessToken);
     document.cookie = "lifeos_authed=1; path=/; SameSite=Strict";
     document.cookie = `lifeos_role=${data.user.role}; path=/; SameSite=Strict`;
-    const role = data.user.role as string;
-    if (role === "SUPER_ADMIN") { window.location.href = "/super-admin"; return; }
-    if (role === "ADMIN") { window.location.href = "/admin"; return; }
-    window.location.href = "/app/dashboard";
+    void routeAfterLogin(data.user.role as string);
   }
 
   useEffect(() => {
     if (!login.isSuccess || !login.data || login.data.requires2FA) return;
-    (async () => {
-      const role = login.data.user.role as string;
-      if (role === "SUPER_ADMIN") { window.location.href = "/super-admin"; return; }
-      if (role === "ADMIN") { window.location.href = "/admin"; return; }
-      try {
-        const status = await api.get("/merchant/status");
-        if (status.status === "APPROVED" && status.planStatus === "ACTIVE") {
-          window.location.href = "/merchant/dashboard";
-          return;
-        }
-      } catch {
-      }
-      window.location.href = "/app/dashboard";
-    })();
+    void routeAfterLogin(login.data.user.role as string);
   }, [login.isSuccess, login.data]);
 
   function handleSubmit(e: React.FormEvent) {
@@ -303,10 +309,6 @@ function StaffLoginForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ storeCode, name, pin: finalPin }),
       });
-      if (res.status === 401) {
-        if (typeof window !== "undefined") window.location.href = "/login?mode=staff";
-        throw new Error("Session expired — redirecting to login");
-      }
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? "Login failed");

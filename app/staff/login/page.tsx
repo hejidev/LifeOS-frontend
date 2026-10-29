@@ -1,16 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Delete, Download, Sparkles, Store, User } from "lucide-react";
+import { ArrowLeft, Delete, Download, Loader2, Sparkles, Store, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
 const PIN_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"];
+const MIN_PIN = 4;
+const MAX_PIN = 6;
+const CODE_KEY = "lifeos_staff_store_code";
+
+function rememberedCode() {
+  try {
+    return window.localStorage.getItem(CODE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
 
 export default function StaffLoginPage() {
   const router = useRouter();
@@ -20,107 +33,196 @@ export default function StaffLoginPage() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const loadingRef = useRef(false);
+  const pinRef = useRef("");
+  pinRef.current = pin;
 
-  function handleIdentifySubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!storeCode.trim() || !name.trim()) return;
-    setStep("pin");
-  }
+  useEffect(() => {
+    const code = rememberedCode();
+    if (code) setStoreCode(code);
+  }, []);
 
-  async function submitLogin(finalPin: string) {
+  const pressKey = useCallback((key: string) => {
+    if (loadingRef.current || key === "") return;
+    if (key === "del") {
+      setPin((current) => current.slice(0, -1));
+      return;
+    }
+    setPin((current) => (current.length >= MAX_PIN ? current : current + key));
+  }, []);
+
+  const submit = useCallback(async () => {
+    const value = pinRef.current;
+    if (loadingRef.current || value.length < MIN_PIN) return;
+    loadingRef.current = true;
     setLoading(true);
     setError(null);
+
     try {
       const res = await fetch(`${API_URL}/staff-session/login`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ storeCode, name, pin: finalPin }),
+        body: JSON.stringify({ storeCode: storeCode.trim(), name: name.trim(), pin: value }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Login failed");
+        throw new Error(data?.error ?? "Login failed");
       }
-      router.push("/staff/pos");
-    } catch (err: any) {
-      setError(err.message);
+      try {
+        window.localStorage.setItem(CODE_KEY, storeCode.trim());
+      } catch {
+        // storage unavailable
+      }
+      router.replace("/staff/pos");
+    } catch (err) {
+      setError(err instanceof TypeError ? "Can't reach the server. Check your connection." : err instanceof Error ? err.message : "Login failed");
       setPin("");
-    } finally {
       setLoading(false);
+      loadingRef.current = false;
     }
+  }, [storeCode, name, router]);
+
+  useEffect(() => {
+    if (step !== "pin") return;
+    function onKey(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (/^\d$/.test(event.key)) {
+        event.preventDefault();
+        pressKey(event.key);
+      } else if (event.key === "Backspace") {
+        event.preventDefault();
+        pressKey("del");
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        void submit();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [step, pressKey, submit]);
+
+  function handleIdentify(event: React.FormEvent) {
+    event.preventDefault();
+    if (!storeCode.trim() || !name.trim()) return;
+    setError(null);
+    setStep("pin");
   }
 
-  function handlePinKey(key: string) {
-    if (key === "del") return setPin((p) => p.slice(0, -1));
-    if (key === "") return;
-    if (pin.length >= 6) return;
-    const next = pin + key;
-    setPin(next);
-    if (next.length === 4) submitLogin(next);
+  function backToIdentify() {
+    setStep("identify");
+    setPin("");
+    setError(null);
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-linear-to-br from-background via-background to-primary/5">
+    <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-background via-background to-primary/5 px-4">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm">
-        <div className="text-center mb-6">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl gradient-bg mb-3">
+        <div className="mb-6 text-center">
+          <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl gradient-bg">
             <Sparkles className="h-6 w-6 text-white" />
           </div>
           <h1 className="text-xl font-bold">Staff Terminal</h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            {step === "identify" ? "Enter your store code and name" : `Enter PIN for ${name}`}
+          <p className="mt-1 text-xs text-muted-foreground">
+            {step === "identify" ? "Enter your store code and name" : `Enter your PIN, ${name.trim()}`}
           </p>
         </div>
 
         <Card>
           <CardContent className="pt-6">
             {step === "identify" ? (
-              <form onSubmit={handleIdentifySubmit} className="space-y-4">
+              <form onSubmit={handleIdentify} className="space-y-4">
                 <div className="space-y-1">
-                  <Label className="flex items-center gap-1.5 text-xs"><Store className="h-3.5 w-3.5" /> Store code</Label>
-                  <Input value={storeCode} onChange={(e) => setStoreCode(e.target.value.toUpperCase())} className="text-center tracking-widest font-mono text-lg h-12" maxLength={8} autoFocus required />
+                  <Label className="flex items-center gap-1.5 text-xs">
+                    <Store className="h-3.5 w-3.5" /> Store code
+                  </Label>
+                  <Input
+                    value={storeCode}
+                    onChange={(event) => setStoreCode(event.target.value.toUpperCase())}
+                    className="h-12 text-center font-mono text-lg tracking-widest"
+                    maxLength={8}
+                    autoFocus={!storeCode}
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    required
+                  />
                 </div>
                 <div className="space-y-1">
-                  <Label className="flex items-center gap-1.5 text-xs"><User className="h-3.5 w-3.5" /> Your name</Label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} className="h-12 text-center" required />
+                  <Label className="flex items-center gap-1.5 text-xs">
+                    <User className="h-3.5 w-3.5" /> Your name
+                  </Label>
+                  <Input value={name} onChange={(event) => setName(event.target.value)} className="h-12 text-center" autoFocus={!!storeCode} autoCorrect="off" required />
                 </div>
-                <button type="submit" className="w-full h-12 rounded-xl gradient-bg text-white font-semibold text-sm">Continue</button>
-                <Link href={"/login"}>Back to Login</Link>
+                <Button type="submit" className="h-12 w-full" disabled={!storeCode.trim() || !name.trim()}>
+                  Continue
+                </Button>
               </form>
             ) : (
               <div className="space-y-5">
                 <div className="flex justify-center gap-3">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className={`h-4 w-4 rounded-full border-2 ${i < pin.length ? "bg-primary border-primary" : "border-border"} transition-colors`} />
+                  {Array.from({ length: Math.max(MIN_PIN, pin.length) }).map((_, index) => (
+                    <div key={index} className={cn("h-4 w-4 rounded-full border-2 transition-colors", index < pin.length ? "border-primary bg-primary" : "border-border")} />
                   ))}
                 </div>
-                {error && <p className="text-xs text-destructive text-center">{error}</p>}
+                <p className={cn("min-h-4 text-center text-xs", error ? "text-destructive" : "text-muted-foreground")}>
+                  {error ?? "Type on the keypad or your keyboard"}
+                </p>
                 <div className="grid grid-cols-3 gap-3">
-                  {PIN_KEYS.map((k, i) =>
-                    k === "" ? (
-                      <div key={i} />
-                    ) : k === "del" ? (
-                      <button key={i} type="button" onClick={() => handlePinKey(k)} className="h-14 rounded-xl bg-muted/40 flex items-center justify-center hover:bg-muted transition-colors">
+                  {PIN_KEYS.map((key, index) =>
+                    key === "" ? (
+                      <div key={index} />
+                    ) : key === "del" ? (
+                      <button
+                        key={index}
+                        type="button"
+                        aria-label="Delete"
+                        onClick={() => pressKey(key)}
+                        disabled={loading}
+                        className="flex h-14 items-center justify-center rounded-xl bg-muted/40 transition-colors hover:bg-muted disabled:opacity-50"
+                      >
                         <Delete className="h-5 w-5" />
                       </button>
                     ) : (
-                      <button key={i} type="button" onClick={() => handlePinKey(k)} disabled={loading} className="h-14 rounded-xl bg-muted/40 text-lg font-semibold hover:bg-muted transition-colors disabled:opacity-50">
-                        {k}
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => pressKey(key)}
+                        disabled={loading}
+                        className="h-14 rounded-xl bg-muted/40 text-lg font-semibold transition-colors hover:bg-muted active:scale-95 disabled:opacity-50"
+                      >
+                        {key}
                       </button>
                     )
                   )}
                 </div>
-                <button type="button" onClick={() => { setStep("identify"); setPin(""); setError(null); }} className="w-full text-xs text-muted-foreground hover:text-foreground">
-                  ← Not {name}?
+                <Button type="button" className="h-12 w-full" disabled={loading || pin.length < MIN_PIN} onClick={() => void submit()}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Signing in
+                    </>
+                  ) : (
+                    "Sign in"
+                  )}
+                </Button>
+                <button type="button" onClick={backToIdentify} className="flex w-full items-center justify-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                  <ArrowLeft className="h-3 w-3" /> Not {name.trim()}?
                 </button>
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Link href="/download" className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground hover:text-foreground">
-          <Download className="h-3.5 w-3.5" /> Get the LifeOS Staff app
-        </Link>
+        <div className="mt-4 space-y-2 text-center text-xs text-muted-foreground">
+          <p>
+            Business owner?{" "}
+            <Link href="/login" className="font-medium text-primary hover:underline">
+              Sign in here
+            </Link>
+          </p>
+          <Link href="/download" className="inline-flex items-center gap-2 hover:text-foreground">
+            <Download className="h-3.5 w-3.5" /> Get the LifeOS app
+          </Link>
+        </div>
       </motion.div>
     </div>
   );

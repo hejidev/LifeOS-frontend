@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MessageSquare } from "lucide-react";
 import { ChatWorkspace } from "@/components/chat/chat-workspace";
+import { useBizProducts, useBizProfile, useBizSales } from "@/lib/hooks/use-life-data";
 import { useChatMessages, useChatThreads, useMarkChatRead, useSendChatMessage } from "@/lib/hooks/use-chat";
 
 export default function MerchantChatPage() {
@@ -12,6 +13,30 @@ export default function MerchantChatPage() {
   const send = useSendChatMessage();
   const { mutate: markRead } = useMarkChatRead();
   const lastId = messages[messages.length - 1]?.id;
+
+  const { data: products = [] } = useBizProducts();
+  const { data: sales = [] } = useBizSales("week");
+  const { data: profile } = useBizProfile();
+  const currency: string = profile?.currency ?? "NGN";
+
+  const pickers = useMemo(
+    () => ({
+      products: products.map((product) => ({
+        id: product.id,
+        title: product.name,
+        subtitle: `${currency} ${Number(product.price).toLocaleString()} · ${product.stock} in stock`,
+      })),
+      sales: [...sales]
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .slice(0, 80)
+        .map((sale) => ({
+          id: sale.id,
+          title: sale.receiptNumber,
+          subtitle: `${currency} ${Number(sale.total).toLocaleString()} · ${new Date(sale.createdAt).toLocaleString()}`,
+        })),
+    }),
+    [products, sales, currency]
+  );
 
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get("thread");
@@ -48,8 +73,9 @@ export default function MerchantChatPage() {
         messages={messages}
         loading={isLoading}
         isMine={(message) => message.senderType === "OWNER"}
-        onSend={async (body) => {
-          if (activeId) await send.mutateAsync({ threadId: activeId, body });
+        pickers={pickers}
+        onSend={async (body, attachment) => {
+          if (activeId) await send.mutateAsync({ threadId: activeId, body, attachment });
         }}
       />
     </div>
