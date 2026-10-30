@@ -76,8 +76,23 @@ export const exportCustomers = asyncHandler(async (req: AuthenticatedRequest, re
 
 export const createSale = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { storeId, ...body } = req.body;
-  const sale = await businessService.createSale(req.user!.id, body, storeId);
-  return res.status(201).json({ sale });
+  const userId = req.user!.id;
+
+  if (body.clientRequestId) {
+    const existing = await businessService.findSaleByRequestId(userId, body.clientRequestId);
+    if (existing) return res.status(200).json({ sale: existing });
+  }
+
+  try {
+    const sale = await businessService.createSale(userId, body, storeId);
+    return res.status(201).json({ sale });
+  } catch (err: any) {
+    if (err?.code === "P2002" && body.clientRequestId) {
+      const existing = await businessService.findSaleByRequestId(userId, body.clientRequestId);
+      if (existing) return res.status(200).json({ sale: existing });
+    }
+    throw err;
+  }
 });
 
 export const getSales = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
