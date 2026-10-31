@@ -7,7 +7,7 @@ import { requireStaffSession } from "../middlewares/staff-session.middleware";
 import type { StaffRequest } from "../middlewares/staff-session.middleware";
 import { validate } from "../middlewares/validate.middleware";
 import * as ops from "../controllers/operations.controller";
-import { adjustStockSchema } from "../validators/operations.validator";
+import { adjustStockSchema, collectPaymentSchema } from "../validators/operations.validator";
 import { prisma } from "../config/prisma";
 
 const router = Router();
@@ -30,6 +30,8 @@ router.post("/ops/products/:id/stock", ...owner, validate(adjustStockSchema), op
 router.get("/ops/products/:id/stock-history", ...owner, ops.ownerStockHistory);
 router.get("/ops/reports/daily", ...owner, ops.dailyReport);
 router.get("/ops/attention", ...owner, ops.attention);
+router.get("/ops/customers/:id/profile", ...owner, ops.customerProfile);
+router.post("/ops/sales/:id/collect", ...owner, validate(collectPaymentSchema), ops.collectPayment);
 
 router.post("/staff-ops/products/:id/stock", requireStaffSession, stockRole, validate(adjustStockSchema), ops.staffAdjustStock);
 router.get("/staff-ops/products/:id/stock-history", requireStaffSession, ops.staffStockHistory);

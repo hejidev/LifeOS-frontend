@@ -12,3 +12,7 @@ export const adjustStockSchema = z.object({
     storeId: z.string().uuid().optional(),
   }),
 });
+
+export const collectPaymentSchema = z.object({
+  body: z.object({ paymentMethod: z.enum(["CASH", "CARD", "TRANSFER", "MOBILE_MONEY"]) }),
+});

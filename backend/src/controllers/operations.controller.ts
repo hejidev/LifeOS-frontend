@@ -7,6 +7,17 @@ import * as chatService from "../services/chat.service";
 import * as notificationService from "../services/notification.service";
 import * as reportService from "../services/report.service";
 import * as stockService from "../services/stock.service";
+import * as businessService from "../services/business.service";
+import * as customerProfileService from "../services/customer-profile.service";
+
+export const customerProfile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  return res.json(await customerProfileService.getCustomerProfile(req.user!.id, req.params.id));
+});
+
+export const collectPayment = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const sale = await businessService.settleSale(req.user!.id, req.params.id, req.body.paymentMethod);
+  return res.json({ sale });
+});
 
 async function staffContext(req: StaffRequest) {
   const [profile, staff] = await Promise.all([

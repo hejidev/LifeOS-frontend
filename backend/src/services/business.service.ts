@@ -33,7 +33,7 @@ function serializeProduct(p: any, storeStock?: { stock: number; lowStockAt: numb
   };
 }
 
-function serializeCustomer(c: any, totalSpent = 0, orderCount = 0, lastOrderAt: string | null = null) {
+function serializeCustomer(c: any, totalSpent = 0, orderCount = 0, lastOrderAt: string | null = null, balance = 0) {
   return {
     id: c.id,
     name: c.name,
@@ -42,12 +42,12 @@ function serializeCustomer(c: any, totalSpent = 0, orderCount = 0, lastOrderAt: 
     notes: c.notes ?? undefined,
     totalSpent,
     orderCount,
+    balance,
     loyaltyPoints: c.loyaltyPoints ?? 0,
     lastOrderAt: lastOrderAt ?? undefined,
     createdAt: c.createdAt.toISOString(),
   };
 }
-
 
 function serializeSale(s: any) {
   return {
@@ -110,7 +110,6 @@ function rangeStart(range: "today" | "week" | "month") {
 }
 
 // ── Profile ─────────────────────────────────────────────────────────────
-
 export async function getOrCreateProfile(userId: string) {
   let profile = await prisma.bizProfile.findUnique({ where: { userId } });
   if (!profile) {
@@ -298,11 +297,12 @@ export async function listCustomers(userId: string) {
   });
   return customers.map((c) => {
     const paid = c.sales.filter((s) => s.status === "PAID");
+    const balance = c.sales.filter((s) => s.status === "PENDING").reduce((sum, s) => sum + num(s.total), 0);
     const totalSpent = paid.reduce((sum, s) => sum + num(s.total), 0);
     const lastOrderAt = paid.length > 0
       ? paid.reduce((latest, s) => (s.createdAt > latest ? s.createdAt : latest), paid[0].createdAt).toISOString()
       : null;
-    return serializeCustomer(c, totalSpent, paid.length, lastOrderAt);
+    return serializeCustomer(c, totalSpent, paid.length, lastOrderAt, balance);
   });
 }
 
@@ -318,15 +318,17 @@ export async function updateCustomer(userId: string, id: string, data: any) {
   const customer = await prisma.bizCustomer.update({ where: { id }, data });
 
   const sales = await prisma.bizSale.findMany({
-    where: { customerId: id, status: "PAID" },
-    select: { total: true, createdAt: true },
+    where: { customerId: id, status: { in: ["PAID", "PENDING"] } },
+    select: { total: true, status: true, createdAt: true },
   });
-  const totalSpent = sales.reduce((sum, s) => sum + num(s.total), 0);
-  const lastOrderAt = sales.length > 0
-    ? sales.reduce((latest, s) => (s.createdAt > latest ? s.createdAt : latest), sales[0].createdAt).toISOString()
+  const paid = sales.filter((s) => s.status === "PAID");
+  const balance = sales.filter((s) => s.status === "PENDING").reduce((sum, s) => sum + num(s.total), 0);
+  const totalSpent = paid.reduce((sum, s) => sum + num(s.total), 0);
+  const lastOrderAt = paid.length > 0
+    ? paid.reduce((latest, s) => (s.createdAt > latest ? s.createdAt : latest), paid[0].createdAt).toISOString()
     : null;
 
-  return serializeCustomer(customer, totalSpent, sales.length, lastOrderAt);
+  return serializeCustomer(customer, totalSpent, paid.length, lastOrderAt, balance);
 }
 
 // ── Sales (POS checkout) ────────────────────────────────────────────────
@@ -352,6 +354,7 @@ export async function createSale(
   const resolvedStoreId = await storeService.resolveStoreId(userId, storeId);
   const profile = await getOrCreateProfile(userId);
   const status = (data.status as any) ?? "PAID";
+  if (status === "PENDING" && !data.customerId) throw new AppError("Choose a customer for a pay-later sale.", 400);
   const offline = data.offline === true;
 
   const subtotal = data.items.reduce((sum, it) => sum + it.quantity * it.unitPrice, 0);
@@ -520,6 +523,8 @@ export async function updateSaleStatus(userId: string, id: string, status: strin
     throw new AppError(`This sale is already ${existing.status.toLowerCase()} and can't be changed.`, 409);
   }
 
+  if (existing.status === "PENDING" && status === "PAID") return settleSale(userId, id);
+
   const sale = await prisma.$transaction(async (tx) => {
     if (RESTORING.has(status)) {
       if (existing.storeId) {
@@ -544,6 +549,33 @@ export async function updateSaleStatus(userId: string, id: string, status: strin
       data: { status: status as any },
       include: { items: true, customer: true, store: true },
     });
+  });
+
+  return serializeSale(sale);
+}
+
+export async function settleSale(userId: string, id: string, paymentMethod?: string) {
+  const profile = await getOrCreateProfile(userId);
+
+  const sale = await prisma.$transaction(async (tx) => {
+    const existing = await tx.bizSale.findFirst({ where: { id, userId } });
+    if (!existing) throw new AppError("Sale not found", 404);
+    if (existing.status !== "PENDING") throw new AppError("This sale isn't waiting for payment.", 409);
+
+    const pointsEarned =
+      existing.customerId && profile.loyaltyEnabled ? Math.floor(num(existing.total) / 100) * profile.loyaltyEarnRate : 0;
+
+    const claimed = await tx.bizSale.updateMany({
+      where: { id, userId, status: "PENDING" },
+      data: { status: "PAID", pointsEarned, ...(paymentMethod ? { paymentMethod: paymentMethod as any } : {}) },
+    });
+    if (claimed.count === 0) throw new AppError("This sale was already settled.", 409);
+
+    if (existing.customerId && pointsEarned > 0) {
+      await tx.bizCustomer.update({ where: { id: existing.customerId }, data: { loyaltyPoints: { increment: pointsEarned } } });
+    }
+
+    return tx.bizSale.findUniqueOrThrow({ where: { id }, include: { items: true, customer: true, store: true } });
   });
 
   return serializeSale(sale);

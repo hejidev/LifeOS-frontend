@@ -133,6 +133,40 @@ check("Refund returns the 2 units to stock", after === before + 2, `before ${bef
 const refundAgain = await call(`/business/sales/${saleId}/status`, { method: "PATCH", token: owner, body: { status: "REFUNDED" } });
 check("Refunding twice does not return stock twice", (await call(`/business/products?active=true&storeId=${storeId}`, { token: owner })).data?.products?.find((item) => item.id === product.id)?.stock === after, `second refund status ${refundAgain.status}`);
 
+const customerResult = await call("/business/customers", { method: "POST", token: owner, body: { name: `Smoke customer ${Date.now()}` } });
+const customerId = customerResult.data?.customer?.id;
+check("Owner adds a test customer", customerResult.status === 201 && customerId, `status ${customerResult.status}`);
+
+const creditItems = [{ productId: product.id, name: product.name, unitPrice: 100, quantity: 1 }];
+const noCustomer = await call("/business/sales", { method: "POST", token: owner, body: { clientRequestId: crypto.randomUUID(), status: "PENDING", items: creditItems, storeId } });
+check("A pay-later sale without a customer is refused", noCustomer.status === 400, `status ${noCustomer.status}`);
+
+const stockBeforeCredit = (await call(`/business/products?active=true&storeId=${storeId}`, { token: owner })).data?.products?.find((item) => item.id === product.id)?.stock;
+const credit = await call("/business/sales", { method: "POST", token: owner, body: { clientRequestId: crypto.randomUUID(), status: "PENDING", items: creditItems, customerId, storeId } });
+const creditId = credit.data?.sale?.id;
+check("A pay-later sale is recorded as unpaid", credit.status === 201 && credit.data?.sale?.status === "PENDING", `status ${credit.status} ${credit.data?.error ?? ""}`);
+
+const stockAfterCredit = (await call(`/business/products?active=true&storeId=${storeId}`, { token: owner })).data?.products?.find((item) => item.id === product.id)?.stock;
+check("Stock drops when a credit sale is recorded", stockAfterCredit === stockBeforeCredit - 1, `before ${stockBeforeCredit}, after ${stockAfterCredit}`);
+
+const profileBefore = await call(`/ops/customers/${customerId}/profile`, { token: owner });
+check("The profile shows the 100 owed", profileBefore.data?.stats?.balance === 100 && profileBefore.data?.pending?.length === 1, JSON.stringify(profileBefore.data?.stats));
+
+const collected = await call(`/ops/sales/${creditId}/collect`, { method: "POST", token: owner, body: { paymentMethod: "TRANSFER" } });
+check("Collecting payment marks the sale paid", collected.status === 200 && collected.data?.sale?.status === "PAID" && collected.data?.sale?.paymentMethod === "TRANSFER", `status ${collected.status}`);
+
+const collectedAgain = await call(`/ops/sales/${creditId}/collect`, { method: "POST", token: owner, body: { paymentMethod: "CASH" } });
+check("Collecting the same sale twice is refused", collectedAgain.status === 409, `status ${collectedAgain.status}`);
+
+const profileAfter = await call(`/ops/customers/${customerId}/profile`, { token: owner });
+check("The balance clears and lifetime spend rises", profileAfter.data?.stats?.balance === 0 && profileAfter.data?.stats?.lifetimeSpend >= 100, JSON.stringify(profileAfter.data?.stats));
+
+const cancelled = await call("/business/sales", { method: "POST", token: owner, body: { clientRequestId: crypto.randomUUID(), status: "PENDING", items: creditItems, customerId, storeId } });
+const stockWithCancel = (await call(`/business/products?active=true&storeId=${storeId}`, { token: owner })).data?.products?.find((item) => item.id === product.id)?.stock;
+await call(`/business/sales/${cancelled.data?.sale?.id}/status`, { method: "PATCH", token: owner, body: { status: "CANCELLED" } });
+const stockAfterCancel = (await call(`/business/products?active=true&storeId=${storeId}`, { token: owner })).data?.products?.find((item) => item.id === product.id)?.stock;
+check("Cancelling an unpaid sale returns its stock", stockAfterCancel === stockWithCancel + 1, `before ${stockWithCancel}, after ${stockAfterCancel}`);
+
 const removed = await call(`/business/products/${product.id}`, { method: "DELETE", token: owner });
 check("Test product is archived", removed.status === 204, `status ${removed.status}`);
 
