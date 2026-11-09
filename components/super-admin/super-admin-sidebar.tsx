@@ -7,6 +7,8 @@ import {
     ShieldCheck,
     MessageSquare,
     FileText,
+    Gauge,
+    LifeBuoy,
 } from "lucide-react";
 import {
     Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu,
@@ -26,6 +28,8 @@ const nav = [
     { href: "/super-admin/analytics", label: "Analytics", icon: BarChart3 },
     { href: "/super-admin/audit-log", label: "Audit Log", icon: ScrollText },
     { href: "/super-admin/security", label: "Security", icon: ShieldAlert },
+    { href: "/super-admin/workbench", label: "Support workbench", icon: LifeBuoy },
+    { href: "/super-admin/traffic", label: "Traffic and load", icon: Gauge },
 ];
 
 export function SuperAdminSidebar() {

@@ -4,9 +4,8 @@ import Link from "next/link";
 import {
   LayoutDashboard, ShoppingCart, Package, Users, Receipt,
   UserCog, Activity, Settings, Sparkles, Store as StoreIcon,
-  TrendingUp,
-  Calendar,
-  BarChart3, Bell, MessageSquare
+  TrendingUp, Calendar, BarChart3, FileText, Banknote, Wallet,
+  MessageSquare, Bell,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarHeader,
@@ -16,19 +15,23 @@ import { MerchantNavItem } from "./merchant-nav-item";
 import { StoreSwitcher } from "./store-switcher";
 
 const nav = [
-  { href: "/merchant/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/merchant/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/merchant/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/merchant/pos", label: "Point of Sale", icon: ShoppingCart },
+  { href: "/merchant/sales", label: "Sales", icon: Receipt },
+  { href: "/merchant/receivables", label: "Unpaid", icon: Wallet },
+  { href: "/merchant/register", label: "Cash Register", icon: Banknote },
   { href: "/merchant/products", label: "Products", icon: Package },
-  { href: "/merchant/locations", label: "Locations", icon: StoreIcon },
   { href: "/merchant/customers", label: "Customers", icon: Users },
   { href: "/merchant/expenses", label: "Expenses", icon: Receipt },
+  { href: "/merchant/reports", label: "Daily Report", icon: FileText },
+  { href: "/merchant/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/merchant/chat", label: "Team Chat", icon: MessageSquare },
+  { href: "/merchant/notifications", label: "Notifications", icon: Bell },
+  { href: "/merchant/locations", label: "Locations", icon: StoreIcon },
   { href: "/merchant/staff", label: "Staff", icon: UserCog },
   { href: "/merchant/staff/activity", label: "Staff Activity", icon: Activity },
   { href: "/merchant/staff/performance", label: "Performance", icon: TrendingUp },
   { href: "/merchant/staff/schedule", label: "Schedule", icon: Calendar },
-  { href: "/merchant/chat", label: "Team Chat", icon: MessageSquare },
-  { href: "/merchant/notifications", label: "Notifications", icon: Bell },
   { href: "/merchant/settings", label: "Settings", icon: Settings },
 ];
 

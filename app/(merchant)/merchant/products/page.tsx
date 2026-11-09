@@ -2,17 +2,18 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Package, Plus, Trash2, Pencil, Search, AlertTriangle, RotateCcw, X, DollarSign, Box, Camera, ImageIcon, Loader2, Upload, Download } from "lucide-react";
+import { Archive, ArrowUpDown, Package, Plus, Trash2, Pencil, Search, AlertTriangle, RotateCcw, X, DollarSign, Box, Camera, ImageIcon, Loader2, Upload, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useBusinessProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useLookupProductByBarcode, useUploadProductImage, useExportProducts } from "@/lib/hooks/use-life-data";
+import { useBusinessProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useLookupProductByBarcode, useUploadProductImage, useExportProducts, useBusinessProfile } from "@/lib/hooks/use-life-data";
 import { cn } from "@/lib/utils";
 import { CameraBarcodeScanner } from "@/components/merchant/camera-barcode-scanner";
 import { BulkProductImport } from "@/components/merchant/bulk-product-import";
+import { StockAdjustDialog, StockHistoryList } from "@/components/merchant/stock-adjust-dialog";
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
@@ -44,6 +45,10 @@ export default function ProductsPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
 
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
+
+  const { data: profile } = useBusinessProfile();
+  const [adjustTarget, setAdjustTarget] = useState<{ id: string; name: string; stock: number } | null>(null);
+  const editingProduct = editingId ? (products as any[]).find((p) => p.id === editingId) ?? null : null;
 
   const [scanFeedback, setScanFeedback] = useState<{
     type: "success" | "error";
@@ -92,15 +97,15 @@ export default function ProductsPage() {
       category: form.category || undefined,
       price: parseFloat(form.price),
       cost: form.cost ? parseFloat(form.cost) : undefined,
-      stock: parseInt(form.stock) || 0,
       lowStockAt: parseInt(form.lowStockAt) || 3,
       imageUrl: form.imageUrl || undefined,
     };
+    const onError = (err: any) => alert(err.message ?? "Couldn't save this product");
 
     if (editingId) {
-      updateProduct.mutate({ id: editingId, data: payload }, { onSuccess: () => setOpen(false) });
+      updateProduct.mutate({ id: editingId, data: payload }, { onSuccess: () => setOpen(false), onError });
     } else {
-      createProduct.mutate(payload, { onSuccess: () => setOpen(false) });
+      createProduct.mutate({ ...payload, stock: parseInt(form.stock) || 0 }, { onSuccess: () => setOpen(false), onError });
     }
   }
 
@@ -144,7 +149,7 @@ export default function ProductsPage() {
     ? (products as any[]).filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.category && p.category.toLowerCase().includes(searchQuery.toLowerCase())))
     : products;
 
-  const currency = "NGN";
+  const currency = (profile as any)?.currency ?? "NGN";
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
@@ -279,14 +284,15 @@ export default function ProductsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          title="Archive product"
                           className="h-7 w-7 sm:h-8 sm:w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={() => {
-                            if (confirm(`Remove "${p.name}" from your catalog?`)) {
-                              deleteProduct.mutate(p.id);
+                            if (confirm(`Archive "${p.name}"? It leaves your catalog and its barcode is freed. Past sales keep their records.`)) {
+                              deleteProduct.mutate(p.id, { onError: (err: any) => alert(err.message ?? "Couldn't archive this product") });
                             }
                           }}
                         >
-                          <Trash2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                          <Archive className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                         </Button>
                       </div>
                     </CardContent>
@@ -318,7 +324,7 @@ export default function ProductsPage() {
       />
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? "Edit Product" : "Add Product"}</DialogTitle>
           </DialogHeader>
@@ -401,13 +407,32 @@ export default function ProductsPage() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:gap-3">
-              <div className="space-y-1.5 sm:space-y-2">
-                <Label className="text-xs sm:text-sm">Initial Stock</Label>
-                <div className="relative">
-                  <Box className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input type="number" value={form.stock} onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))} className="pl-9 h-9 sm:h-10 text-sm" placeholder="0" />
+              {editingId ? (
+                <div className="space-y-1.5 sm:space-y-2">
+                  <Label className="text-xs sm:text-sm">Stock here</Label>
+                  <div className="flex h-9 sm:h-10 items-center justify-between rounded-lg border border-input px-3">
+                    <span className="text-sm font-semibold">{editingProduct?.stock ?? 0}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      disabled={!editingProduct}
+                      onClick={() => editingProduct && setAdjustTarget({ id: editingProduct.id, name: editingProduct.name, stock: editingProduct.stock })}
+                    >
+                      <ArrowUpDown className="mr-1 h-3 w-3" /> Adjust
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-1.5 sm:space-y-2">
+                  <Label className="text-xs sm:text-sm">Initial Stock</Label>
+                  <div className="relative">
+                    <Box className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input type="number" value={form.stock} onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))} className="pl-9 h-9 sm:h-10 text-sm" placeholder="0" />
+                  </div>
+                </div>
+              )}
               <div className="space-y-1.5 sm:space-y-2">
                 <Label className="text-xs sm:text-sm">Low Stock Alert</Label>
                 <div className="relative">
@@ -426,10 +451,18 @@ export default function ProductsPage() {
               )}
             </Button>
           </form>
+          {editingId ? (
+            <div className="space-y-2 border-t pt-3">
+              <p className="text-xs font-semibold text-muted-foreground">Stock history</p>
+              <StockHistoryList productId={editingId} />
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
 
       <BulkProductImport open={bulkImportOpen} onClose={() => setBulkImportOpen(false)} />
+
+      <StockAdjustDialog product={adjustTarget} onOpenChange={(next) => !next && setAdjustTarget(null)} />
     </motion.div>
   );
 }

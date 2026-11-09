@@ -308,9 +308,7 @@ export default function SecurityPage() {
                       <div className="flex shrink-0 gap-2">
                         <Button size="sm" variant="outline" asChild>
                           <Link
-                            href={`/super-admin/users?email=${encodeURIComponent(
-                              account.email
-                            )}`}
+                            href={`workbench?id=${account.userId}`}
                           >
                             Inspect
                           </Link>

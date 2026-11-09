@@ -29,6 +29,8 @@ import type {
   CachedSession, LoyaltyConfig, PaymentMethod, Product, SalePayload, SaleRecord, StaffMe, StaffProfile,
 } from "@/lib/offline/types";
 import { StaffChatDialog, useStaffChatUnread } from "@/components/staff/staff-chat-dialog";
+import { StaffRegisterDialog } from "@/components/staff/staff-register-dialog";
+import { Banknote } from "lucide-react";
 
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
@@ -127,6 +129,7 @@ export default function StaffShiftPage() {
   const [team, setTeam] = useState<any[]>([]);
   const [myShifts, setMyShifts] = useState<any[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
+  const [registerOpen, setRegisterOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState("");
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -641,16 +644,16 @@ export default function StaffShiftPage() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-[1fr_auto_auto] gap-2">
+        <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2">
           {canSell ? (
             <button
               onClick={openSale}
-              className="h-16 rounded-2xl gradient-bg text-white font-semibold text-base flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.01] active:scale-[0.99] transition-all"
+              className="flex-1 h-16 rounded-2xl gradient-bg text-white font-semibold text-base flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.01] active:scale-[0.99] transition-all"
             >
               <ShoppingCart className="h-5 w-5" /> New Sale
             </button>
           ) : (
-            <div className="h-16 rounded-2xl border border-dashed border-border bg-muted/30 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <div className="flex-1 h-16 rounded-2xl border border-dashed border-border bg-muted/30 flex items-center justify-center gap-2 text-sm text-muted-foreground">
               <ShoppingCart className="h-4 w-4" /> Sales access isn't enabled for your role
             </div>
           )}
@@ -659,13 +662,13 @@ export default function StaffShiftPage() {
             title="Open customer display"
             className="h-16 w-16 rounded-2xl border border-border bg-card flex items-center justify-center hover:bg-muted transition-colors"
           >
-            <Monitor className="h-5 w-5 text-muted-foreground" />
+            <Monitor className="shrink-0 h-5 w-5 text-muted-foreground" />
           </button>
 
           <button
             onClick={() => setChatOpen(true)}
             title="Team chat"
-            className="relative h-16 w-16 rounded-2xl border border-border bg-card flex items-center justify-center hover:bg-muted transition-colors"
+            className="relative h-16 w-16 shrink-0 rounded-2xl border border-border bg-card flex items-center justify-center hover:bg-muted transition-colors"
           >
             <MessageSquare className="h-5 w-5 text-muted-foreground" />
             {chatUnread > 0 && (
@@ -674,6 +677,16 @@ export default function StaffShiftPage() {
               </span>
             )}
           </button>
+
+          {staff.role !== "INVENTORY_CLERK" && (
+            <button
+              onClick={() => setRegisterOpen(true)}
+              title="Cash register"
+              className="h-16 w-16 shrink-0 rounded-2xl border border-border bg-card flex items-center justify-center hover:bg-muted transition-colors"
+            >
+              <Banknote className="h-5 w-5 text-muted-foreground" />
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -1015,6 +1028,8 @@ export default function StaffShiftPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <StaffRegisterDialog open={registerOpen} onOpenChange={setRegisterOpen} currency={currency} enabled={online && !sessionExpired} />
 
       <StaffChatDialog open={chatOpen} onOpenChange={setChatOpen} staffId={staff.id} enabled={online && !sessionExpired} />
 

@@ -106,6 +106,8 @@ async function getDailyReport(userId, params) {
             expenseCount: expenses.length,
             net: revenue - expenseTotal,
             needsReview: sales.filter((sale) => sale.needsReview).length,
+            creditCount: sales.filter((sale) => sale.status === "PENDING").length,
+            creditTotal: sales.filter((sale) => sale.status === "PENDING").reduce((sum, sale) => sum + num(sale.total), 0),
         },
         byPayment: [...tally(paid, (sale) => sale.paymentMethod, (sale) => num(sale.total))].map(([method, value]) => ({ method, ...value })).sort((a, b) => b.total - a.total),
         byStaff: [...tally(paid, (sale) => sale.staffId ?? "unassigned", (sale) => num(sale.total))]
@@ -141,12 +143,18 @@ async function getShiftSummary(userId, staffId, since) {
 }
 async function getAttention(userId, storeId) {
     const resolved = storeId ? await storeService.resolveStoreId(userId, storeId) : undefined;
-    const [inventory, needsReview] = await Promise.all([
+    const [inventory, needsReview, owed] = await Promise.all([
         prisma_1.prisma.storeInventory.findMany({
             where: { product: { userId, active: true }, ...(resolved ? { storeId: resolved } : {}) },
             select: { stock: true, lowStockAt: true },
         }),
         prisma_1.prisma.bizSale.count({ where: { userId, needsReview: true, ...(resolved ? { storeId: resolved } : {}) } }),
+        prisma_1.prisma.bizSale.aggregate({ where: { userId, status: "PENDING" }, _sum: { total: true, amountPaid: true }, _count: true }),
     ]);
-    return { lowStock: inventory.filter((row) => row.stock <= row.lowStockAt).length, needsReview };
+    return {
+        lowStock: inventory.filter((row) => row.stock <= row.lowStockAt).length,
+        needsReview,
+        owedCount: owed._count,
+        owedTotal: Math.round((num(owed._sum.total) - num(owed._sum.amountPaid)) * 100) / 100,
+    };
 }

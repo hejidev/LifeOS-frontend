@@ -167,6 +167,59 @@ await call(`/business/sales/${cancelled.data?.sale?.id}/status`, { method: "PATC
 const stockAfterCancel = (await call(`/business/products?active=true&storeId=${storeId}`, { token: owner })).data?.products?.find((item) => item.id === product.id)?.stock;
 check("Cancelling an unpaid sale returns its stock", stockAfterCancel === stockWithCancel + 1, `before ${stockWithCancel}, after ${stockAfterCancel}`);
 
+const registerState = await call(`/ops/register/current?storeId=${storeId}`, { token: owner });
+if (registerState.data?.session) {
+  check("No register is open at this location", false, "Close the open register, then run the test again.");
+} else {
+  const expectedCash = async () => (await call(`/ops/register/current?storeId=${storeId}`, { token: owner })).data?.session?.cash?.expected;
+
+  const opened = await call("/ops/register/open", { method: "POST", token: owner, body: { openingFloat: 1000, storeId } });
+  check("The register opens with a 1000 float", opened.status === 201 && opened.data?.session?.cash?.expected === 1000, JSON.stringify(opened.data));
+
+  const openedTwice = await call("/ops/register/open", { method: "POST", token: owner, body: { openingFloat: 5, storeId } });
+  check("A second register can't be opened at the same location", openedTwice.status === 409, `status ${openedTwice.status}`);
+
+  const cashSale = await call("/business/sales", { method: "POST", token: owner, body: { clientRequestId: crypto.randomUUID(), status: "PAID", paymentMethod: "CASH", items: creditItems, storeId } });
+  const cashSaleId = cashSale.data?.sale?.id;
+  check("A 100 cash sale raises expected cash to 1100", (await expectedCash()) === 1100, String(await expectedCash()));
+
+  const payOut = await call("/ops/register/movements", { method: "POST", token: owner, body: { kind: "PAY_OUT", amount: 50, reason: "Supplies", storeId } });
+  check("A 50 pay-out lowers it to 1050", payOut.data?.session?.cash?.expected === 1050, JSON.stringify(payOut.data?.session?.cash));
+
+  const tooMuch = await call("/ops/register/movements", { method: "POST", token: owner, body: { kind: "PAY_OUT", amount: 99999, reason: "Too much", storeId } });
+  check("Paying out more than the drawer holds is refused", tooMuch.status === 409, `status ${tooMuch.status}`);
+
+  const credit = await call("/business/sales", { method: "POST", token: owner, body: { clientRequestId: crypto.randomUUID(), status: "PENDING", items: creditItems, customerId, storeId } });
+  const creditSaleId = credit.data?.sale?.id;
+  check("A credit sale doesn't change the drawer", (await expectedCash()) === 1050);
+
+  const part = await call(`/ops/sales/${creditSaleId}/collect`, { method: "POST", token: owner, body: { paymentMethod: "CASH", amount: 40 } });
+  check("A 40 part-payment leaves 60 owed and the sale unpaid", part.data?.sale?.status === "PENDING" && part.data?.sale?.balance === 60, JSON.stringify(part.data?.sale));
+  check("The part-payment adds 40 to the drawer", (await expectedCash()) === 1090);
+
+  const over = await call(`/ops/sales/${creditSaleId}/collect`, { method: "POST", token: owner, body: { paymentMethod: "CASH", amount: 100 } });
+  check("Collecting more than is owed is refused", over.status === 400, `status ${over.status}`);
+
+  const cancelPartial = await call(`/business/sales/${creditSaleId}/status`, { method: "PATCH", token: owner, body: { status: "CANCELLED" } });
+  check("A part-paid sale can't be cancelled", cancelPartial.status === 409, `status ${cancelPartial.status}`);
+
+  const finish = await call(`/ops/sales/${creditSaleId}/collect`, { method: "POST", token: owner, body: { paymentMethod: "TRANSFER" } });
+  check("Collecting the rest completes the sale", finish.data?.sale?.status === "PAID" && finish.data?.sale?.balance === 0, JSON.stringify(finish.data?.sale));
+  check("A transfer doesn't change the drawer", (await expectedCash()) === 1090);
+
+  const history = await call(`/ops/sales/${creditSaleId}/payments`, { token: owner });
+  check("The sale shows two payments", history.data?.payments?.length === 2, JSON.stringify(history.data));
+
+  await call(`/business/sales/${cashSaleId}/status`, { method: "PATCH", token: owner, body: { status: "REFUNDED" } });
+  check("Refunding the cash sale takes 100 back out", (await expectedCash()) === 990, String(await expectedCash()));
+
+  const closed = await call("/ops/register/close", { method: "POST", token: owner, body: { countedCash: 985, note: "Smoke test", storeId } });
+  check("Closing with 985 counted reports 5 short", closed.data?.session?.cash?.expected === 990 && closed.data?.session?.variance === -5, JSON.stringify(closed.data?.session));
+
+  const after = await call(`/ops/register/current?storeId=${storeId}`, { token: owner });
+  check("No register is open afterwards", after.data?.session === null);
+}
+
 const removed = await call(`/business/products/${product.id}`, { method: "DELETE", token: owner });
 check("Test product is archived", removed.status === 204, `status ${removed.status}`);
 

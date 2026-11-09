@@ -54,11 +54,16 @@ import twoFactorRoutes from "./routes/two-factor.routes";
 import securityRoutes from "./routes/security.routes";
 import contactSubmissionRoutes from "./routes/contact-submission.routes";
 import siteContentRoutes from "./routes/site-content.routes";
+import { startTrafficRecorder, trafficMiddleware } from "./services/traffic.service";
+import pingRoutes from "./routes/ping.routes";
+import platformToolsRoutes from "./routes/platform-tools.routes";
 
 import { errorHandler } from "./middlewares/errorHandler.middleware";
 import { startCronJobs } from "./config/cron";
 
 const app = express();
+
+app.use(trafficMiddleware);
 
 app.set("trust proxy", 1);
 app.use(helmet());
@@ -104,6 +109,8 @@ app.use("/api", oauthRoutes);
 app.use("/api", staffAuthRoutes);
 app.use("/api", userRoutes);
 
+app.use("/api", pingRoutes);
+
 // Every router with its OWN specific prefix — must be tried before the
 // generic "/api" block below, or Express's prefix-matching lets the
 // generic block's blanket requireAuth intercept these requests first.
@@ -119,6 +126,7 @@ app.use("/api/business", businessRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/platform-admin", platformAdminRoutes);
 app.use("/api/admin-management", adminManagementRoutes);
+app.use("/api/platform-tools", platformToolsRoutes);
 app.use("/api/broadcast", broadcastRoutes);
 app.use("/api/cms", cmsRoutes);
 app.use("/api/messages", dmRoutes);
@@ -154,5 +162,6 @@ app.use("/api", notificationRoutes);
 app.use(errorHandler);
 
 startCronJobs();
+startTrafficRecorder();
 
 export default app;

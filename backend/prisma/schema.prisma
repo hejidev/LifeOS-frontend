@@ -628,6 +628,7 @@ model BizSale {
   pointsEarned    Int              @default(0)
   pointsRedeemed  Int              @default(0)
   staffId         String?
+  amountPaid      Decimal          @default(0)
 
   @@index([userId, staffId])
 
@@ -861,6 +862,57 @@ model StockMovement {
 
   @@index([productId, storeId, createdAt])
   @@index([bizProfileId, createdAt])
+}
+
+model SalePayment {
+  id           String   @id @default(uuid())
+  bizProfileId String
+  storeId      String?
+  saleId       String
+  amount       Decimal
+  method       String
+  kind         String
+  actorType    String
+  actorId      String?
+  actorName    String
+  createdAt    DateTime @default(now())
+
+  @@index([bizProfileId, storeId, createdAt])
+  @@index([saleId])
+}
+
+model CashSession {
+  id           String         @id @default(uuid())
+  bizProfileId String
+  storeId      String
+  openKey      String?        @unique
+  openedAt     DateTime       @default(now())
+  openedByType String
+  openedById   String
+  openedByName String
+  openingFloat Decimal
+  closedAt     DateTime?
+  closedByName String?
+  expectedCash Decimal?
+  countedCash  Decimal?
+  variance     Decimal?
+  note         String?
+  movements    CashMovement[]
+
+  @@index([bizProfileId, storeId, closedAt])
+}
+
+model CashMovement {
+  id        String      @id @default(uuid())
+  sessionId String
+  kind      String
+  amount    Decimal
+  reason    String
+  actorName String
+  createdAt DateTime    @default(now())
+  session   CashSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
 }
 
 model WritingDocument {
@@ -1421,6 +1473,10 @@ enum AdminAuditAction {
   MERCHANT_SUSPENDED
   MERCHANT_REACTIVATED
   MERCHANT_ID_VERIFIED
+  MERCHANT_STAFF_SIGNED_OUT
+  MERCHANT_STORE_CODE_REGENERATED
+  MERCHANT_STORE_PAUSED
+  MERCHANT_STORE_RESUMED
   ROLE_CHANGED
   ADMIN_CREATED
   PERMISSION_GRANTED
@@ -1510,4 +1566,78 @@ model SocialProfileView {
 
   @@index([profileId])
   @@index([createdAt])
+}
+
+model TrafficBucket {
+  id           String   @id @default(uuid())
+  minute       DateTime
+  instance     String
+  area         String
+  requests     Int      @default(0)
+  clientErrors Int      @default(0)
+  serverErrors Int      @default(0)
+  totalMs      Int      @default(0)
+  maxMs        Int      @default(0)
+  b50          Int      @default(0)
+  b100         Int      @default(0)
+  b250         Int      @default(0)
+  b500         Int      @default(0)
+  b1000        Int      @default(0)
+  b2500        Int      @default(0)
+  bSlow        Int      @default(0)
+
+  @@unique([minute, instance, area])
+  @@index([minute])
+}
+
+model TrafficRoute {
+  id           String   @id @default(uuid())
+  hour         DateTime
+  instance     String
+  route        String
+  requests     Int      @default(0)
+  clientErrors Int      @default(0)
+  serverErrors Int      @default(0)
+  totalMs      Int      @default(0)
+  maxMs        Int      @default(0)
+
+  @@unique([hour, instance, route])
+  @@index([hour])
+}
+
+model ServiceInstance {
+  instance   String   @id
+  bootedAt   DateTime
+  lastSeenAt DateTime
+  rssMb      Int      @default(0)
+  heapMb     Int      @default(0)
+  loopLagMs  Int      @default(0)
+  dbPingMs   Int      @default(0)
+  requests   Int      @default(0)
+}
+
+model LoadTestRun {
+  id            String    @id @default(uuid())
+  createdAt     DateTime  @default(now())
+  createdByName String
+  status        String
+  config        Json
+  progress      Json?
+  result        Json?
+  stopRequested Boolean   @default(false)
+  heartbeatAt   DateTime  @default(now())
+  finishedAt    DateTime?
+
+  @@index([createdAt])
+}
+
+model SupportNote {
+  id         String   @id @default(uuid())
+  userId     String
+  authorId   String
+  authorName String
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
 }

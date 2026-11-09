@@ -14,9 +14,18 @@ export const customerProfile = asyncHandler(async (req: AuthenticatedRequest, re
   return res.json(await customerProfileService.getCustomerProfile(req.user!.id, req.params.id));
 });
 
+
 export const collectPayment = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const sale = await businessService.settleSale(req.user!.id, req.params.id, req.body.paymentMethod);
+  const sale = await businessService.collectPayment(req.user!.id, req.params.id, {
+    method: req.body.paymentMethod,
+    amount: req.body.amount,
+    actor: { type: "OWNER", id: req.user!.id, name: req.user!.name ?? "Owner" },
+  });
   return res.json({ sale });
+});
+
+export const salePayments = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  return res.json({ payments: await businessService.listSalePayments(req.user!.id, req.params.id) });
 });
 
 async function staffContext(req: StaffRequest) {

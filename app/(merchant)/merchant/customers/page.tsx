@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Users, Plus, Phone, Mail, Search, X, RotateCcw, Calendar,
-  Crown, Star, Shield, Pencil, Filter, Send, Gift, Clock, UserX, Check,
+  Crown, Star, Shield, Pencil, Filter, Send, Gift, Clock, UserX, Check, Wallet,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ const QUICK_SEGMENTS = [
   { key: "loyal", label: "Has loyalty points", icon: Gift },
   { key: "inactive", label: "Inactive 60+ days", icon: Clock },
   { key: "never", label: "Never ordered", icon: UserX },
+  { key: "owing", label: "Owes money", icon: Wallet },
 ] as const;
 
 function getCustomerTier(totalSpent: number) {
@@ -56,6 +58,11 @@ export default function CustomersPage() {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sendResult, setSendResult] = useState<any>(null);
+
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("segment");
+    if (requested === "owing") setQuickSegment("owing");
+  }, []);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -117,11 +124,11 @@ export default function CustomersPage() {
     const now = Date.now();
     const bySearch = searchQuery
       ? (customers as any[]).filter(
-          (c) =>
-            c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (c.phone && c.phone.includes(searchQuery)) ||
-            (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase()))
-        )
+        (c) =>
+          c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (c.phone && c.phone.includes(searchQuery)) ||
+          (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
       : (customers as any[]);
 
     return bySearch.filter((c) => {
@@ -133,6 +140,7 @@ export default function CustomersPage() {
         if (daysSince < 60) return false;
       }
       if (quickSegment === "never" && c.orderCount > 0) return false;
+      if (quickSegment === "owing" && (c.balance ?? 0) <= 0) return false;
       return true;
     });
   }, [customers, searchQuery, quickSegment]);
@@ -226,7 +234,9 @@ export default function CustomersPage() {
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-xs sm:text-sm font-semibold truncate">{c.name}</p>
+                              <Link href={`/merchant/customers/${c.id}`} className="text-xs sm:text-sm font-semibold truncate hover:text-primary hover:underline">
+                                {c.name}
+                              </Link>
                               {tier && TierIcon && (
                                 <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0 h-4 border", tier.color)}>
                                   <TierIcon className="h-2.5 w-2.5 mr-0.5" />
@@ -245,8 +255,8 @@ export default function CustomersPage() {
                               !c.email
                                 ? "opacity-30 cursor-not-allowed border-border"
                                 : selected.has(c.id)
-                                ? "bg-primary border-primary text-primary-foreground"
-                                : "border-border hover:border-primary/50"
+                                  ? "bg-primary border-primary text-primary-foreground"
+                                  : "border-border hover:border-primary/50"
                             )}
                           >
                             {selected.has(c.id) && <Check className="h-3 w-3" />}
@@ -273,6 +283,12 @@ export default function CustomersPage() {
                             <span className="text-[10px] sm:text-xs text-muted-foreground">Total spent</span>
                             <span className="text-xs sm:text-sm font-semibold text-primary">{currency} {c.totalSpent.toLocaleString()}</span>
                           </div>
+                          {(c.balance ?? 0) > 0 && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] sm:text-xs font-medium text-destructive">Owes</span>
+                              <span className="text-xs sm:text-sm font-bold text-destructive">{currency} {c.balance.toLocaleString()}</span>
+                            </div>
+                          )}
                           <div className="flex items-center justify-between">
                             <span className="text-xs sm:text-sm text-muted-foreground">Loyalty points</span>
                             <span className="font-medium text-sm text-emerald-600">{c.loyaltyPoints ?? 0}</span>
@@ -290,7 +306,10 @@ export default function CustomersPage() {
                         </div>
 
                         <div className="flex items-center gap-2 pt-2 border-t border-border/50">
-                          <Button variant="outline" size="sm" className="flex-1 h-7 sm:h-8 text-[10px] sm:text-xs" onClick={() => openEdit(c)}>
+                          <Button asChild variant="outline" size="sm" className="flex-1 h-7 sm:h-8 text-[10px] sm:text-xs">
+                            <Link href={`/merchant/customers/${c.id}`}>View profile</Link>
+                          </Button>
+                          <Button variant="outline" size="sm" className="h-7 sm:h-8 text-[10px] sm:text-xs" onClick={() => openEdit(c)}>
                             <Pencil className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-1" /> Edit
                           </Button>
                         </div>

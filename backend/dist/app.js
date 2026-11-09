@@ -89,9 +89,13 @@ const two_factor_routes_1 = __importDefault(require("./routes/two-factor.routes"
 const security_routes_1 = __importDefault(require("./routes/security.routes"));
 const contact_submission_routes_1 = __importDefault(require("./routes/contact-submission.routes"));
 const site_content_routes_1 = __importDefault(require("./routes/site-content.routes"));
+const traffic_service_1 = require("./services/traffic.service");
+const ping_routes_1 = __importDefault(require("./routes/ping.routes"));
+const platform_tools_routes_1 = __importDefault(require("./routes/platform-tools.routes"));
 const errorHandler_middleware_1 = require("./middlewares/errorHandler.middleware");
 const cron_1 = require("./config/cron");
 const app = (0, express_1.default)();
+app.use(traffic_service_1.trafficMiddleware);
 app.set("trust proxy", 1);
 app.use((0, helmet_1.default)());
 app.use((0, cors_1.default)({
@@ -126,6 +130,7 @@ app.use("/api", auth_routes_1.default);
 app.use("/api", oauth_routes_1.default);
 app.use("/api", staff_auth_routes_1.default);
 app.use("/api", user_routes_1.default);
+app.use("/api", ping_routes_1.default);
 // Every router with its OWN specific prefix — must be tried before the
 // generic "/api" block below, or Express's prefix-matching lets the
 // generic block's blanket requireAuth intercept these requests first.
@@ -141,6 +146,7 @@ app.use("/api/business", business_routes_1.default);
 app.use("/api/settings", settings_routes_1.default);
 app.use("/api/platform-admin", platform_admin_routes_1.default);
 app.use("/api/admin-management", admin_management_routes_1.default);
+app.use("/api/platform-tools", platform_tools_routes_1.default);
 app.use("/api/broadcast", broadcast_routes_1.default);
 app.use("/api/cms", cms_routes_1.default);
 app.use("/api/messages", dm_routes_1.default);
@@ -173,4 +179,5 @@ app.use("/api", emergency_routes_1.default);
 app.use("/api", notification_routes_1.default);
 app.use(errorHandler_middleware_1.errorHandler);
 (0, cron_1.startCronJobs)();
+(0, traffic_service_1.startTrafficRecorder)();
 exports.default = app;

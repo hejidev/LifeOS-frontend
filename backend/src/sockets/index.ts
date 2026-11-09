@@ -5,12 +5,22 @@ import { verifyAccessToken } from "../services/token.service";
 import { prisma } from "../config/prisma";
 import { setIO } from "./io-instance";
 
+import { createAdapter } from "@socket.io/redis-adapter";
+import { redis } from "../config/redis";
+import { logger } from "../lib/logger";
+
 export function initSocket(httpServer: HttpServer) {
   const io = new Server(httpServer, {
     cors: { origin: env.FRONTEND_URL, credentials: true },
   });
 
   setIO(io);
+
+  try {
+    io.adapter(createAdapter(redis.duplicate(), redis.duplicate()));
+  } catch (err) {
+    logger.error("[socket] redis adapter unavailable, realtime only reaches clients on this instance:", err);
+  }
 
   io.use(async (socket, next) => {
     try {

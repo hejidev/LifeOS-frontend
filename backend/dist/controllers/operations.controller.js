@@ -33,13 +33,29 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.attention = exports.shiftSummary = exports.dailyReport = exports.staffStockHistory = exports.staffAdjustStock = exports.ownerStockHistory = exports.ownerAdjustStock = void 0;
+exports.attention = exports.shiftSummary = exports.dailyReport = exports.staffStockHistory = exports.staffAdjustStock = exports.ownerStockHistory = exports.ownerAdjustStock = exports.salePayments = exports.collectPayment = exports.customerProfile = void 0;
 const errors_1 = require("../lib/errors");
 const prisma_1 = require("../config/prisma");
 const chatService = __importStar(require("../services/chat.service"));
 const notificationService = __importStar(require("../services/notification.service"));
 const reportService = __importStar(require("../services/report.service"));
 const stockService = __importStar(require("../services/stock.service"));
+const businessService = __importStar(require("../services/business.service"));
+const customerProfileService = __importStar(require("../services/customer-profile.service"));
+exports.customerProfile = (0, errors_1.asyncHandler)(async (req, res) => {
+    return res.json(await customerProfileService.getCustomerProfile(req.user.id, req.params.id));
+});
+exports.collectPayment = (0, errors_1.asyncHandler)(async (req, res) => {
+    const sale = await businessService.collectPayment(req.user.id, req.params.id, {
+        method: req.body.paymentMethod,
+        amount: req.body.amount,
+        actor: { type: "OWNER", id: req.user.id, name: req.user.name ?? "Owner" },
+    });
+    return res.json({ sale });
+});
+exports.salePayments = (0, errors_1.asyncHandler)(async (req, res) => {
+    return res.json({ payments: await businessService.listSalePayments(req.user.id, req.params.id) });
+});
 async function staffContext(req) {
     const [profile, staff] = await Promise.all([
         prisma_1.prisma.bizProfile.findUnique({ where: { id: req.staff.bizProfileId }, select: { userId: true } }),

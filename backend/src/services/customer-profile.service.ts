@@ -14,6 +14,8 @@ function lite(sale: any) {
     id: sale.id,
     receiptNumber: sale.receiptNumber,
     total: num(sale.total),
+    amountPaid: num(sale.amountPaid),
+    balance: sale.status === "PENDING" ? Math.round((num(sale.total) - num(sale.amountPaid)) * 100) / 100 : 0,
     status: sale.status,
     paymentMethod: sale.paymentMethod,
     createdAt: sale.createdAt.toISOString(),
@@ -45,7 +47,7 @@ export async function getCustomerProfile(userId: string, customerId: string) {
 
   const lifetimeSpend = num(paid._sum.total);
   const orders = paid._count;
-  const balance = pending.reduce((sum, sale) => sum + num(sale.total), 0);
+  const balance = Math.round(pending.reduce((sum, sale) => sum + num(sale.total) - num(sale.amountPaid), 0) * 100) / 100;
 
   const tally = new Map<string, { name: string; units: number; revenue: number }>();
   for (const sale of recent) {

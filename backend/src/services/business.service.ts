@@ -68,6 +68,8 @@ function serializeSale(s: any) {
     subtotal: num(s.subtotal),
     discount: num(s.discount),
     total: num(s.total),
+    amountPaid: num(s.amountPaid),
+    balance: s.status === "PENDING" ? Math.max(0, Math.round((num(s.total) - num(s.amountPaid)) * 100) / 100) : 0,
     paymentMethod: s.paymentMethod,
     status: s.status,
     note: s.note ?? undefined,
@@ -293,11 +295,11 @@ export async function listCustomers(userId: string) {
   const customers = await prisma.bizCustomer.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
-    include: { sales: { select: { total: true, status: true, createdAt: true } } },
+    include: { sales: { select: { total: true, status: true, createdAt: true, amountPaid: true } } },
   });
   return customers.map((c) => {
     const paid = c.sales.filter((s) => s.status === "PAID");
-    const balance = c.sales.filter((s) => s.status === "PENDING").reduce((sum, s) => sum + num(s.total), 0);
+    const balance = Math.round(c.sales.filter((s) => s.status === "PENDING").reduce((sum, s) => sum + num(s.total) - num(s.amountPaid), 0) * 100) / 100;
     const totalSpent = paid.reduce((sum, s) => sum + num(s.total), 0);
     const lastOrderAt = paid.length > 0
       ? paid.reduce((latest, s) => (s.createdAt > latest ? s.createdAt : latest), paid[0].createdAt).toISOString()
@@ -319,10 +321,10 @@ export async function updateCustomer(userId: string, id: string, data: any) {
 
   const sales = await prisma.bizSale.findMany({
     where: { customerId: id, status: { in: ["PAID", "PENDING"] } },
-    select: { total: true, status: true, createdAt: true },
+    select: { total: true, status: true, createdAt: true, amountPaid: true },
   });
   const paid = sales.filter((s) => s.status === "PAID");
-  const balance = sales.filter((s) => s.status === "PENDING").reduce((sum, s) => sum + num(s.total), 0);
+  const balance = Math.round(sales.filter((s) => s.status === "PENDING").reduce((sum, s) => sum + num(s.total) - num(s.amountPaid), 0) * 100) / 100;
   const totalSpent = paid.reduce((sum, s) => sum + num(s.total), 0);
   const lastOrderAt = paid.length > 0
     ? paid.reduce((latest, s) => (s.createdAt > latest ? s.createdAt : latest), paid[0].createdAt).toISOString()
@@ -440,6 +442,7 @@ export async function createSale(
         clientRequestId: data.clientRequestId,
         staffId: data.staffId,
         pointsEarned,
+        amountPaid: status === "PAID" ? total : 0,
         pointsRedeemed,
         createdAt: offline && data.soldAt ? data.soldAt : undefined,
         soldOffline: offline,
@@ -463,6 +466,23 @@ export async function createSale(
       if (netChange !== 0) {
         await tx.bizCustomer.update({ where: { id: customer.id }, data: { loyaltyPoints: { increment: netChange } } });
       }
+    }
+
+    if (status === "PAID" && total > 0) {
+      const seller = data.staffId ? await tx.bizStaff.findUnique({ where: { id: data.staffId }, select: { name: true } }) : null;
+      await tx.salePayment.create({
+        data: {
+          bizProfileId: profile.id,
+          storeId: resolvedStoreId,
+          saleId: created.id,
+          amount: total,
+          method: data.paymentMethod ?? "CASH",
+          kind: "SALE",
+          actorType: data.staffId ? "STAFF" : "OWNER",
+          actorId: data.staffId ?? userId,
+          actorName: seller?.name ?? "Owner",
+        },
+      });
     }
 
     return created;
@@ -522,8 +542,14 @@ export async function updateSaleStatus(userId: string, id: string, status: strin
   if (RESTORING.has(existing.status)) {
     throw new AppError(`This sale is already ${existing.status.toLowerCase()} and can't be changed.`, 409);
   }
+  if (existing.status === "PENDING" && status === "PAID") {
+    return collectPayment(userId, id, { method: existing.paymentMethod, actor: { type: "OWNER", id: userId, name: "Owner" } });
+  }
+  if (status === "CANCELLED" && existing.status === "PENDING" && num(existing.amountPaid) > 0) {
+    throw new AppError("This sale has part-payments recorded. Collect the balance, then refund it instead.", 409);
+  }
 
-  if (existing.status === "PENDING" && status === "PAID") return settleSale(userId, id);
+  const profile = await getOrCreateProfile(userId);
 
   const sale = await prisma.$transaction(async (tx) => {
     if (RESTORING.has(status)) {
@@ -543,6 +569,27 @@ export async function updateSaleStatus(userId: string, id: string, status: strin
           await tx.bizCustomer.update({ where: { id: customer.id }, data: { loyaltyPoints: next } });
         }
       }
+      if (existing.status === "PAID") {
+        const paid = await tx.salePayment.findMany({ where: { saleId: id, kind: { in: ["SALE", "COLLECTION"] } } });
+        const rows = paid.length > 0
+          ? paid.map((payment) => ({ method: payment.method, amount: num(payment.amount) }))
+          : [{ method: existing.paymentMethod as string, amount: num(existing.total) }];
+        for (const row of rows) {
+          await tx.salePayment.create({
+            data: {
+              bizProfileId: profile.id,
+              storeId: existing.storeId,
+              saleId: id,
+              amount: -row.amount,
+              method: row.method,
+              kind: "REFUND",
+              actorType: "OWNER",
+              actorId: userId,
+              actorName: "Owner",
+            },
+          });
+        }
+      }
     }
     return tx.bizSale.update({
       where: { id },
@@ -554,31 +601,74 @@ export async function updateSaleStatus(userId: string, id: string, status: strin
   return serializeSale(sale);
 }
 
-export async function settleSale(userId: string, id: string, paymentMethod?: string) {
+export async function collectPayment(
+  userId: string,
+  id: string,
+  input: { method: string; amount?: number; actor: { type: "OWNER" | "STAFF"; id: string | null; name: string } }
+) {
   const profile = await getOrCreateProfile(userId);
+  const round = (value: number) => Math.round(value * 100) / 100;
 
   const sale = await prisma.$transaction(async (tx) => {
     const existing = await tx.bizSale.findFirst({ where: { id, userId } });
     if (!existing) throw new AppError("Sale not found", 404);
     if (existing.status !== "PENDING") throw new AppError("This sale isn't waiting for payment.", 409);
 
+    const total = num(existing.total);
+    const balance = round(total - num(existing.amountPaid));
+    const amount = round(input.amount ?? balance);
+    if (!(amount > 0)) throw new AppError("Enter an amount above zero.", 400);
+    if (amount > balance) throw new AppError(`Only ${balance} is still owed on this sale.`, 400);
+
+    const finishing = amount >= balance;
     const pointsEarned =
-      existing.customerId && profile.loyaltyEnabled ? Math.floor(num(existing.total) / 100) * profile.loyaltyEarnRate : 0;
+      finishing && existing.customerId && profile.loyaltyEnabled ? Math.floor(total / 100) * profile.loyaltyEarnRate : 0;
 
     const claimed = await tx.bizSale.updateMany({
-      where: { id, userId, status: "PENDING" },
-      data: { status: "PAID", pointsEarned, ...(paymentMethod ? { paymentMethod: paymentMethod as any } : {}) },
+      where: { id, userId, status: "PENDING", amountPaid: existing.amountPaid },
+      data: {
+        amountPaid: { increment: amount },
+        ...(finishing ? { status: "PAID", pointsEarned, paymentMethod: input.method as any } : {}),
+      },
     });
-    if (claimed.count === 0) throw new AppError("This sale was already settled.", 409);
+    if (claimed.count === 0) throw new AppError("This sale just changed. Reload and try again.", 409);
 
-    if (existing.customerId && pointsEarned > 0) {
+    if (pointsEarned > 0 && existing.customerId) {
       await tx.bizCustomer.update({ where: { id: existing.customerId }, data: { loyaltyPoints: { increment: pointsEarned } } });
     }
+
+    await tx.salePayment.create({
+      data: {
+        bizProfileId: profile.id,
+        storeId: existing.storeId,
+        saleId: id,
+        amount,
+        method: input.method,
+        kind: "COLLECTION",
+        actorType: input.actor.type,
+        actorId: input.actor.id,
+        actorName: input.actor.name,
+      },
+    });
 
     return tx.bizSale.findUniqueOrThrow({ where: { id }, include: { items: true, customer: true, store: true } });
   });
 
   return serializeSale(sale);
+}
+
+export async function listSalePayments(userId: string, id: string) {
+  const sale = await prisma.bizSale.findFirst({ where: { id, userId }, select: { id: true } });
+  if (!sale) throw new AppError("Sale not found", 404);
+  const rows = await prisma.salePayment.findMany({ where: { saleId: id }, orderBy: { createdAt: "asc" } });
+  return rows.map((row) => ({
+    id: row.id,
+    amount: num(row.amount),
+    method: row.method,
+    kind: row.kind,
+    actorName: row.actorName,
+    createdAt: row.createdAt.toISOString(),
+  }));
 }
 
 // ── Expenses ────────────────────────────────────────────────────────────

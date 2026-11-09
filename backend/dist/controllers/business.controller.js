@@ -96,8 +96,24 @@ exports.exportCustomers = (0, errors_1.asyncHandler)(async (req, res) => {
 });
 exports.createSale = (0, errors_1.asyncHandler)(async (req, res) => {
     const { storeId, ...body } = req.body;
-    const sale = await businessService.createSale(req.user.id, body, storeId);
-    return res.status(201).json({ sale });
+    const userId = req.user.id;
+    if (body.clientRequestId) {
+        const existing = await businessService.findSaleByRequestId(userId, body.clientRequestId);
+        if (existing)
+            return res.status(200).json({ sale: existing });
+    }
+    try {
+        const sale = await businessService.createSale(userId, body, storeId);
+        return res.status(201).json({ sale });
+    }
+    catch (err) {
+        if (err?.code === "P2002" && body.clientRequestId) {
+            const existing = await businessService.findSaleByRequestId(userId, body.clientRequestId);
+            if (existing)
+                return res.status(200).json({ sale: existing });
+        }
+        throw err;
+    }
 });
 exports.getSales = (0, errors_1.asyncHandler)(async (req, res) => {
     const range = req.query.range ?? "month";

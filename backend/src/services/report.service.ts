@@ -123,12 +123,12 @@ export async function getAttention(userId: string, storeId?: string) {
       select: { stock: true, lowStockAt: true },
     }),
     prisma.bizSale.count({ where: { userId, needsReview: true, ...(resolved ? { storeId: resolved } : {}) } }),
-    prisma.bizSale.aggregate({ where: { userId, status: "PENDING" }, _sum: { total: true }, _count: true }),
+    prisma.bizSale.aggregate({ where: { userId, status: "PENDING" }, _sum: { total: true, amountPaid: true }, _count: true }),
   ]);
   return {
     lowStock: inventory.filter((row) => row.stock <= row.lowStockAt).length,
     needsReview,
     owedCount: owed._count,
-    owedTotal: num(owed._sum.total),
+    owedTotal: Math.round((num(owed._sum.total) - num(owed._sum.amountPaid)) * 100) / 100,
   };
 }

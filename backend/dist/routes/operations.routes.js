@@ -40,7 +40,9 @@ const merchant_middleware_1 = require("../middlewares/merchant.middleware");
 const staff_session_middleware_1 = require("../middlewares/staff-session.middleware");
 const validate_middleware_1 = require("../middlewares/validate.middleware");
 const ops = __importStar(require("../controllers/operations.controller"));
+const register = __importStar(require("../controllers/register.controller"));
 const operations_validator_1 = require("../validators/operations.validator");
+const operations_validator_2 = require("../validators/operations.validator");
 const prisma_1 = require("../config/prisma");
 const router = (0, express_1.Router)();
 const owner = [auth_middleware_1.requireAuth, merchant_middleware_1.requireMerchant];
@@ -58,11 +60,37 @@ async function stockRole(req, _res, next) {
         next(err);
     }
 }
-router.post("/ops/products/:id/stock", ...owner, (0, validate_middleware_1.validate)(operations_validator_1.adjustStockSchema), ops.ownerAdjustStock);
+async function cashRole(req, _res, next) {
+    try {
+        const member = await prisma_1.prisma.bizStaff.findFirst({
+            where: { id: req.staff.staffId, bizProfileId: req.staff.bizProfileId },
+            select: { role: true, status: true },
+        });
+        if (member && member.status === "ACTIVE" && member.role !== "INVENTORY_CLERK")
+            return next();
+        next(new errors_1.AppError("Your role can't handle the cash register.", 403));
+    }
+    catch (err) {
+        next(err);
+    }
+}
+router.post("/ops/products/:id/stock", ...owner, (0, validate_middleware_1.validate)(operations_validator_2.adjustStockSchema), ops.ownerAdjustStock);
 router.get("/ops/products/:id/stock-history", ...owner, ops.ownerStockHistory);
 router.get("/ops/reports/daily", ...owner, ops.dailyReport);
 router.get("/ops/attention", ...owner, ops.attention);
-router.post("/staff-ops/products/:id/stock", staff_session_middleware_1.requireStaffSession, stockRole, (0, validate_middleware_1.validate)(operations_validator_1.adjustStockSchema), ops.staffAdjustStock);
+router.get("/ops/customers/:id/profile", ...owner, ops.customerProfile);
+router.post("/ops/sales/:id/collect", ...owner, (0, validate_middleware_1.validate)(operations_validator_2.collectPaymentSchema), ops.collectPayment);
+router.post("/staff-ops/products/:id/stock", staff_session_middleware_1.requireStaffSession, stockRole, (0, validate_middleware_1.validate)(operations_validator_2.adjustStockSchema), ops.staffAdjustStock);
 router.get("/staff-ops/products/:id/stock-history", staff_session_middleware_1.requireStaffSession, ops.staffStockHistory);
 router.get("/staff-ops/shift-summary", staff_session_middleware_1.requireStaffSession, ops.shiftSummary);
+router.get("/ops/sales/:id/payments", ...owner, ops.salePayments);
+router.get("/ops/register/current", ...owner, register.ownerRegister.current);
+router.get("/ops/register/history", ...owner, register.ownerRegister.history);
+router.post("/ops/register/open", ...owner, (0, validate_middleware_1.validate)(operations_validator_1.openRegisterSchema), register.ownerRegister.open);
+router.post("/ops/register/movements", ...owner, (0, validate_middleware_1.validate)(operations_validator_1.registerMovementSchema), register.ownerRegister.movement);
+router.post("/ops/register/close", ...owner, (0, validate_middleware_1.validate)(operations_validator_1.closeRegisterSchema), register.ownerRegister.close);
+router.get("/staff-ops/register/current", staff_session_middleware_1.requireStaffSession, cashRole, register.staffRegister.current);
+router.post("/staff-ops/register/open", staff_session_middleware_1.requireStaffSession, cashRole, (0, validate_middleware_1.validate)(operations_validator_1.openRegisterSchema), register.staffRegister.open);
+router.post("/staff-ops/register/movements", staff_session_middleware_1.requireStaffSession, cashRole, (0, validate_middleware_1.validate)(operations_validator_1.registerMovementSchema), register.staffRegister.movement);
+router.post("/staff-ops/register/close", staff_session_middleware_1.requireStaffSession, cashRole, (0, validate_middleware_1.validate)(operations_validator_1.closeRegisterSchema), register.staffRegister.close);
 exports.default = router;

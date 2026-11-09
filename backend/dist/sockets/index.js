@@ -6,11 +6,20 @@ const env_1 = require("../config/env");
 const token_service_1 = require("../services/token.service");
 const prisma_1 = require("../config/prisma");
 const io_instance_1 = require("./io-instance");
+const redis_adapter_1 = require("@socket.io/redis-adapter");
+const redis_1 = require("../config/redis");
+const logger_1 = require("../lib/logger");
 function initSocket(httpServer) {
     const io = new socket_io_1.Server(httpServer, {
         cors: { origin: env_1.env.FRONTEND_URL, credentials: true },
     });
     (0, io_instance_1.setIO)(io);
+    try {
+        io.adapter((0, redis_adapter_1.createAdapter)(redis_1.redis.duplicate(), redis_1.redis.duplicate()));
+    }
+    catch (err) {
+        logger_1.logger.error("[socket] redis adapter unavailable, realtime only reaches clients on this instance:", err);
+    }
     io.use(async (socket, next) => {
         try {
             const token = socket.handshake.auth?.token;
