@@ -4,6 +4,7 @@ import { AppError } from "../lib/errors";
 import { sanitizeUser } from "./auth.service";
 import { cloudinary } from "../config/cloudinary";
 import { sendPasswordChangedEmail } from "./email.service";
+import { invalidateAuthCache } from "../lib/auth-cache";
 
 const SALT_ROUNDS = 12;
 
@@ -29,6 +30,7 @@ export async function changePassword(userId: string, currentPassword: string, ne
 
   const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
   await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+  invalidateAuthCache(userId);
   await sendPasswordChangedEmail(user.email, user.name ?? "there");
 }
 

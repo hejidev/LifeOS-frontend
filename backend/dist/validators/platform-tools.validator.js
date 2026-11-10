@@ -8,6 +8,8 @@ exports.startLoadTestSchema = zod_1.z.object({
         concurrency: zod_1.z.number().int().min(1).max(100),
         durationSec: zod_1.z.number().int().min(5).max(60),
         rampUpSec: zod_1.z.number().int().min(0).max(15),
+        thinkMs: zod_1.z.number().int().min(0).max(10000).default(0),
+        direct: zod_1.z.boolean().default(false),
     }),
 });
 exports.noteSchema = zod_1.z.object({ body: zod_1.z.object({ body: zod_1.z.string().trim().min(2).max(1000) }) });

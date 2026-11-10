@@ -397,6 +397,8 @@ function LoadTest() {
     const [concurrency, setConcurrency] = useState(10);
     const [durationSec, setDurationSec] = useState(15);
     const [rampUpSec, setRampUpSec] = useState(3);
+    const [thinkMs, setThinkMs] = useState(1000);
+    const [direct, setDirect] = useState(false);
     const [confirmed, setConfirmed] = useState(false);
     const [activeId, setActiveId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -418,7 +420,7 @@ function LoadTest() {
     async function begin() {
         setError(null);
         try {
-            const id = await start.mutateAsync({ targets, concurrency, durationSec, rampUpSec: Math.min(rampUpSec, Math.floor(durationSec / 2)) });
+            const id = await start.mutateAsync({ targets, concurrency, durationSec, rampUpSec: Math.min(rampUpSec, Math.floor(durationSec / 2)), thinkMs, direct });
             setActiveId(id);
             setConfirmed(false);
         } catch (err) {
@@ -453,6 +455,17 @@ function LoadTest() {
                             <div className="space-y-1"><Label className="text-xs">Simulated users</Label><Input type="number" min={1} max={100} value={concurrency} onChange={(event) => setConcurrency(Math.min(100, Math.max(1, Number(event.target.value) || 1)))} disabled={running} /></div>
                             <div className="space-y-1"><Label className="text-xs">Seconds</Label><Input type="number" min={5} max={60} value={durationSec} onChange={(event) => setDurationSec(Math.min(60, Math.max(5, Number(event.target.value) || 5)))} disabled={running} /></div>
                             <div className="space-y-1"><Label className="text-xs">Ramp-up (s)</Label><Input type="number" min={0} max={15} value={rampUpSec} onChange={(event) => setRampUpSec(Math.min(15, Math.max(0, Number(event.target.value) || 0)))} disabled={running} /></div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                                <Label className="text-xs">Think time (ms)</Label>
+                                <Input type="number" min={0} max={10000} step={100} value={thinkMs} onChange={(event) => setThinkMs(Math.min(10000, Math.max(0, Number(event.target.value) || 0)))} disabled={running} />
+                                <p className="text-[11px] text-muted-foreground">Pause between each user's requests. 0 means non-stop.</p>
+                            </div>
+                            <label className="flex cursor-pointer items-start gap-2 pt-5 text-xs">
+                                <input type="checkbox" className="mt-0.5" checked={direct} onChange={(event) => setDirect(event.target.checked)} disabled={running} />
+                                Test the server directly (skips the load balancer)
+                            </label>
                         </div>
                         <p className="text-xs text-muted-foreground">Only read-only requests are sent, so no data is changed. The test stops by itself if more than 40% of requests fail.</p>
                         <label className="flex items-start gap-2 text-xs">

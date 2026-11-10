@@ -3,6 +3,7 @@ import { prisma } from "../config/prisma";
 import { AppError } from "../lib/errors";
 import { assertStrongPassword } from "../lib/password-policy";
 import { sendPasswordChangedEmail } from "./email.service";
+import { invalidateAuthCache } from "../lib/auth-cache";
 
 function serializeUser(u: any) {
   return {
@@ -79,6 +80,7 @@ export async function changePassword(
     where: { id: userId },
     data: { passwordHash, sessionVersion: { increment: 1 } },
   });
+  invalidateAuthCache(userId);
   await sendPasswordChangedEmail(user.email, user.name ?? "there");
 }
 
@@ -131,4 +133,5 @@ export async function getAccountOverview(userId: string) {
 
 export async function deactivateAccount(userId: string) {
   await prisma.user.update({ where: { id: userId }, data: { isActive: false } });
+  invalidateAuthCache(userId);
 }

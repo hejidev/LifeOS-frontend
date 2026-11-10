@@ -86,7 +86,7 @@ export interface LoadTestRun {
   createdAt: string;
   finishedAt: string | null;
   createdByName: string;
-  config: { targets: string[]; concurrency: number; durationSec: number; rampUpSec: number };
+  config: { targets: string[]; concurrency: number; durationSec: number; rampUpSec: number; thinkMs?: number; direct?: boolean };
   progress: RunSnapshot | null;
   result: RunSnapshot | null;
 }

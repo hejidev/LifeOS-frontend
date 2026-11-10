@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma";
+import { invalidateAuthCache } from "../lib/auth-cache";
 import { revokeAllUserSessions } from "./token.service";
 
 export async function getSecurityOverview() {
@@ -93,5 +94,6 @@ export async function forceLogoutUser(userId: string) {
     where: { id: userId },
     data: { sessionVersion: { increment: 1 } },
   });
+  invalidateAuthCache(userId);
   await revokeAllUserSessions(userId);
 }

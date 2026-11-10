@@ -4,6 +4,7 @@ import { AppError } from "../lib/errors";
 import { logAdminAction } from "./audit.service";
 import { getIO } from "../sockets/io-instance";
 import { sendRoleChangedEmail } from "./email.service";
+import { invalidateAuthCache } from "../lib/auth-cache";
 
 export async function changeUserRole(actingAdminId: string, targetUserId: string, newRole: "USER" | "ADMIN" | "SUPER_ADMIN") {
   if (actingAdminId === targetUserId) {
@@ -19,6 +20,7 @@ export async function changeUserRole(actingAdminId: string, targetUserId: string
   }
 
   const updated = await prisma.user.update({ where: { id: targetUserId }, data: { role: newRole as any } });
+  invalidateAuthCache(targetUserId);
 
   if (newRole !== "ADMIN") {
     await prisma.adminPermission.deleteMany({ where: { userId: targetUserId } });

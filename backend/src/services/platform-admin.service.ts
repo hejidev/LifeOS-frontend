@@ -7,6 +7,7 @@ import { sendEmailChangedByAdminEmail, sendSupportEmailChangeVerification, sendT
 import { redis } from "../config/redis";
 import { env } from "../config/env";
 import crypto from "crypto";
+import { invalidateAuthCache } from "../lib/auth-cache";
 
 function serializeUser(u: any) {
   return {
@@ -51,6 +52,7 @@ export async function toggleUserStatus(adminId: string, userId: string) {
     data: { isActive: !user.isActive },
     include: { subscription: true },
   });
+  invalidateAuthCache(userId);
 
   await logAdminAction(
     adminId,
@@ -245,6 +247,7 @@ export async function resetSupportTwoFactor(adminId: string, userId: string, rea
     where: { id: target.id },
     data: { twoFactorEnabled: false, twoFactorSecret: null, sessionVersion: { increment: 1 } },
   });
+  invalidateAuthCache(userId);
   await revokeAllUserSessions(target.id);
   await logAdminAction(adminId, "USER_TWO_FACTOR_RESET", "User", target.id, `Reset two-factor authentication for ${target.email}. Reason: ${reason}`);
   await sendTwoFactorResetEmail(target.email, target.name ?? "there", reason);

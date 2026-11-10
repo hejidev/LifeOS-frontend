@@ -6,6 +6,8 @@ export const startLoadTestSchema = z.object({
     concurrency: z.number().int().min(1).max(100),
     durationSec: z.number().int().min(5).max(60),
     rampUpSec: z.number().int().min(0).max(15),
+    thinkMs: z.number().int().min(0).max(10000).default(0),
+    direct: z.boolean().default(false),
   }),
 });
 

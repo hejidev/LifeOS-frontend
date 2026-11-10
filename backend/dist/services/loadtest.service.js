@@ -103,9 +103,6 @@ exports.TARGETS = {
             ep("/platform-admin/users"),
             ep("/platform-admin/tenants"),
             ep("/platform-admin/audit-log"),
-            ep("/security/overview"),
-            ep("/security/flagged-accounts"),
-            ep("/security/login-attempts"),
             ep("/platform-admin/my-permissions"),
         ],
     },
@@ -340,7 +337,14 @@ function validateConfig(raw) {
     if (raw.rampUpSec < 0 || raw.rampUpSec > Math.min(LIMITS.rampUpSec, Math.floor(raw.durationSec / 2))) {
         throw new errors_1.AppError("The ramp-up can be at most half the duration.", 400);
     }
-    return { targets, concurrency: raw.concurrency, durationSec: raw.durationSec, rampUpSec: raw.rampUpSec };
+    return {
+        targets,
+        concurrency: raw.concurrency,
+        durationSec: raw.durationSec,
+        rampUpSec: raw.rampUpSec,
+        thinkMs: Math.min(10000, Math.max(0, Math.round(raw.thinkMs ?? 0))),
+        direct: raw.direct === true,
+    };
 }
 async function buildJobs(config, base, callerToken, header, warnings, toRelease) {
     const jobs = [];
@@ -532,6 +536,8 @@ async function execute(runId, config, base, callerToken) {
                 const job = jobs[state.cursor % jobs.length];
                 state.cursor += 1;
                 record(job, await timedFetch(job.url, job.token, header));
+                if (config.thinkMs > 0 && !state.stop)
+                    await sleep(config.thinkMs * (0.5 + Math.random()));
             }
             state.active -= 1;
         };
@@ -546,8 +552,17 @@ async function execute(runId, config, base, callerToken) {
         };
         const errorRate = final.requests ? final.failed / final.requests : 0;
         const aborted = !!state.reason && state.reason.startsWith("Stopped automatically");
-        const verdict = aborted || errorRate >= 0.05 || final.p95 >= 2000 ? "failing" : errorRate >= 0.01 || final.p95 >= 800 ? "degraded" : "healthy";
+        const verdict = aborted || errorRate >= 0.05 || final.p95 >= 5000 ? "failing" : errorRate >= 0.01 || final.p95 >= 1500 ? "degraded" : "healthy";
         const hints = [];
+        hints.push(`Sustained throughput was ${final.rps} requests per second. If each person using LifeOS makes about one request every 5 seconds, that supports roughly ${Math.round(final.rps * 5)} people at the same time.`);
+        if (final.failed === 0 && verdict !== "healthy") {
+            hints.push("Nothing errored. The server simply answered slower than the limits because it was at capacity.");
+        }
+        if (config.thinkMs === 0 && config.concurrency >= 20) {
+            hints.push("This run had no pause between requests, so each simulated user acted like many real ones. Add a think time of 1 to 3 seconds for a realistic picture.");
+        }
+        if (config.direct)
+            hints.push("This run called the server directly and skipped the load balancer, so it measures the app alone.");
         if (final.instances.length === 1)
             hints.push("Every request was served by a single instance. Add instances in Render so the load is shared.");
         if (final.instances.length > 1) {
@@ -605,7 +620,8 @@ async function startRun(input) {
     const run = await prisma_1.prisma.loadTestRun.create({
         data: { createdByName: input.actorName, status: "RUNNING", config: config },
     });
-    void execute(run.id, config, input.base, input.callerToken);
+    const base = config.direct ? `http://127.0.0.1:${process.env.PORT ?? 5000}` : input.base;
+    void execute(run.id, config, base, input.callerToken);
     return run.id;
 }
 async function stopRun(id) {

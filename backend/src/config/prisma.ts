@@ -2,18 +2,49 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { env } from "./env";
+import { logger } from "../lib/logger";
 
-const pool = new Pool({ connectionString: env.DATABASE_URL });
+const requestedMax = Number(process.env.DB_POOL_MAX);
+const poolMax = Number.isInteger(requestedMax) && requestedMax >= 2 ? requestedMax : 20;
+
+const pool = new Pool({
+  connectionString: env.DATABASE_URL,
+  max: poolMax,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 8_000,
+  keepAlive: true,
+});
+
+pool.on("error", (err) => {
+  logger.error("[db] idle connection error:", err);
+});
+
 const adapter = new PrismaPg(pool);
 
-const RETRYABLE_CODES = new Set(["57P03", "57P01", "08006", "08003", "08001"]);
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1500;
+const RETRYABLE_CODES = new Set(["57P03", "57P01", "08006", "08003", "08001"]);
+const READ_OPERATIONS = new Set([
+  "findUnique",
+  "findUniqueOrThrow",
+  "findFirst",
+  "findFirstOrThrow",
+  "findMany",
+  "count",
+  "aggregate",
+  "groupBy",
+  "$queryRaw",
+  "queryRaw",
+]);
+
+function errorText(err: any) {
+  return String(err?.message ?? "");
+}
 
 function isRetryable(err: any): boolean {
   const code = err?.code ?? err?.meta?.code ?? err?.cause?.code;
   if (RETRYABLE_CODES.has(code)) return true;
-  const message = String(err?.message ?? "");
+  const message = errorText(err);
   return (
     message.includes("57P03") ||
     message.includes("recovery mode") ||
@@ -23,9 +54,13 @@ function isRetryable(err: any): boolean {
   );
 }
 
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function neverReachedDatabase(err: any): boolean {
+  const code = err?.code ?? err?.meta?.code ?? err?.cause?.code;
+  const message = errorText(err);
+  return code === "57P03" || message.includes("57P03") || message.includes("recovery mode") || message.includes("starting up") || message.includes("ECONNREFUSED");
 }
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const basePrisma = new PrismaClient({
   adapter,
@@ -41,8 +76,9 @@ export const prisma = basePrisma.$extends({
           return await query(args);
         } catch (err: any) {
           attempt += 1;
-          if (attempt > MAX_RETRIES || !isRetryable(err)) throw err;
-          console.warn(`[prisma] retryable error on ${model}.${operation} (attempt ${attempt}/${MAX_RETRIES}), retrying in ${RETRY_DELAY_MS}ms...`);
+          const safeToRetry = READ_OPERATIONS.has(operation) ? isRetryable(err) : neverReachedDatabase(err);
+          if (attempt > MAX_RETRIES || !safeToRetry) throw err;
+          logger.warn(`[prisma] retryable error on ${model ?? "raw"}.${operation} (attempt ${attempt}/${MAX_RETRIES}), retrying in ${RETRY_DELAY_MS}ms`);
           await delay(RETRY_DELAY_MS);
         }
       }

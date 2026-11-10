@@ -16,6 +16,7 @@ import {
 } from "./email.service";
 import { env } from "../config/env";
 import { logger } from "../lib/logger";
+import { invalidateAuthCache } from "../lib/auth-cache";
 
 const SALT_ROUNDS = 12;
 const DUMMY_HASH = "$2b$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinval";
@@ -137,6 +138,7 @@ export async function resetPassword(token: string, newPassword: string) {
     where: { id: userId },
     data: { passwordHash, sessionVersion: { increment: 1 } },
   });
+  invalidateAuthCache(userId);
   await redis.del(`reset:${hashed}`);
 
   await sendPasswordChangedEmail(user.email, user.name ?? "there");
