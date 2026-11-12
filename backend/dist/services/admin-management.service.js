@@ -15,6 +15,7 @@ const errors_1 = require("../lib/errors");
 const audit_service_1 = require("./audit.service");
 const io_instance_1 = require("../sockets/io-instance");
 const email_service_1 = require("./email.service");
+const auth_cache_1 = require("../lib/auth-cache");
 async function changeUserRole(actingAdminId, targetUserId, newRole) {
     if (actingAdminId === targetUserId) {
         throw new errors_1.AppError("You cannot change your own role", 400);
@@ -28,6 +29,7 @@ async function changeUserRole(actingAdminId, targetUserId, newRole) {
             throw new errors_1.AppError("Cannot remove the last super admin", 400);
     }
     const updated = await prisma_1.prisma.user.update({ where: { id: targetUserId }, data: { role: newRole } });
+    (0, auth_cache_1.invalidateAuthCache)(targetUserId);
     if (newRole !== "ADMIN") {
         await prisma_1.prisma.adminPermission.deleteMany({ where: { userId: targetUserId } });
     }

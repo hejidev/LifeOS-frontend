@@ -5,6 +5,7 @@ exports.getFlaggedAccounts = getFlaggedAccounts;
 exports.getRecentLoginAttempts = getRecentLoginAttempts;
 exports.forceLogoutUser = forceLogoutUser;
 const prisma_1 = require("../config/prisma");
+const auth_cache_1 = require("../lib/auth-cache");
 const token_service_1 = require("./token.service");
 async function getSecurityOverview() {
     const since15m = new Date(Date.now() - 15 * 60 * 1000);
@@ -85,5 +86,6 @@ async function forceLogoutUser(userId) {
         where: { id: userId },
         data: { sessionVersion: { increment: 1 } },
     });
+    (0, auth_cache_1.invalidateAuthCache)(userId);
     await (0, token_service_1.revokeAllUserSessions)(userId);
 }

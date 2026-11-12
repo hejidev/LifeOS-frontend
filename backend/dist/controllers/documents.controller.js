@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.uploadDocumentFile = exports.deleteDocument = exports.updateDocument = exports.createDocument = exports.deleteFolder = exports.updateFolder = exports.createFolder = exports.getDashboard = void 0;
+exports.getFile = exports.uploadDocumentFile = exports.deleteDocument = exports.updateDocument = exports.createDocument = exports.deleteFolder = exports.updateFolder = exports.createFolder = exports.getDashboard = void 0;
 const errors_1 = require("../lib/errors");
 const documentsService = __importStar(require("../services/documents.service"));
 exports.getDashboard = (0, errors_1.asyncHandler)(async (req, res) => {
@@ -71,4 +71,7 @@ exports.uploadDocumentFile = (0, errors_1.asyncHandler)(async (req, res) => {
         throw new errors_1.AppError("No file uploaded", 400);
     const result = await documentsService.uploadDocumentFile(file.buffer, file.originalname, file.mimetype);
     return res.status(201).json(result);
+});
+exports.getFile = (0, errors_1.asyncHandler)(async (req, res) => {
+    await documentsService.streamDocumentFile(req.user.id, req.params.id, res);
 });

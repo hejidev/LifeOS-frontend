@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { useLogout } from "@/lib/hooks/use-auth";
 
 import {
   useUserProfile,
@@ -45,6 +46,8 @@ export default function SettingsPage() {
   const updatePreferences = useUpdatePreferences();
   const updateNotifications = useUpdateNotifications();
   const changePassword = useChangePassword();
+
+  const logout = useLogout();
 
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
@@ -160,7 +163,6 @@ export default function SettingsPage() {
               />
             </div>
 
-            {/* Week start */}
             <div className="flex items-center justify-between rounded-md border border-border/60 bg-card/60 p-3">
               <div>
                 <p className="text-sm font-medium">Week starts on</p>
@@ -182,7 +184,6 @@ export default function SettingsPage() {
               </Select>
             </div>
 
-            {/* Notifications */}
             <div className="space-y-2 rounded-md border border-border/60 bg-card/60 p-3">
               <div className="flex items-center gap-2">
                 <Bell className="h-4 w-4 text-primary" />
@@ -221,7 +222,6 @@ export default function SettingsPage() {
         </Card>
       </motion.div>
 
-      {/* Your data at a glance — mirrors everything on the dashboard */}
       <motion.div variants={item}>
         <Card className="hover:border-primary/20 transition-colors">
           <CardHeader className="pb-3">
@@ -251,7 +251,14 @@ export default function SettingsPage() {
           <CardContent className="space-y-3 text-xs text-muted-foreground">
             <p>Email verified: {user.emailVerified ? "Yes" : "No"}</p>
             <p>Member since: {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}</p>
-            <Button type="button" variant="outline" size="sm" className="mt-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-1"
+              disabled={logout.isPending}
+              onClick={() => logout.mutate(undefined, { onSettled: () => { window.location.href = "/login"; } })}
+            >
               Sign out
             </Button>
           </CardContent>

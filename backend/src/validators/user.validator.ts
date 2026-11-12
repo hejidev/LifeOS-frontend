@@ -9,12 +9,6 @@ export const updateProfileSchema = z.object({
 export const changePasswordSchema = z.object({
   body: z.object({
     currentPassword: z.string().min(1),
-    newPassword: z
-      .string()
-      .min(8)
-      .max(72)
-      .regex(/[a-z]/)
-      .regex(/[A-Z]/)
-      .regex(/[0-9]/),
+    newPassword: z.string().min(12).max(72),
   }),
 });

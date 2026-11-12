@@ -172,3 +172,30 @@ export async function downloadFile(path: string, filenameFallback: string) {
   a.remove();
   URL.revokeObjectURL(url);
 }
+
+export async function openProtectedFile(path: string) {
+  const tab = window.open("", "_blank");
+
+  const attempt = () =>
+    fetch(`${API_URL}${path}`, {
+      credentials: "include",
+      headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+    });
+
+  let res = await attempt();
+  if (res.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) res = await attempt();
+  }
+
+  if (!res.ok) {
+    tab?.close();
+    const data = await res.json().catch(() => ({}));
+    throw makeError((data as any).error ?? "Couldn't open the file", res.status);
+  }
+
+  const url = URL.createObjectURL(await res.blob());
+  if (tab) tab.location.href = url;
+  else window.location.href = url;
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}

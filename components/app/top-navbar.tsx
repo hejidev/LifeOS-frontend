@@ -1,6 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useLogout } from "@/lib/hooks/use-auth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,8 +11,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "../notifications/notification-bell";
@@ -18,7 +18,8 @@ import { CommandPalette } from "../shell/command-palette";
 import { MobileMenuToggle } from "../shell/sidebar";
 
 export function TopNavbar() {
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
+  const logout = useLogout();
   const router = useRouter();
 
   const initials =
@@ -46,9 +47,7 @@ export function TopNavbar() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-8 w-8 sm:h-9 sm:w-9 rounded-full">
               <Avatar className="h-8 w-8 sm:h-9 sm:w-9">
-                <AvatarFallback className="gradient-bg text-white text-[10px] sm:text-xs">
-                  {initials}
-                </AvatarFallback>
+                <AvatarFallback className="gradient-bg text-white text-[10px] sm:text-xs">{initials}</AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
@@ -56,25 +55,19 @@ export function TopNavbar() {
             <DropdownMenuLabel>
               <div className="flex flex-col">
                 <span className="text-xs sm:text-sm">{displayName}</span>
-                <span className="text-[10px] sm:text-xs font-normal text-muted-foreground">
-                  {displayEmail}
-                </span>
+                <span className="text-[10px] sm:text-xs font-normal text-muted-foreground">{displayEmail}</span>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => router.push("/app/settings")} className="text-xs sm:text-sm">
               Settings
             </DropdownMenuItem>
-
             <DropdownMenuItem onClick={() => router.push("/app/security")} className="text-xs sm:text-sm">
               Security
             </DropdownMenuItem>
-
             <DropdownMenuItem
-              onClick={() => {
-                logout();
-                router.push("/");
-              }}
+              disabled={logout.isPending}
+              onClick={() => logout.mutate(undefined, { onSettled: () => router.replace("/") })}
               className="text-xs sm:text-sm"
             >
               Log out

@@ -1,6 +1,25 @@
+import type { Response } from "express";
+import { Readable } from "stream";
+import { pipeline } from "stream/promises";
 import { prisma } from "../config/prisma";
 import { AppError } from "../lib/errors";
 import { cloudinary } from "../config/cloudinary";
+
+function isPrivateFile(url: string | null | undefined): url is string {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    const cloud = cloudinary.config().cloud_name;
+    return parsed.hostname === "res.cloudinary.com" && parsed.pathname.startsWith(`/${cloud}/`) && parsed.pathname.includes("/authenticated/");
+  } catch {
+    return false;
+  }
+}
+
+function present<T extends { fileUrl: string | null }>(doc: T) {
+  const isPrivate = isPrivateFile(doc.fileUrl);
+  return { ...doc, fileUrl: isPrivate ? null : doc.fileUrl, hasFile: !!doc.fileUrl, isPrivate };
+}
 
 export async function uploadDocumentFile(buffer: Buffer, originalName: string, mimeType: string) {
   const isImage = mimeType.startsWith("image/");
@@ -10,6 +29,7 @@ export async function uploadDocumentFile(buffer: Buffer, originalName: string, m
       {
         folder: "lifeos/documents",
         resource_type: isImage ? "image" : "raw",
+        type: "authenticated",
       },
       (err, result) => (err || !result ? reject(err) : resolve(result))
     );
@@ -24,23 +44,31 @@ export async function uploadDocumentFile(buffer: Buffer, originalName: string, m
   };
 }
 
-export async function createFolder(userId: string, data: {
-  name: string;
-  description?: string;
-}) {
+export async function streamDocumentFile(userId: string, id: string, res: Response) {
+  const doc = await prisma.document.findFirst({
+    where: { id, userId },
+    select: { fileUrl: true, fileName: true, fileType: true },
+  });
+  if (!doc || !isPrivateFile(doc.fileUrl)) throw new AppError("File not found", 404);
+
+  const upstream = await fetch(doc.fileUrl, { signal: AbortSignal.timeout(30_000) });
+  if (!upstream.ok || !upstream.body) throw new AppError("The file couldn't be retrieved", 502);
+
+  const fileName = (doc.fileName ?? "document").replace(/[^\w.\- ]+/g, "_");
+  res.setHeader("Content-Type", doc.fileType || upstream.headers.get("content-type") || "application/octet-stream");
+  res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  await pipeline(Readable.fromWeb(upstream.body as any), res);
+}
+
+export async function createFolder(userId: string, data: { name: string; description?: string }) {
   return prisma.documentFolder.create({
-    data: {
-      userId,
-      name: data.name,
-      description: data.description,
-    },
+    data: { userId, name: data.name, description: data.description },
   });
 }
 
-export async function updateFolder(userId: string, id: string, data: {
-  name?: string;
-  description?: string;
-}) {
+export async function updateFolder(userId: string, id: string, data: { name?: string; description?: string }) {
   const existing = await prisma.documentFolder.findFirst({ where: { id, userId } });
   if (!existing) throw new AppError("Folder not found", 404);
 
@@ -58,28 +86,29 @@ export async function deleteFolder(userId: string, id: string) {
   if (!existing) throw new AppError("Folder not found", 404);
 
   const docsCount = await prisma.document.count({ where: { folderId: id, userId } });
-  if (docsCount > 0) {
-    throw new AppError("Cannot delete folder with documents", 400);
-  }
+  if (docsCount > 0) throw new AppError("Cannot delete folder with documents", 400);
 
   await prisma.documentFolder.delete({ where: { id } });
 }
 
-export async function createDocument(userId: string, data: {
-  folderId?: string;
-  title: string;
-  category: string;
-  fileUrl?: string;
-  fileName?: string;
-  fileType?: string;
-  fileSize?: number;
-  tags?: string[];
-  summary?: string;
-  expiresAt?: string;
-  linkedNoteId?: string;
-  linkedTaskId?: string;
-}) {
-  return prisma.document.create({
+export async function createDocument(
+  userId: string,
+  data: {
+    folderId?: string;
+    title: string;
+    category: string;
+    fileUrl?: string;
+    fileName?: string;
+    fileType?: string;
+    fileSize?: number;
+    tags?: string[];
+    summary?: string;
+    expiresAt?: string;
+    linkedNoteId?: string;
+    linkedTaskId?: string;
+  }
+) {
+  const doc = await prisma.document.create({
     data: {
       userId,
       folderId: data.folderId,
@@ -96,25 +125,30 @@ export async function createDocument(userId: string, data: {
       linkedTaskId: data.linkedTaskId,
     },
   });
+  return present(doc);
 }
 
-export async function updateDocument(userId: string, id: string, data: {
-  folderId?: string;
-  title?: string;
-  category?: string;
-  fileUrl?: string;
-  fileName?: string;
-  fileType?: string;
-  fileSize?: number;
-  tags?: string[];
-  summary?: string;
-  expiresAt?: string;
-  status?: string;
-}) {
+export async function updateDocument(
+  userId: string,
+  id: string,
+  data: {
+    folderId?: string;
+    title?: string;
+    category?: string;
+    fileUrl?: string;
+    fileName?: string;
+    fileType?: string;
+    fileSize?: number;
+    tags?: string[];
+    summary?: string;
+    expiresAt?: string;
+    status?: string;
+  }
+) {
   const existing = await prisma.document.findFirst({ where: { id, userId } });
   if (!existing) throw new AppError("Document not found", 404);
 
-  return prisma.document.update({
+  const doc = await prisma.document.update({
     where: { id },
     data: {
       ...(data.folderId && { folderId: data.folderId }),
@@ -126,12 +160,11 @@ export async function updateDocument(userId: string, id: string, data: {
       ...(data.fileSize !== undefined && { fileSize: data.fileSize }),
       ...(data.tags && { tags: data.tags }),
       ...(data.summary && { summary: data.summary }),
-      ...(data.expiresAt !== undefined && {
-        expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
-      }),
+      ...(data.expiresAt !== undefined && { expiresAt: data.expiresAt ? new Date(data.expiresAt) : null }),
       ...(data.status && { status: data.status as any }),
     },
   });
+  return present(doc);
 }
 
 export async function deleteDocument(userId: string, id: string) {
@@ -140,15 +173,10 @@ export async function deleteDocument(userId: string, id: string) {
   await prisma.document.delete({ where: { id } });
 }
 
-export async function getDocumentsDashboard(userId: string, filters?: {
-  q?: string;
-  category?: string;
-}) {
+export async function getDocumentsDashboard(userId: string, filters?: { q?: string; category?: string }) {
   const where: any = { userId };
 
-  if (filters?.category) {
-    where.category = filters.category;
-  }
+  if (filters?.category) where.category = filters.category;
 
   if (filters?.q) {
     where.OR = [
@@ -160,19 +188,13 @@ export async function getDocumentsDashboard(userId: string, filters?: {
 
   const [folders, documents] = await Promise.all([
     prisma.documentFolder.findMany({ where: { userId }, orderBy: { name: "asc" } }),
-    prisma.document.findMany({
-      where,
-      orderBy: [{ createdAt: "desc" }],
-    }),
+    prisma.document.findMany({ where, orderBy: [{ createdAt: "desc" }] }),
   ]);
 
   const now = new Date();
   const expired = documents.filter((d) => d.expiresAt && d.expiresAt < now).length;
   const expiringSoon = documents.filter(
-    (d) =>
-      d.expiresAt &&
-      d.expiresAt >= now &&
-      d.expiresAt.getTime() - now.getTime() < 1000 * 60 * 60 * 24 * 30,
+    (d) => d.expiresAt && d.expiresAt >= now && d.expiresAt.getTime() - now.getTime() < 1000 * 60 * 60 * 24 * 30
   ).length;
 
   const stats = {
@@ -186,12 +208,7 @@ export async function getDocumentsDashboard(userId: string, filters?: {
   const insight =
     documents.length > 0
       ? "Your document vault reflects real stored documents and expiry metadata."
-      : "No documents in your vault yet — add important files to see stats.";
+      : "No documents in your vault yet. Add important files to see stats.";
 
-  return {
-    stats,
-    folders,
-    documents,
-    insight,
-  };
+  return { stats, folders, documents: documents.map(present), insight };
 }

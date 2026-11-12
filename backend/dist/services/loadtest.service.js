@@ -554,6 +554,9 @@ async function execute(runId, config, base, callerToken) {
         const aborted = !!state.reason && state.reason.startsWith("Stopped automatically");
         const verdict = aborted || errorRate >= 0.05 || final.p95 >= 5000 ? "failing" : errorRate >= 0.01 || final.p95 >= 1500 ? "degraded" : "healthy";
         const hints = [];
+        if (final.requests < 300) {
+            hints.push(`Only ${final.requests} requests were measured, which is too few for a reliable slow-request (p95) figure. Run it longer or with more users before trusting the verdict.`);
+        }
         hints.push(`Sustained throughput was ${final.rps} requests per second. If each person using LifeOS makes about one request every 5 seconds, that supports roughly ${Math.round(final.rps * 5)} people at the same time.`);
         if (final.failed === 0 && verdict !== "healthy") {
             hints.push("Nothing errored. The server simply answered slower than the limits because it was at capacity.");

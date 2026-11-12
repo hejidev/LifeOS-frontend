@@ -2,17 +2,22 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requireAuth = requireAuth;
 const token_service_1 = require("../services/token.service");
-const prisma_1 = require("../config/prisma");
+const auth_cache_1 = require("../lib/auth-cache");
 const errors_1 = require("../lib/errors");
 async function requireAuth(req, _res, next) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) {
+        return next(new errors_1.AppError("Not authenticated", 401));
+    }
+    let payload;
     try {
-        const authHeader = req.headers.authorization;
-        if (!authHeader?.startsWith("Bearer ")) {
-            return next(new errors_1.AppError("Not authenticated", 401));
-        }
-        const token = authHeader.substring(7);
-        const payload = (0, token_service_1.verifyAccessToken)(token);
-        const user = await prisma_1.prisma.user.findUnique({ where: { id: payload.sub } });
+        payload = (0, token_service_1.verifyAccessToken)(authHeader.substring(7));
+    }
+    catch {
+        return next(new errors_1.AppError("Invalid or expired session", 401));
+    }
+    try {
+        const user = await (0, auth_cache_1.loadAuthUser)(payload.sub);
         if (!user)
             return next(new errors_1.AppError("User not found", 401));
         if (!user.isActive)
@@ -22,7 +27,7 @@ async function requireAuth(req, _res, next) {
         req.user = { id: user.id, email: user.email, role: user.role, name: user.name };
         next();
     }
-    catch {
-        next(new errors_1.AppError("Invalid or expired session", 401));
+    catch (err) {
+        next(err);
     }
 }

@@ -10,7 +10,7 @@ npm install
 npm run dev
 ```
 
-Health check: `GET http://localhost:4000/health`
+Health check: `GET http://localhost:5000/health`
 
 ## Planned Stack
 

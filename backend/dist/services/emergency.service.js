@@ -16,6 +16,7 @@ exports.getAccessLog = getAccessLog;
 exports.getPublicByToken = getPublicByToken;
 const crypto_1 = __importDefault(require("crypto"));
 const bcrypt_1 = __importDefault(require("bcrypt"));
+const redis_1 = require("../config/redis");
 const prisma_1 = require("../config/prisma");
 const errors_1 = require("../lib/errors");
 const crypto_2 = require("../lib/crypto");
@@ -142,6 +143,15 @@ async function getAccessLog(userId) {
     const profile = await ensureProfile(userId);
     return prisma_1.prisma.emergencyAccessLog.findMany({ where: { profileId: profile.id }, orderBy: { accessedAt: "desc" }, take: 20 });
 }
+const PIN_IP_LIMIT = 5;
+const PIN_IP_WINDOW_SECONDS = 15 * 60;
+const PIN_TOKEN_LIMIT = 30;
+const PIN_TOKEN_WINDOW_SECONDS = 60 * 60;
+async function bump(key, windowSeconds) {
+    const count = await redis_1.redis.incr(key);
+    if (count === 1)
+        await redis_1.redis.expire(key, windowSeconds);
+}
 async function getPublicByToken(token, pin, meta) {
     const profile = await prisma_1.prisma.emergencyProfile.findUnique({ where: { shareToken: token }, include: { contacts: true, user: true } });
     if (!profile || !profile.shareEnabled)
@@ -151,9 +161,18 @@ async function getPublicByToken(token, pin, meta) {
     if (profile.sharePinHash) {
         if (!pin)
             throw new errors_1.AppError("PIN required", 428);
+        const ipKey = `emergency:pin:ip:${token}:${meta.ip ?? "unknown"}`;
+        const tokenKey = `emergency:pin:token:${token}`;
+        const [ipFailures, tokenFailures] = await Promise.all([redis_1.redis.get(ipKey), redis_1.redis.get(tokenKey)]);
+        if (Number(ipFailures) >= PIN_IP_LIMIT || Number(tokenFailures) >= PIN_TOKEN_LIMIT) {
+            throw new errors_1.AppError("Too many incorrect PIN attempts. Try again later.", 429);
+        }
         const valid = await bcrypt_1.default.compare(pin, profile.sharePinHash);
-        if (!valid)
+        if (!valid) {
+            await Promise.all([bump(ipKey, PIN_IP_WINDOW_SECONDS), bump(tokenKey, PIN_TOKEN_WINDOW_SECONDS)]);
             throw new errors_1.AppError("Incorrect PIN", 401);
+        }
+        await redis_1.redis.del(ipKey);
     }
     await prisma_1.prisma.$transaction([
         prisma_1.prisma.emergencyProfile.update({ where: { id: profile.id }, data: { viewCount: { increment: 1 }, lastViewedAt: new Date() } }),
@@ -164,7 +183,10 @@ async function getPublicByToken(token, pin, meta) {
         name: profile.user.name,
         ...rest,
         contacts: profile.contacts.sort((a, b) => a.priority - b.priority).map((c) => ({
-            name: c.name, relationship: c.relationship, phone: c.phone, canMakeMedicalDecisions: c.canMakeMedicalDecisions,
+            name: c.name,
+            relationship: c.relationship,
+            phone: c.phone,
+            canMakeMedicalDecisions: c.canMakeMedicalDecisions,
         })),
     };
 }

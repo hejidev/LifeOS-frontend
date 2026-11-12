@@ -42,12 +42,12 @@ export function useLogout() {
 
   return useMutation({
     mutationFn: () => api.post("/auth/logout"),
-    onSuccess: () => {
+    onSettled: () => {
       setAccessToken(null);
       document.cookie = "lifeos_authed=; path=/; max-age=0";
       document.cookie = "lifeos_role=; path=/; max-age=0";
-      queryClient.setQueryData(["me"], null);
       authStoreLogout();
+      queryClient.clear();
     },
   });
 }

@@ -15,6 +15,7 @@ const prisma_1 = require("../config/prisma");
 const errors_1 = require("../lib/errors");
 const password_policy_1 = require("../lib/password-policy");
 const email_service_1 = require("./email.service");
+const auth_cache_1 = require("../lib/auth-cache");
 function serializeUser(u) {
     return {
         id: u.id,
@@ -73,6 +74,7 @@ async function changePassword(userId, currentPassword, newPassword) {
         where: { id: userId },
         data: { passwordHash, sessionVersion: { increment: 1 } },
     });
+    (0, auth_cache_1.invalidateAuthCache)(userId);
     await (0, email_service_1.sendPasswordChangedEmail)(user.email, user.name ?? "there");
 }
 // Aggregated snapshot of everything the user has across LifeOS — powers the
@@ -109,4 +111,5 @@ async function getAccountOverview(userId) {
 }
 async function deactivateAccount(userId) {
     await prisma_1.prisma.user.update({ where: { id: userId }, data: { isActive: false } });
+    (0, auth_cache_1.invalidateAuthCache)(userId);
 }

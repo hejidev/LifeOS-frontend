@@ -4,6 +4,7 @@ import { AppError } from "../lib/errors";
 import { sanitizeUser } from "./auth.service";
 import { cloudinary } from "../config/cloudinary";
 import { sendPasswordChangedEmail } from "./email.service";
+import { assertStrongPassword } from "../lib/password-policy";
 import { invalidateAuthCache } from "../lib/auth-cache";
 
 const SALT_ROUNDS = 12;
@@ -20,6 +21,8 @@ export async function updateProfile(userId: string, data: { name?: string }) {
 }
 
 export async function changePassword(userId: string, currentPassword: string, newPassword: string) {
+  assertStrongPassword(newPassword);
+
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user?.passwordHash) {
     throw new AppError("Password change unavailable for this account", 400);
@@ -28,8 +31,15 @@ export async function changePassword(userId: string, currentPassword: string, ne
   const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
   if (!isValid) throw new AppError("Current password is incorrect", 401);
 
+  if (await bcrypt.compare(newPassword, user.passwordHash)) {
+    throw new AppError("Choose a password you haven't used before", 400);
+  }
+
   const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
-  await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash, sessionVersion: { increment: 1 } },
+  });
   invalidateAuthCache(userId);
   await sendPasswordChangedEmail(user.email, user.name ?? "there");
 }

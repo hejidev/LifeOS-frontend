@@ -74,7 +74,7 @@ type DashboardOverview = {
     condition: string;
     high: number;
     low: number;
-  };
+  } | null;
   events: Array<{
     id: string;
     title: string;
@@ -172,7 +172,6 @@ export function DashboardContent() {
     );
   }
 
-  const WeatherIcon = weatherIcons[data.weather.icon];
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -199,23 +198,28 @@ export function DashboardContent() {
       <div>
         <SectionLabel>Today at a Glance</SectionLabel>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <motion.div variants={item}>
-            <Card className="h-full hover:border-primary/20 transition-colors">
-              <CardContent className="p-4 sm:p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs sm:text-sm text-muted-foreground">{data.weather.location}</p>
-                    <p className="text-2xl sm:text-3xl font-bold mt-1">{data.weather.temp}°F</p>
-                    <p className="text-xs sm:text-sm text-muted-foreground">{data.weather.condition}</p>
+          {data.weather && (
+            <motion.div variants={item}>
+              <Card className="h-full hover:border-primary/20 transition-colors">
+                <CardContent className="p-4 sm:p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs sm:text-sm text-muted-foreground">{data.weather.location}</p>
+                      <p className="text-2xl sm:text-3xl font-bold mt-1">{data.weather.temp}°C</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground">{data.weather.condition}</p>
+                    </div>
+                    {(() => {
+                      const WeatherIcon = weatherIcons[data.weather.icon];
+                      return <WeatherIcon className="h-10 w-10 sm:h-12 sm:w-12 text-primary/60" />;
+                    })()}
                   </div>
-                  <WeatherIcon className="h-10 w-10 sm:h-12 sm:w-12 text-primary/60" />
-                </div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground mt-3">H: {data.weather.high}° L: {data.weather.low}°</p>
-              </CardContent>
-            </Card>
-          </motion.div>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-3">H: {data.weather.high}° L: {data.weather.low}°</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
 
-          <motion.div variants={item} className="sm:col-span-2 lg:col-span-2">
+          <motion.div variants={item} className={data.weather ? "sm:col-span-2 lg:col-span-2" : "sm:col-span-2 lg:col-span-3"}>
             <Card className="h-full hover:border-primary/20 transition-colors">
               <CardHeader className="pb-2 sm:pb-3 flex flex-row items-center justify-between">
                 <CardTitle className="text-sm sm:text-base flex items-center gap-2">
@@ -259,12 +263,10 @@ export function DashboardContent() {
         </div>
       </div>
 
-      {/* Merchant CTA */}
       <motion.div variants={item}>
         <BecomeMerchantCard />
       </motion.div>
 
-      {/* Your Focus */}
       <div>
         <SectionLabel>Your Focus</SectionLabel>
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -341,7 +343,6 @@ export function DashboardContent() {
         </div>
       </div>
 
-      {/* Life & Growth */}
       <div>
         <SectionLabel>Life & Growth</SectionLabel>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -444,7 +445,6 @@ export function DashboardContent() {
         </div>
       </div>
 
-      {/* Notes & Documents */}
       <div>
         <SectionLabel>Notes & Documents</SectionLabel>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
@@ -492,7 +492,7 @@ export function DashboardContent() {
                     <p className="text-base sm:text-lg font-semibold">{data.documents.total}</p>
                   </div>
                   <div className="rounded-lg border border-border/60 bg-card/60 p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">Encrypted</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">Private</p>
                     <p className="text-base sm:text-lg font-semibold">{data.documents.encrypted}</p>
                   </div>
                   <div className="rounded-lg border border-border/60 bg-card/60 p-2 sm:p-3">

@@ -63,6 +63,7 @@ const upload = (0, multer_1.default)({
 });
 const router = (0, express_1.Router)();
 router.get("/documents/dashboard", auth_middleware_1.requireAuth, (0, validate_middleware_1.validate)(documents_validator_1.documentsDashboardQuerySchema), documentsController.getDashboard);
+router.get("/documents/:id/file", auth_middleware_1.requireAuth, documentsController.getFile);
 router.post("/documents/folders", auth_middleware_1.requireAuth, (0, validate_middleware_1.validate)(documents_validator_1.createFolderSchema), documentsController.createFolder);
 router.patch("/documents/folders/:id", auth_middleware_1.requireAuth, (0, validate_middleware_1.validate)(documents_validator_1.updateFolderSchema), documentsController.updateFolder);
 router.delete("/documents/folders/:id", auth_middleware_1.requireAuth, documentsController.deleteFolder);

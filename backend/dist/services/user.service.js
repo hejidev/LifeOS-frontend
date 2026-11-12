@@ -13,6 +13,8 @@ const errors_1 = require("../lib/errors");
 const auth_service_1 = require("./auth.service");
 const cloudinary_1 = require("../config/cloudinary");
 const email_service_1 = require("./email.service");
+const password_policy_1 = require("../lib/password-policy");
+const auth_cache_1 = require("../lib/auth-cache");
 const SALT_ROUNDS = 12;
 async function getProfile(userId) {
     const user = await prisma_1.prisma.user.findUnique({ where: { id: userId } });
@@ -25,6 +27,7 @@ async function updateProfile(userId, data) {
     return (0, auth_service_1.sanitizeUser)(user);
 }
 async function changePassword(userId, currentPassword, newPassword) {
+    (0, password_policy_1.assertStrongPassword)(newPassword);
     const user = await prisma_1.prisma.user.findUnique({ where: { id: userId } });
     if (!user?.passwordHash) {
         throw new errors_1.AppError("Password change unavailable for this account", 400);
@@ -32,8 +35,15 @@ async function changePassword(userId, currentPassword, newPassword) {
     const isValid = await bcrypt_1.default.compare(currentPassword, user.passwordHash);
     if (!isValid)
         throw new errors_1.AppError("Current password is incorrect", 401);
+    if (await bcrypt_1.default.compare(newPassword, user.passwordHash)) {
+        throw new errors_1.AppError("Choose a password you haven't used before", 400);
+    }
     const passwordHash = await bcrypt_1.default.hash(newPassword, SALT_ROUNDS);
-    await prisma_1.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    await prisma_1.prisma.user.update({
+        where: { id: userId },
+        data: { passwordHash, sessionVersion: { increment: 1 } },
+    });
+    (0, auth_cache_1.invalidateAuthCache)(userId);
     await (0, email_service_1.sendPasswordChangedEmail)(user.email, user.name ?? "there");
 }
 async function uploadAvatar(userId, fileBuffer) {

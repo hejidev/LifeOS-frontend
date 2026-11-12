@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import bcrypt from "bcrypt";
+import { redis } from "../config/redis";
 import { prisma } from "../config/prisma";
 import { AppError } from "../lib/errors";
 import { encryptSecret, decryptSecret } from "../lib/crypto";
@@ -149,6 +150,17 @@ export async function getAccessLog(userId: string) {
   return prisma.emergencyAccessLog.findMany({ where: { profileId: profile.id }, orderBy: { accessedAt: "desc" }, take: 20 });
 }
 
+
+const PIN_IP_LIMIT = 5;
+const PIN_IP_WINDOW_SECONDS = 15 * 60;
+const PIN_TOKEN_LIMIT = 30;
+const PIN_TOKEN_WINDOW_SECONDS = 60 * 60;
+
+async function bump(key: string, windowSeconds: number) {
+  const count = await redis.incr(key);
+  if (count === 1) await redis.expire(key, windowSeconds);
+}
+
 export async function getPublicByToken(token: string, pin: string | undefined, meta: { ip?: string; userAgent?: string }) {
   const profile = await prisma.emergencyProfile.findUnique({ where: { shareToken: token }, include: { contacts: true, user: true } });
   if (!profile || !profile.shareEnabled) throw new AppError("Emergency info not found", 404);
@@ -156,8 +168,20 @@ export async function getPublicByToken(token: string, pin: string | undefined, m
 
   if (profile.sharePinHash) {
     if (!pin) throw new AppError("PIN required", 428);
+
+    const ipKey = `emergency:pin:ip:${token}:${meta.ip ?? "unknown"}`;
+    const tokenKey = `emergency:pin:token:${token}`;
+    const [ipFailures, tokenFailures] = await Promise.all([redis.get(ipKey), redis.get(tokenKey)]);
+    if (Number(ipFailures) >= PIN_IP_LIMIT || Number(tokenFailures) >= PIN_TOKEN_LIMIT) {
+      throw new AppError("Too many incorrect PIN attempts. Try again later.", 429);
+    }
+
     const valid = await bcrypt.compare(pin, profile.sharePinHash);
-    if (!valid) throw new AppError("Incorrect PIN", 401);
+    if (!valid) {
+      await Promise.all([bump(ipKey, PIN_IP_WINDOW_SECONDS), bump(tokenKey, PIN_TOKEN_WINDOW_SECONDS)]);
+      throw new AppError("Incorrect PIN", 401);
+    }
+    await redis.del(ipKey);
   }
 
   await prisma.$transaction([
@@ -170,7 +194,10 @@ export async function getPublicByToken(token: string, pin: string | undefined, m
     name: profile.user.name,
     ...rest,
     contacts: profile.contacts.sort((a, b) => a.priority - b.priority).map((c) => ({
-      name: c.name, relationship: c.relationship, phone: c.phone, canMakeMedicalDecisions: c.canMakeMedicalDecisions,
+      name: c.name,
+      relationship: c.relationship,
+      phone: c.phone,
+      canMakeMedicalDecisions: c.canMakeMedicalDecisions,
     })),
   };
 }

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { useLogout } from "@/lib/hooks/use-auth";
 import {
   useUserProfile, useUpdateUserProfile, useUpdatePreferences,
   useUploadAccountAvatar, useChangeAccountPassword,
@@ -55,6 +56,8 @@ export function AccountProfileTabs({ title }: { title: string }) {
 
   const [prefsForm, setPrefsForm] = useState({ darkMode: false, weekStartsOn: 1 });
 
+  const logout = useLogout();
+
   const p = profile as any;
 
   useEffect(() => {
@@ -87,7 +90,11 @@ export function AccountProfileTabs({ title }: { title: string }) {
     changePassword.mutate(
       { currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword },
       {
-        onSuccess: () => { setPwSuccess(true); setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" }); setTimeout(() => setPwSuccess(false), 3000); },
+        onSuccess: () => {
+          setPwSuccess(true);
+          setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+          setTimeout(() => logout.mutate(undefined, { onSettled: () => { window.location.href = "/login"; } }), 1500);
+        },
         onError: (err: any) => setPwError(err.message ?? "Failed to update password"),
       }
     );
@@ -185,7 +192,7 @@ export function AccountProfileTabs({ title }: { title: string }) {
                 <div className="space-y-1"><Label className="text-[10px] sm:text-xs">Confirm new password</Label><Input type="password" value={pwForm.confirmPassword} onChange={(e) => setPwForm((f) => ({ ...f, confirmPassword: e.target.value }))} required className="text-xs sm:text-sm" /></div>
                 <Button type="submit" size="sm" disabled={changePassword.isPending || !allChecksPass} className="w-full sm:w-auto text-xs sm:text-sm">{changePassword.isPending ? "Updating..." : "Update password"}</Button>
                 {pwError && <p className="text-[10px] sm:text-xs text-destructive">{pwError}</p>}
-                {pwSuccess && <p className="text-[10px] sm:text-xs text-emerald-500">Password updated.</p>}
+                {pwSuccess && <p className="text-[10px] sm:text-xs text-emerald-500">Password updated. Signing you out so you can log in again.</p>}
               </form>
             </CardContent>
           </Card>

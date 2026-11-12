@@ -40,6 +40,8 @@ router.get(
   documentsController.getDashboard,
 );
 
+router.get("/documents/:id/file", requireAuth, documentsController.getFile);
+
 router.post("/documents/folders", requireAuth, validate(createFolderSchema), documentsController.createFolder);
 router.patch("/documents/folders/:id", requireAuth, validate(updateFolderSchema), documentsController.updateFolder);
 router.delete("/documents/folders/:id", requireAuth, documentsController.deleteFolder);

@@ -56,3 +56,7 @@ export const uploadDocumentFile = asyncHandler(async (req: AuthenticatedRequest,
   const result = await documentsService.uploadDocumentFile(file.buffer, file.originalname, file.mimetype);
   return res.status(201).json(result);
 });
+
+export const getFile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  await documentsService.streamDocumentFile(req.user!.id, req.params.id, res);
+});

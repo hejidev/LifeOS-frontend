@@ -23,6 +23,7 @@ const token_service_1 = require("./token.service");
 const email_service_1 = require("./email.service");
 const env_1 = require("../config/env");
 const logger_1 = require("../lib/logger");
+const auth_cache_1 = require("../lib/auth-cache");
 const SALT_ROUNDS = 12;
 const DUMMY_HASH = "$2b$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinval";
 const RESET_TTL_SECONDS = 60 * 15; // 15 minutes
@@ -112,6 +113,7 @@ async function resetPassword(token, newPassword) {
         where: { id: userId },
         data: { passwordHash, sessionVersion: { increment: 1 } },
     });
+    (0, auth_cache_1.invalidateAuthCache)(userId);
     await redis_1.redis.del(`reset:${hashed}`);
     await (0, email_service_1.sendPasswordChangedEmail)(user.email, user.name ?? "there");
 }

@@ -371,7 +371,9 @@ export interface VaultDocument {
   title: string;
   category: "identity" | "finance" | "education" | "legal" | "personal" | "other";
   status: "ACTIVE" | "ARCHIVED" | "EXPIRED";
-  fileUrl?: string;
+  fileUrl?: string | null;
+  hasFile?: boolean;
+  isPrivate?: boolean;
   fileName?: string;
   fileType?: string;
   fileSize?: number;

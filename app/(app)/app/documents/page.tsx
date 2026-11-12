@@ -16,15 +16,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import {
   useDocuments, useCreateDocument, useUpdateDocument, useDeleteDocument,
   useUploadDocumentFile,
 } from "@/lib/hooks/use-life-data";
 import type { VaultDocument } from "@/types/life";
+import { openProtectedFile } from "@/lib/api/client";
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
@@ -230,10 +229,24 @@ export default function DocumentsPage() {
                 <Badge variant="outline" className="text-[10px] sm:text-xs">{selected?.category}</Badge>
                 {selected?.expiresAt && <Badge variant="secondary" className="text-[10px] sm:text-xs">Expires {format(new Date(selected.expiresAt), "MMM d, yyyy")}</Badge>}
               </div>
-              {selected?.fileUrl && (
+              {selected?.hasFile && (
                 <div className="rounded-lg border border-border/60 bg-card/60 p-3 sm:p-4">
-                  <p className="text-xs sm:text-sm font-medium mb-2">File</p>
-                  <a href={selected.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs sm:text-sm text-primary hover:underline">{selected.fileName}</a>
+                  <p className="text-xs sm:text-sm font-medium mb-2 flex items-center gap-1.5">
+                    File {selected.isPrivate && <Lock className="h-3 w-3 text-primary" />}
+                  </p>
+                  {selected.isPrivate ? (
+                    <button
+                      type="button"
+                      onClick={() => openProtectedFile(`/documents/${selected.id}/file`).catch((err) => alert(err.message))}
+                      className="text-xs sm:text-sm text-primary hover:underline text-left"
+                    >
+                      {selected.fileName ?? "Open file"}
+                    </button>
+                  ) : (
+                    <a href={selected.fileUrl ?? undefined} target="_blank" rel="noopener noreferrer" className="text-xs sm:text-sm text-primary hover:underline">
+                      {selected.fileName ?? "Open file"}
+                    </a>
+                  )}
                 </div>
               )}
               {selected?.tags?.length > 0 && (

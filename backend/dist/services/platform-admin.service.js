@@ -25,6 +25,7 @@ const email_service_1 = require("./email.service");
 const redis_1 = require("../config/redis");
 const env_1 = require("../config/env");
 const crypto_1 = __importDefault(require("crypto"));
+const auth_cache_1 = require("../lib/auth-cache");
 function serializeUser(u) {
     return {
         id: u.id,
@@ -67,6 +68,7 @@ async function toggleUserStatus(adminId, userId) {
         data: { isActive: !user.isActive },
         include: { subscription: true },
     });
+    (0, auth_cache_1.invalidateAuthCache)(userId);
     await (0, audit_service_1.logAdminAction)(adminId, updated.isActive ? "USER_ACTIVATED" : "USER_SUSPENDED", "User", userId, `${updated.isActive ? "Activated" : "Suspended"} ${updated.email}`);
     return serializeUser(updated);
 }
@@ -235,6 +237,7 @@ async function resetSupportTwoFactor(adminId, userId, reason) {
         where: { id: target.id },
         data: { twoFactorEnabled: false, twoFactorSecret: null, sessionVersion: { increment: 1 } },
     });
+    (0, auth_cache_1.invalidateAuthCache)(userId);
     await (0, token_service_1.revokeAllUserSessions)(target.id);
     await (0, audit_service_1.logAdminAction)(adminId, "USER_TWO_FACTOR_RESET", "User", target.id, `Reset two-factor authentication for ${target.email}. Reason: ${reason}`);
     await (0, email_service_1.sendTwoFactorResetEmail)(target.email, target.name ?? "there", reason);
