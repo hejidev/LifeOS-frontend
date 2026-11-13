@@ -39,9 +39,6 @@ const validate_middleware_1 = require("../middlewares/validate.middleware");
 const family_validator_1 = require("../validators/family.validator");
 const familyController = __importStar(require("../controllers/family.controller"));
 const router = (0, express_1.Router)();
-// Public — no auth, since the invitee isn't logged in yet
-router.get("/family/invites/:token", familyController.getInvite);
-router.post("/family/invites/accept", (0, validate_middleware_1.validate)(family_validator_1.acceptInviteSchema), familyController.acceptInvite);
 router.use(auth_middleware_1.requireAuth);
 router.get("/family/dashboard", familyController.getDashboard);
 router.post("/family/members", (0, validate_middleware_1.validate)(family_validator_1.createMemberSchema), familyController.createMember);

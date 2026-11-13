@@ -39,7 +39,6 @@ const validate_middleware_1 = require("../middlewares/validate.middleware");
 const emergency_validator_1 = require("../validators/emergency.validator");
 const emergencyController = __importStar(require("../controllers/emergency.controller"));
 const router = (0, express_1.Router)();
-router.get("/emergency/public/:token", (0, validate_middleware_1.validate)(emergency_validator_1.publicQuerySchema), emergencyController.getPublic);
 router.use(auth_middleware_1.requireAuth);
 router.get("/emergency/profile", emergencyController.getProfile);
 router.patch("/emergency/profile", (0, validate_middleware_1.validate)(emergency_validator_1.updateEmergencyProfileSchema), emergencyController.updateProfile);

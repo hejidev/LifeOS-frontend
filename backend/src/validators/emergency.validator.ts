@@ -22,25 +22,18 @@ export const updateEmergencyProfileSchema = z.object({
   }),
 });
 
-export const createContactSchema = z.object({
-  body: z.object({
-    name: z.string().trim().min(1).max(100),
-    relationship: z.string().max(50).optional(),
-    phone: z.string().trim().min(1).max(30),
-    email: z.string().email().optional(),
-    canMakeMedicalDecisions: z.boolean().optional(),
-  }),
-});
+const blankToUndefined = (value: unknown) => (typeof value === "string" && value.trim() === "" ? undefined : value);
 
-export const updateContactSchema = z.object({
-  body: z.object({
-    name: z.string().trim().min(1).max(100).optional(),
-    relationship: z.string().max(50).optional(),
-    phone: z.string().trim().min(1).max(30).optional(),
-    email: z.string().email().optional(),
-    canMakeMedicalDecisions: z.boolean().optional(),
-  }),
-});
+const contactFields = {
+  name: z.string().trim().min(1).max(100),
+  relationship: z.preprocess(blankToUndefined, z.string().trim().max(60).optional()),
+  phone: z.string().trim().min(5).max(30),
+  email: z.preprocess(blankToUndefined, z.string().trim().email().optional()),
+  canMakeMedicalDecisions: z.boolean().optional(),
+};
+
+export const createContactSchema = z.object({ body: z.object(contactFields) });
+export const updateContactSchema = z.object({ body: z.object(contactFields).partial() });
 
 export const reorderContactsSchema = z.object({
   body: z.object({ orderedIds: z.array(z.string().uuid()).min(1) }),
@@ -56,4 +49,9 @@ export const setPinSchema = z.object({
 
 export const publicQuerySchema = z.object({
   query: z.object({ pin: z.string().optional() }),
+});
+
+export const publicUnlockSchema = z.object({
+  body: z.object({ pin: z.string().regex(/^\d{4,8}$/).optional() }).default({}),
+  params: z.object({ token: z.string().min(20).max(80) }),
 });

@@ -11,7 +11,7 @@ export const applyMerchantSchema = z.object({
     contactPhone: z.string().trim().min(1).max(32),
     contactEmail: z.string().email(),
     address: z.string().trim().min(1).max(255),
-    currency: z.string().trim().length(3).default("USD"),
+    currency: z.string().trim().length(3).default("NGN"),
     idDocumentType: z.enum(["NATIONAL_ID", "PASSPORT", "DRIVERS_LICENSE", "VOTERS_CARD"]),
     idDocumentNumber: z.string().trim().min(3).max(64),
     idFrontUrl: z.string().url(),

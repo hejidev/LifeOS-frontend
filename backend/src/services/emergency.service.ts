@@ -179,7 +179,7 @@ export async function getPublicByToken(token: string, pin: string | undefined, m
     const valid = await bcrypt.compare(pin, profile.sharePinHash);
     if (!valid) {
       await Promise.all([bump(ipKey, PIN_IP_WINDOW_SECONDS), bump(tokenKey, PIN_TOKEN_WINDOW_SECONDS)]);
-      throw new AppError("Incorrect PIN", 401);
+      throw new AppError("Incorrect PIN", 403);
     }
     await redis.del(ipKey);
   }

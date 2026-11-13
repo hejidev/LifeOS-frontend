@@ -14,6 +14,7 @@ import {
   useMerchantApplications, useChangeMerchantStatus, useMerchantApplicationDetail,
   useVerifyMerchantId,
 } from "@/lib/hooks/use-life-data";
+import { ProtectedImage } from "@/components/shared/protected-image";
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
@@ -158,13 +159,11 @@ export default function MerchantApplicationsPage() {
               <div className="pt-2 border-t border-border space-y-2">
                 <p className="text-muted-foreground text-xs">ID: {(detail as any).idDocumentType} · {(detail as any).idDocumentNumber}</p>
                 <div className="grid grid-cols-2 gap-2">
-                  <a href={(detail as any).idFrontUrl} target="_blank" rel="noopener noreferrer">
-                    <img src={(detail as any).idFrontUrl} alt="ID front" className="rounded-lg border border-border w-full" />
-                  </a>
-                  {(detail as any).idBackUrl && (
-                    <a href={(detail as any).idBackUrl} target="_blank" rel="noopener noreferrer">
-                      <img src={(detail as any).idBackUrl} alt="ID back" className="rounded-lg border border-border w-full" />
-                    </a>
+                  {(detail as any).hasIdFront && (
+                    <ProtectedImage path={`/merchant/applications/${(detail as any).id}/id/front`} alt="ID front" className="rounded-lg border border-border w-full" />
+                  )}
+                  {(detail as any).hasIdBack && (
+                    <ProtectedImage path={`/merchant/applications/${(detail as any).id}/id/back`} alt="ID back" className="rounded-lg border border-border w-full" />
                   )}
                 </div>
 

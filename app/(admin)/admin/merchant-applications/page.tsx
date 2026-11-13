@@ -12,7 +12,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import {
   useMerchantApplications, useChangeMerchantStatus, useMerchantApplicationDetail,
+  useVerifyMerchantId,
 } from "@/lib/hooks/use-life-data";
+import { ProtectedImage } from "@/components/shared/protected-image";
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
@@ -33,6 +35,8 @@ export default function MerchantApplicationsPage() {
   const [reason, setReason] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
   const { data: detail } = useMerchantApplicationDetail(detailId);
+
+  const verifyId = useVerifyMerchantId();
 
   function handleReasonSubmit() {
     if (!reasonDialog) return;
@@ -129,6 +133,27 @@ export default function MerchantApplicationsPage() {
               <p><span className="text-muted-foreground">Owner:</span> {(detail as any).user.name} ({(detail as any).user.email})</p>
               <p><span className="text-muted-foreground">Staff members:</span> {(detail as any).staffCount}</p>
               <p><span className="text-muted-foreground">Applied:</span> {new Date((detail as any).appliedAt).toLocaleString()}</p>
+
+              <div className="pt-2 border-t border-border space-y-2">
+                <p className="text-muted-foreground text-xs">ID: {(detail as any).idDocumentType} · {(detail as any).idDocumentNumber}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(detail as any).hasIdFront && (
+                    <ProtectedImage path={`/merchant/applications/${(detail as any).id}/id/front`} alt="ID front" className="rounded-lg border border-border w-full" />
+                  )}
+                  {(detail as any).hasIdBack && (
+                    <ProtectedImage path={`/merchant/applications/${(detail as any).id}/id/back`} alt="ID back" className="rounded-lg border border-border w-full" />
+                  )}
+                </div>
+
+                {(detail as any).idVerifiedAt ? (
+                  <p className="text-xs text-emerald-500">ID verified on {new Date((detail as any).idVerifiedAt).toLocaleDateString()}</p>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={() => verifyId.mutate((detail as any).id)} disabled={verifyId.isPending}>
+                    {verifyId.isPending ? "Marking..." : "Mark ID verified"}
+                  </Button>
+                )}
+                <p className="text-muted-foreground text-xs">Plan: {(detail as any).planTier} ({(detail as any).planStatus})</p>
+              </div>
             </div>
           ) : (
             <Skeleton className="h-40 rounded-lg" />

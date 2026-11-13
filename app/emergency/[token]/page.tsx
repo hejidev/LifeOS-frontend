@@ -20,25 +20,43 @@ export default function PublicEmergencyPage() {
   const token = params.token as string;
   const [pinInput, setPinInput] = useState("");
   const [submittedPin, setSubmittedPin] = useState<string | undefined>(undefined);
-  const { data: emergency, isLoading, error } = useEmergencyPublic(token, submittedPin);
+  const { data: emergency, isLoading, error, refetch } = useEmergencyPublic(token, submittedPin);
 
-  const needsPin = (error as Error)?.message === "PIN required";
-  const wrongPin = (error as Error)?.message === "Incorrect PIN";
+  const failure = error as (Error & { status?: number }) | null;
+  const needsPin = failure?.message === "PIN required";
+  const wrongPin = failure?.message === "Incorrect PIN";
+  const locked = failure?.status === 429;
+
+  function unlock(e: React.FormEvent) {
+    e.preventDefault();
+    if (pinInput === submittedPin) void refetch();
+    else setSubmittedPin(pinInput);
+    setPinInput("");
+  }
 
   if (isLoading) {
     return <div className="min-h-screen flex items-center justify-center px-4"><Skeleton className="h-64 w-full max-w-md rounded-xl" /></div>;
   }
 
-  if (needsPin || wrongPin) {
+  if (needsPin || wrongPin || locked) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <Card className="max-w-sm w-full">
           <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Lock className="h-4 w-4" /> Enter PIN</CardTitle></CardHeader>
           <CardContent>
-            <form onSubmit={(e) => { e.preventDefault(); setSubmittedPin(pinInput); }} className="space-y-3">
-              <Input value={pinInput} onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))} maxLength={8} placeholder="Enter PIN" autoFocus />
-              {wrongPin && <p className="text-xs text-destructive">Incorrect PIN — try again.</p>}
-              <Button type="submit" className="w-full">Unlock</Button>
+            <form onSubmit={unlock} className="space-y-3">
+              <Input
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
+                maxLength={8}
+                inputMode="numeric"
+                placeholder="Enter PIN"
+                autoFocus
+                disabled={locked}
+              />
+              {wrongPin && <p className="text-xs text-destructive">Incorrect PIN. Try again.</p>}
+              {locked && <p className="text-xs text-destructive">{failure?.message}</p>}
+              <Button type="submit" className="w-full" disabled={locked || pinInput.length < 4}>Unlock</Button>
             </form>
           </CardContent>
         </Card>

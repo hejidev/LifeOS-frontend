@@ -13,7 +13,7 @@ exports.applyMerchantSchema = zod_1.z.object({
         contactPhone: zod_1.z.string().trim().min(1).max(32),
         contactEmail: zod_1.z.string().email(),
         address: zod_1.z.string().trim().min(1).max(255),
-        currency: zod_1.z.string().trim().length(3).default("USD"),
+        currency: zod_1.z.string().trim().length(3).default("NGN"),
         idDocumentType: zod_1.z.enum(["NATIONAL_ID", "PASSPORT", "DRIVERS_LICENSE", "VOTERS_CARD"]),
         idDocumentNumber: zod_1.z.string().trim().min(3).max(64),
         idFrontUrl: zod_1.z.string().url(),

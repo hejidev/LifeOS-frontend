@@ -9,8 +9,6 @@ import * as emergencyController from "../controllers/emergency.controller";
 
 const router = Router();
 
-router.get("/emergency/public/:token", validate(publicQuerySchema), emergencyController.getPublic);
-
 router.use(requireAuth);
 router.get("/emergency/profile", emergencyController.getProfile);
 router.patch("/emergency/profile", validate(updateEmergencyProfileSchema), emergencyController.updateProfile);

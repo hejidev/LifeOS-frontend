@@ -36,6 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.safeProfile = safeProfile;
 exports.getApplicationStatus = getApplicationStatus;
 exports.applyAsMerchant = applyAsMerchant;
 exports.uploadIdDocument = uploadIdDocument;
@@ -50,9 +51,12 @@ exports.regenerateStoreCode = regenerateStoreCode;
 exports.forceStaffLogout = forceStaffLogout;
 exports.updateNotificationSettings = updateNotificationSettings;
 exports.setPaused = setPaused;
+exports.streamIdDocument = streamIdDocument;
 const cloudinary_1 = require("../config/cloudinary");
 const env_1 = require("../config/env");
 const crypto_1 = __importDefault(require("crypto"));
+const stream_1 = require("stream");
+const promises_1 = require("stream/promises");
 const plan_1 = require("../config/plan");
 const prisma_1 = require("../config/prisma");
 const errors_1 = require("../lib/errors");
@@ -60,6 +64,28 @@ const paystack = __importStar(require("./paystack.service"));
 const notification_service_1 = require("./notification.service");
 const audit_service_1 = require("./audit.service");
 const email_service_1 = require("./email.service");
+const ID_FOLDER = "lifeos/merchant-id-docs";
+function isOwnIdUrl(url, privateOnly = false) {
+    if (!url)
+        return false;
+    try {
+        const parsed = new URL(url);
+        const cloud = cloudinary_1.cloudinary.config().cloud_name;
+        const inFolder = parsed.pathname.startsWith(`/${cloud}/`) && parsed.pathname.includes(`/${ID_FOLDER}/`);
+        const isPrivate = parsed.pathname.includes("/authenticated/");
+        return parsed.protocol === "https:" && parsed.hostname === "res.cloudinary.com" && inFolder && (!privateOnly || isPrivate);
+    }
+    catch {
+        return false;
+    }
+}
+function safeProfile(profile, keepNumber = true) {
+    const { idFrontUrl, idBackUrl, ...rest } = profile;
+    const result = { ...rest, hasIdFront: !!idFrontUrl, hasIdBack: !!idBackUrl };
+    if (!keepNumber)
+        delete result.idDocumentNumber;
+    return result;
+}
 async function getApplicationStatus(userId) {
     const profile = await prisma_1.prisma.bizProfile.findUnique({ where: { userId } });
     if (!profile)
@@ -81,6 +107,9 @@ async function getApplicationStatus(userId) {
     };
 }
 async function applyAsMerchant(userId, data) {
+    if (!isOwnIdUrl(data.idFrontUrl, true) || (data.idBackUrl && !isOwnIdUrl(data.idBackUrl, true))) {
+        throw new errors_1.AppError("Please upload your ID document again", 400);
+    }
     const existing = await prisma_1.prisma.bizProfile.findUnique({ where: { userId } });
     if (existing) {
         if (existing.status === "APPROVED")
@@ -132,7 +161,7 @@ async function applyAsMerchant(userId, data) {
 }
 async function uploadIdDocument(buffer) {
     const uploaded = await new Promise((resolve, reject) => {
-        const stream = cloudinary_1.cloudinary.uploader.upload_stream({ folder: "lifeos/merchant-id-docs", resource_type: "auto" }, (err, result) => (err || !result ? reject(err) : resolve(result)));
+        const stream = cloudinary_1.cloudinary.uploader.upload_stream({ folder: ID_FOLDER, resource_type: "auto", type: "authenticated" }, (err, result) => (err || !result ? reject(err) : resolve(result)));
         stream.end(buffer);
     });
     return { url: uploaded.secure_url };
@@ -172,13 +201,13 @@ async function createMerchantPortalSession(userId) {
     const result = await paystack.getSubscriptionManageLink(profile.paystackSubscriptionCode);
     return result.link;
 }
-// ─── Admin review ──────────────────────────────────────────────────────────
 async function listApplications(status) {
-    return prisma_1.prisma.bizProfile.findMany({
+    const rows = await prisma_1.prisma.bizProfile.findMany({
         where: status ? { status } : undefined,
         include: { user: { select: { id: true, name: true, email: true } } },
         orderBy: { appliedAt: "desc" },
     });
+    return rows.map((row) => safeProfile(row, false));
 }
 async function reviewApplication(reviewerId, bizProfileId, action, rejectionReason) {
     const profile = await prisma_1.prisma.bizProfile.findUnique({ where: { id: bizProfileId } });
@@ -266,7 +295,7 @@ async function getApplicationDetail(bizProfileId) {
     if (!profile)
         throw new errors_1.AppError("Merchant not found", 404);
     const staffCount = await prisma_1.prisma.bizStaff.count({ where: { bizProfileId } });
-    return { ...profile, staffCount };
+    return { ...safeProfile(profile), staffCount };
 }
 async function regenerateStoreCode(userId) {
     const profile = await prisma_1.prisma.bizProfile.findUnique({ where: { userId } });
@@ -286,4 +315,21 @@ async function updateNotificationSettings(userId, data) {
 }
 async function setPaused(userId, paused) {
     return prisma_1.prisma.bizProfile.update({ where: { userId }, data: { paused } });
+}
+async function streamIdDocument(reviewerId, bizProfileId, side, res) {
+    const profile = await prisma_1.prisma.bizProfile.findUnique({
+        where: { id: bizProfileId },
+        select: { businessName: true, idFrontUrl: true, idBackUrl: true },
+    });
+    const url = side === "front" ? profile?.idFrontUrl : profile?.idBackUrl;
+    if (!profile || !isOwnIdUrl(url))
+        throw new errors_1.AppError("Document not found", 404);
+    const upstream = await fetch(url, { signal: AbortSignal.timeout(30000) });
+    if (!upstream.ok || !upstream.body)
+        throw new errors_1.AppError("The document couldn't be retrieved", 502);
+    await (0, audit_service_1.logAdminAction)(reviewerId, "MERCHANT_ID_VIEWED", "BizProfile", bizProfileId, `Viewed the ${side} of the ID document for ${profile.businessName}`);
+    res.setHeader("Content-Type", upstream.headers.get("content-type") ?? "application/octet-stream");
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    await (0, promises_1.pipeline)(stream_1.Readable.fromWeb(upstream.body), res);
 }

@@ -1953,9 +1953,11 @@ export function useEmergencyAccessLog() {
 export function useEmergencyPublic(token: string | null, pin?: string) {
   return useQuery({
     queryKey: ["emergencyPublic", token, pin],
-    queryFn: () => api.get(`/emergency/public/${token}${pin ? `?pin=${encodeURIComponent(pin)}` : ""}`).then((d) => d.emergency),
+    queryFn: () => api.post(`/emergency/public/${token}`, pin ? { pin } : {}).then((d) => d.emergency),
     enabled: !!token,
     retry: false,
+    gcTime: 0,
+    staleTime: 0,
   });
 }
 

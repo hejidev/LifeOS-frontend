@@ -9,10 +9,6 @@ import * as familyController from "../controllers/family.controller";
 
 const router = Router();
 
-// Public — no auth, since the invitee isn't logged in yet
-router.get("/family/invites/:token", familyController.getInvite);
-router.post("/family/invites/accept", validate(acceptInviteSchema), familyController.acceptInvite);
-
 router.use(requireAuth);
 
 router.get("/family/dashboard", familyController.getDashboard);

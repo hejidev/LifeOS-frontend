@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.publicQuerySchema = exports.setPinSchema = exports.enableShareSchema = exports.reorderContactsSchema = exports.updateContactSchema = exports.createContactSchema = exports.updateEmergencyProfileSchema = void 0;
+exports.publicUnlockSchema = exports.publicQuerySchema = exports.setPinSchema = exports.enableShareSchema = exports.reorderContactsSchema = exports.updateContactSchema = exports.createContactSchema = exports.updateEmergencyProfileSchema = void 0;
 const zod_1 = require("zod");
 exports.updateEmergencyProfileSchema = zod_1.z.object({
     body: zod_1.z.object({
@@ -23,24 +23,16 @@ exports.updateEmergencyProfileSchema = zod_1.z.object({
         notes: zod_1.z.string().max(2000).optional(),
     }),
 });
-exports.createContactSchema = zod_1.z.object({
-    body: zod_1.z.object({
-        name: zod_1.z.string().trim().min(1).max(100),
-        relationship: zod_1.z.string().max(50).optional(),
-        phone: zod_1.z.string().trim().min(1).max(30),
-        email: zod_1.z.string().email().optional(),
-        canMakeMedicalDecisions: zod_1.z.boolean().optional(),
-    }),
-});
-exports.updateContactSchema = zod_1.z.object({
-    body: zod_1.z.object({
-        name: zod_1.z.string().trim().min(1).max(100).optional(),
-        relationship: zod_1.z.string().max(50).optional(),
-        phone: zod_1.z.string().trim().min(1).max(30).optional(),
-        email: zod_1.z.string().email().optional(),
-        canMakeMedicalDecisions: zod_1.z.boolean().optional(),
-    }),
-});
+const blankToUndefined = (value) => (typeof value === "string" && value.trim() === "" ? undefined : value);
+const contactFields = {
+    name: zod_1.z.string().trim().min(1).max(100),
+    relationship: zod_1.z.preprocess(blankToUndefined, zod_1.z.string().trim().max(60).optional()),
+    phone: zod_1.z.string().trim().min(5).max(30),
+    email: zod_1.z.preprocess(blankToUndefined, zod_1.z.string().trim().email().optional()),
+    canMakeMedicalDecisions: zod_1.z.boolean().optional(),
+};
+exports.createContactSchema = zod_1.z.object({ body: zod_1.z.object(contactFields) });
+exports.updateContactSchema = zod_1.z.object({ body: zod_1.z.object(contactFields).partial() });
 exports.reorderContactsSchema = zod_1.z.object({
     body: zod_1.z.object({ orderedIds: zod_1.z.array(zod_1.z.string().uuid()).min(1) }),
 });
@@ -52,4 +44,8 @@ exports.setPinSchema = zod_1.z.object({
 });
 exports.publicQuerySchema = zod_1.z.object({
     query: zod_1.z.object({ pin: zod_1.z.string().optional() }),
+});
+exports.publicUnlockSchema = zod_1.z.object({
+    body: zod_1.z.object({ pin: zod_1.z.string().regex(/^\d{4,8}$/).optional() }).default({}),
+    params: zod_1.z.object({ token: zod_1.z.string().min(20).max(80) }),
 });

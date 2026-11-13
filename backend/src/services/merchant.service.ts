@@ -1,6 +1,10 @@
 import { cloudinary } from "../config/cloudinary";
 import { env } from "../config/env";
 import crypto from "crypto";
+import type { Response } from "express";
+import { Readable } from "stream";
+import { pipeline } from "stream/promises";
+
 import { BillingInterval, MERCHANT_PLANS, MerchantPlanKey } from "../config/plan";
 import { prisma } from "../config/prisma";
 import { AppError } from "../lib/errors";
@@ -8,6 +12,29 @@ import * as paystack from "./paystack.service";
 import { createNotification } from "./notification.service";
 import { logAdminAction } from "./audit.service";
 import { sendMerchantApprovedEmail, sendMerchantReactivatedEmail, sendMerchantRejectedEmail, sendMerchantSuspendedEmail } from "./email.service";
+
+
+const ID_FOLDER = "lifeos/merchant-id-docs";
+
+function isOwnIdUrl(url: string | null | undefined, privateOnly = false): url is string {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    const cloud = cloudinary.config().cloud_name;
+    const inFolder = parsed.pathname.startsWith(`/${cloud}/`) && parsed.pathname.includes(`/${ID_FOLDER}/`);
+    const isPrivate = parsed.pathname.includes("/authenticated/");
+    return parsed.protocol === "https:" && parsed.hostname === "res.cloudinary.com" && inFolder && (!privateOnly || isPrivate);
+  } catch {
+    return false;
+  }
+}
+
+export function safeProfile<T extends { idFrontUrl?: string | null; idBackUrl?: string | null }>(profile: T, keepNumber = true) {
+  const { idFrontUrl, idBackUrl, ...rest } = profile;
+  const result: Record<string, unknown> = { ...rest, hasIdFront: !!idFrontUrl, hasIdBack: !!idBackUrl };
+  if (!keepNumber) delete result.idDocumentNumber;
+  return result;
+}
 
 export async function getApplicationStatus(userId: string) {
   const profile = await prisma.bizProfile.findUnique({ where: { userId } });
@@ -36,6 +63,11 @@ export async function applyAsMerchant(userId: string, data: {
   contactPhone: string; contactEmail: string; address: string; currency?: string;
   idDocumentType: string; idDocumentNumber: string; idFrontUrl: string; idBackUrl?: string;
 }) {
+
+  if (!isOwnIdUrl(data.idFrontUrl, true) || (data.idBackUrl && !isOwnIdUrl(data.idBackUrl, true))) {
+    throw new AppError("Please upload your ID document again", 400);
+  }
+  
   const existing = await prisma.bizProfile.findUnique({ where: { userId } });
 
   if (existing) {
@@ -89,7 +121,7 @@ export async function applyAsMerchant(userId: string, data: {
 export async function uploadIdDocument(buffer: Buffer) {
   const uploaded = await new Promise<any>((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder: "lifeos/merchant-id-docs", resource_type: "auto" },
+      { folder: ID_FOLDER, resource_type: "auto", type: "authenticated" },
       (err, result) => (err || !result ? reject(err) : resolve(result))
     );
     stream.end(buffer);
@@ -134,14 +166,14 @@ export async function createMerchantPortalSession(userId: string) {
   return result.link;
 }
 
-// ─── Admin review ──────────────────────────────────────────────────────────
 
 export async function listApplications(status?: "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED") {
-  return prisma.bizProfile.findMany({
+  const rows = await prisma.bizProfile.findMany({
     where: status ? { status } : undefined,
     include: { user: { select: { id: true, name: true, email: true } } },
     orderBy: { appliedAt: "desc" },
   });
+  return rows.map((row) => safeProfile(row, false));
 }
 
 export async function reviewApplication(
@@ -244,7 +276,7 @@ export async function changeMerchantStatus(
     if (!profile) throw new AppError("Merchant not found", 404);
   
     const staffCount = await prisma.bizStaff.count({ where: { bizProfileId } });
-    return { ...profile, staffCount };
+    return { ...safeProfile(profile), staffCount };
   }
 
   export async function regenerateStoreCode(userId: string) {
@@ -269,3 +301,22 @@ export async function changeMerchantStatus(
   export async function setPaused(userId: string, paused: boolean) {
     return prisma.bizProfile.update({ where: { userId }, data: { paused } });
   }
+
+  export async function streamIdDocument(reviewerId: string, bizProfileId: string, side: "front" | "back", res: Response) {
+  const profile = await prisma.bizProfile.findUnique({
+    where: { id: bizProfileId },
+    select: { businessName: true, idFrontUrl: true, idBackUrl: true },
+  });
+  const url = side === "front" ? profile?.idFrontUrl : profile?.idBackUrl;
+  if (!profile || !isOwnIdUrl(url)) throw new AppError("Document not found", 404);
+
+  const upstream = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+  if (!upstream.ok || !upstream.body) throw new AppError("The document couldn't be retrieved", 502);
+
+  await logAdminAction(reviewerId, "MERCHANT_ID_VIEWED", "BizProfile", bizProfileId, `Viewed the ${side} of the ID document for ${profile.businessName}`);
+
+  res.setHeader("Content-Type", upstream.headers.get("content-type") ?? "application/octet-stream");
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  await pipeline(Readable.fromWeb(upstream.body as any), res);
+}

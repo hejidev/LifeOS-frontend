@@ -199,3 +199,23 @@ export async function openProtectedFile(path: string) {
   else window.location.href = url;
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
+
+export async function fetchProtectedBlob(path: string) {
+  const attempt = () =>
+    fetch(`${API_URL}${path}`, {
+      credentials: "include",
+      headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+    });
+
+  let res = await attempt();
+  if (res.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) res = await attempt();
+  }
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw makeError((data as any).error ?? "Couldn't load the file", res.status);
+  }
+  return res.blob();
+}

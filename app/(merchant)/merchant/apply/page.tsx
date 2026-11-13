@@ -85,7 +85,7 @@ export default function MerchantApplyPage() {
 
   const [form, setForm] = useState({
     businessName: "", category: "RETAIL", description: "",
-    contactPhone: "", contactEmail: "", address: "", currency: "USD",
+    contactPhone: "", contactEmail: "", address: "", currency: "NGN",
     idDocumentType: "NATIONAL_ID", idDocumentNumber: "",
   });
   const [frontFile, setFrontFile] = useState<File | null>(null);

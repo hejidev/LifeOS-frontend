@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.setPaused = exports.updateNotificationSettings = exports.forceStaffLogout = exports.regenerateStoreCode = exports.getStaffLoginCode = exports.verifyId = exports.portal = exports.checkout = exports.uploadIdDocument = exports.getApplicationDetail = exports.reviewApplication = exports.listApplications = exports.apply = exports.getStatus = void 0;
+exports.setPaused = exports.updateNotificationSettings = exports.forceStaffLogout = exports.regenerateStoreCode = exports.getStaffLoginCode = exports.viewIdDocument = exports.verifyId = exports.portal = exports.checkout = exports.uploadIdDocument = exports.getApplicationDetail = exports.reviewApplication = exports.listApplications = exports.apply = exports.getStatus = void 0;
 const errors_1 = require("../lib/errors");
 const merchantService = __importStar(require("../services/merchant.service"));
 const prisma_1 = require("../config/prisma");
@@ -47,7 +47,7 @@ exports.getStatus = (0, errors_1.asyncHandler)(async (req, res) => {
 });
 exports.apply = (0, errors_1.asyncHandler)(async (req, res) => {
     const profile = await merchantService.applyAsMerchant(req.user.id, req.body);
-    return res.status(201).json({ profile });
+    return res.status(201).json({ profile: merchantService.safeProfile(profile, false) });
 });
 exports.listApplications = (0, errors_1.asyncHandler)(async (req, res) => {
     const status = req.query.status;
@@ -57,7 +57,7 @@ exports.listApplications = (0, errors_1.asyncHandler)(async (req, res) => {
 exports.reviewApplication = (0, errors_1.asyncHandler)(async (req, res) => {
     const { action, rejectionReason } = req.body;
     const profile = await merchantService.changeMerchantStatus(req.user.id, req.params.id, action, rejectionReason);
-    return res.json({ profile });
+    return res.json({ profile: merchantService.safeProfile(profile, false) });
 });
 exports.getApplicationDetail = (0, errors_1.asyncHandler)(async (req, res) => {
     const detail = await merchantService.getApplicationDetail(req.params.id);
@@ -80,7 +80,11 @@ exports.portal = (0, errors_1.asyncHandler)(async (req, res) => {
 });
 exports.verifyId = (0, errors_1.asyncHandler)(async (req, res) => {
     const profile = await merchantService.markIdVerified(req.user.id, req.params.id);
-    return res.json({ profile });
+    return res.json({ profile: merchantService.safeProfile(profile) });
+});
+exports.viewIdDocument = (0, errors_1.asyncHandler)(async (req, res) => {
+    const side = req.params.side === "back" ? "back" : "front";
+    await merchantService.streamIdDocument(req.user.id, req.params.id, side, res);
 });
 exports.getStaffLoginCode = (0, errors_1.asyncHandler)(async (req, res) => {
     let profile = await prisma_1.prisma.bizProfile.findUnique({ where: { userId: req.user.id } });

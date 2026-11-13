@@ -58,6 +58,12 @@ import { startTrafficRecorder, trafficMiddleware } from "./services/traffic.serv
 import pingRoutes from "./routes/ping.routes";
 import platformToolsRoutes from "./routes/platform-tools.routes";
 
+import * as emergencyController from "./controllers/emergency.controller";
+import { publicUnlockSchema } from "./validators/emergency.validator";
+import * as familyController from "./controllers/family.controller";
+import { validate } from "./middlewares/validate.middleware";
+import { acceptInviteSchema } from "./validators/family.validator";
+
 import { errorHandler } from "./middlewares/errorHandler.middleware";
 import { startCronJobs } from "./config/cron";
 
@@ -85,6 +91,10 @@ app.use(hpp());
 app.use(compression());
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
+
+app.post("/api/emergency/public/:token", validate(publicUnlockSchema), emergencyController.getPublic);
+app.get("/api/family/invites/:token", familyController.getInvite);
+app.post("/api/family/invites/accept", validate(acceptInviteSchema), familyController.acceptInvite);
 
 app.get(
   "/api/public/social-profile/:slug",

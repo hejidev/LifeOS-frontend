@@ -23,8 +23,10 @@ export function AccountUserNav({ links }: { links: { href: string; label: string
   const router = useRouter();
 
   async function handleLogout() {
-    await logout.mutateAsync();
-    router.push("/login");
+    try {
+      await logout.mutateAsync();
+    } catch {}
+    router.replace("/login");
   }
 
   if (isLoading || !profile) return <Skeleton className="h-9 w-9 rounded-full" />;

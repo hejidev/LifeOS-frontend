@@ -54,10 +54,12 @@ export const getAccessLog = asyncHandler(async (req: AuthenticatedRequest, res: 
 });
 
 export const getPublic = asyncHandler(async (req: Request, res: Response) => {
-  const pin = req.query.pin as string | undefined;
+  const pin = typeof req.body?.pin === "string" ? req.body.pin : undefined;
+  const forwarded = String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim();
   const data = await emergencyService.getPublicByToken(req.params.token, pin, {
-    ip: req.ip,
+    ip: forwarded || req.ip,
     userAgent: req.headers["user-agent"],
   });
+  res.setHeader("Cache-Control", "no-store");
   return res.json({ emergency: data });
 });

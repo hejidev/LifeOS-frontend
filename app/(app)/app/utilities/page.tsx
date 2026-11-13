@@ -18,6 +18,8 @@ const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
 const TOOLS = ["currency", "language", "qr", "password", "hash", "uuid", "json", "base64", "text", "color"] as const;
 type Tool = typeof TOOLS[number];
 
+const FEATURED_CURRENCIES = ["NGN", "USD", "EUR", "GBP", "GHS", "ZAR", "KES", "CAD", "AUD", "AED", "CNY", "INR", "JPY"];
+
 function generatePassword(length = 16) {
     const charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*()-_=+";
     const bytes = new Uint32Array(length);
@@ -260,16 +262,22 @@ export default function UtilitiesPage() {
                                 <div className="flex gap-2">
                                     <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-32" />
                                     <select className="h-10 rounded-lg border border-input bg-background px-2 text-sm" value={base} onChange={(e) => setBase(e.target.value)}>
-                                        {["USD", "EUR", "GBP", "NGN", "JPY", "CAD", "AUD", "INR"].map((c) => <option key={c} value={c}>{c}</option>)}
+                                        {["USD", "EUR", "GBP", "NGN", "JPY", "CAD", "AUD", "INR", "GHS", "ZAR", "KES"].map((c) => <option key={c} value={c}>{c}</option>)}
                                     </select>
                                 </div>
                                 {rates && (
-                                    <div className="grid grid-cols-2 gap-2 text-sm">
-                                        {Object.entries(rates.rates as Record<string, number>).slice(0, 12).map(([cur, rate]) => (
-                                            <div key={cur} className="flex justify-between rounded-lg border border-border/60 bg-card/60 p-2">
-                                                <span>{cur}</span><span className="font-medium">{(Number(amount) * rate).toFixed(2)}</span>
-                                            </div>
-                                        ))}
+                                    <div className="space-y-2">
+                                        <div className="grid grid-cols-2 gap-2 text-sm">
+                                            {FEATURED_CURRENCIES.filter((cur) => cur !== base && rates.rates?.[cur]).map((cur) => (
+                                                <div key={cur} className="flex justify-between rounded-lg border border-border/60 bg-card/60 p-2">
+                                                    <span>{cur}</span>
+                                                    <span className="font-medium">{(Number(amount) * rates.rates[cur]).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            Daily mid-market rates, not the rate a bank or street exchange will give you. <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener noreferrer" className="underline">Rates By Exchange Rate API</a>
+                                        </p>
                                     </div>
                                 )}
                             </div>

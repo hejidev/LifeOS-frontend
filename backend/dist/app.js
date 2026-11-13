@@ -92,6 +92,11 @@ const site_content_routes_1 = __importDefault(require("./routes/site-content.rou
 const traffic_service_1 = require("./services/traffic.service");
 const ping_routes_1 = __importDefault(require("./routes/ping.routes"));
 const platform_tools_routes_1 = __importDefault(require("./routes/platform-tools.routes"));
+const emergencyController = __importStar(require("./controllers/emergency.controller"));
+const emergency_validator_1 = require("./validators/emergency.validator");
+const familyController = __importStar(require("./controllers/family.controller"));
+const validate_middleware_1 = require("./middlewares/validate.middleware");
+const family_validator_1 = require("./validators/family.validator");
 const errorHandler_middleware_1 = require("./middlewares/errorHandler.middleware");
 const cron_1 = require("./config/cron");
 const app = (0, express_1.default)();
@@ -113,6 +118,9 @@ app.use((0, cookie_parser_1.default)());
 app.use((0, hpp_1.default)());
 app.use((0, compression_1.default)());
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
+app.post("/api/emergency/public/:token", (0, validate_middleware_1.validate)(emergency_validator_1.publicUnlockSchema), emergencyController.getPublic);
+app.get("/api/family/invites/:token", familyController.getInvite);
+app.post("/api/family/invites/accept", (0, validate_middleware_1.validate)(family_validator_1.acceptInviteSchema), familyController.acceptInvite);
 app.get("/api/public/social-profile/:slug", (req, res, next) => utilitiesController
     .getPublicSocialProfile(req.params.slug, {
     userAgent: req.get("user-agent") ?? undefined,

@@ -74,7 +74,7 @@ export default function EmergencyVaultPage() {
     const p = profile as any;
     if (p?.shareEnabled && p?.shareToken) {
       const url = `${window.location.origin}/emergency/${p.shareToken}`;
-      QRCode.toDataURL(url, { width: 220, margin: 1 }).then(setQrImage);
+      QRCode.toDataURL(url, { width: 280, margin: 4, errorCorrectionLevel: "M" }).then(setQrImage);
     } else {
       setQrImage(null);
     }
@@ -93,7 +93,23 @@ export default function EmergencyVaultPage() {
 
   function handleAddContact(e: React.FormEvent) {
     e.preventDefault();
-    addContact.mutate(contactForm, { onSuccess: () => { setContactOpen(false); setContactForm({ name: "", relationship: "", phone: "", email: "", canMakeMedicalDecisions: false }); } });
+    const relationship = contactForm.relationship.trim();
+    const email = contactForm.email.trim();
+    addContact.mutate(
+      {
+        name: contactForm.name.trim(),
+        phone: contactForm.phone.trim(),
+        canMakeMedicalDecisions: contactForm.canMakeMedicalDecisions,
+        ...(relationship ? { relationship } : {}),
+        ...(email ? { email } : {}),
+      },
+      {
+        onSuccess: () => {
+          setContactOpen(false);
+          setContactForm({ name: "", relationship: "", phone: "", email: "", canMakeMedicalDecisions: false });
+        },
+      }
+    );
   }
 
   function moveContact(index: number, direction: -1 | 1) {
@@ -220,7 +236,7 @@ export default function EmergencyVaultPage() {
             <Card className="hover:border-primary/20 transition-colors">
               <CardHeader className="pb-3 flex items-center justify-between">
                 <CardTitle className="text-base">Emergency contacts</CardTitle>
-                <Button size="sm" onClick={() => setContactOpen(true)}><Plus className="mr-1 h-3 w-3" /> Add</Button>
+                <Button size="sm" onClick={() => { addContact.reset(); setContactOpen(true); }}><Plus className="mr-1 h-3 w-3" /> Add</Button>
               </CardHeader>
               <CardContent>
                 {p.contacts.length === 0 ? (
@@ -316,8 +332,10 @@ export default function EmergencyVaultPage() {
               <div className="space-y-1"><Label>Name</Label><Input value={contactForm.name} onChange={(e) => setContactForm((f) => ({ ...f, name: e.target.value }))} required /></div>
               <div className="space-y-1"><Label>Relationship</Label><Input value={contactForm.relationship} onChange={(e) => setContactForm((f) => ({ ...f, relationship: e.target.value }))} placeholder="e.g. Spouse" /></div>
               <div className="space-y-1"><Label>Phone</Label><Input value={contactForm.phone} onChange={(e) => setContactForm((f) => ({ ...f, phone: e.target.value }))} required /></div>
+              <div className="space-y-1"><Label>Email (optional)</Label><Input type="email" value={contactForm.email} onChange={(e) => setContactForm((f) => ({ ...f, email: e.target.value }))} /></div>
               <label className="flex items-center gap-2"><input type="checkbox" checked={contactForm.canMakeMedicalDecisions} onChange={(e) => setContactForm((f) => ({ ...f, canMakeMedicalDecisions: e.target.checked }))} className="rounded" /><span className="text-sm">Can make medical decisions for me</span></label>
               <div className="flex justify-end gap-2">
+                {addContact.isError && <p className="text-xs text-destructive">{(addContact.error as Error).message}</p>}
                 <Button type="button" variant="outline" onClick={() => setContactOpen(false)}>Cancel</Button>
                 <Button type="submit" disabled={addContact.isPending}>{addContact.isPending ? "Saving..." : "Save"}</Button>
               </div>

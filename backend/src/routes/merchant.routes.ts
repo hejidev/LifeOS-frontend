@@ -30,6 +30,7 @@ router.post("/billing-portal", merchantController.portal);
 router.get("/applications", requirePermission("MANAGE_MERCHANTS"), merchantController.listApplications);
 router.get("/applications/:id", requirePermission("MANAGE_MERCHANTS"), merchantController.getApplicationDetail);
 router.patch("/applications/:id", requirePermission("MANAGE_MERCHANTS"), validate(reviewApplicationSchema), merchantController.reviewApplication);
+router.get("/applications/:id/id/:side", requirePermission("MANAGE_MERCHANTS"), merchantController.viewIdDocument);
 router.patch("/applications/:id/verify-id", requirePermission("MANAGE_MERCHANTS"), merchantController.verifyId);
 router.get("/staff-login-code", requireMerchant, merchantController.getStaffLoginCode);
 router.post("/staff-login-code/regenerate", requireMerchant, merchantController.regenerateStoreCode);
