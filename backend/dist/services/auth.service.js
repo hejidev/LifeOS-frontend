@@ -73,6 +73,8 @@ async function notifyLogin(user) {
         const superAdmins = await prisma_1.prisma.user.findMany({ where: { role: "SUPER_ADMIN" }, select: { email: true } });
         await Promise.all(superAdmins.map((sa) => (0, email_service_1.sendAdminLoginAlertEmail)(sa.email, user.name ?? "An admin", user.email, time)));
     }
+    if (user.email.endsWith("@family.invalid"))
+        return;
 }
 async function refreshSession(refreshToken) {
     const result = await (0, token_service_1.rotateRefreshToken)(refreshToken);

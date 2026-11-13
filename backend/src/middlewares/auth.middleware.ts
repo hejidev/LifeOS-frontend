@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { verifyAccessToken } from "../services/token.service";
 import { loadAuthUser } from "../lib/auth-cache";
+import { evaluateLock } from "../lib/family-lock";
 import { AppError } from "../lib/errors";
 
 export interface AuthenticatedRequest extends Request {
@@ -11,6 +12,8 @@ export interface AuthenticatedRequest extends Request {
     name: string | null;
   };
 }
+
+const LOCK_EXEMPT = ["/api/auth/", "/api/family-space/me"];
 
 export async function requireAuth(req: AuthenticatedRequest, _res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
@@ -30,6 +33,10 @@ export async function requireAuth(req: AuthenticatedRequest, _res: Response, nex
     if (!user) return next(new AppError("User not found", 401));
     if (!user.isActive) return next(new AppError("Account disabled", 401));
     if (payload.sv !== user.sessionVersion) return next(new AppError("Session revoked, please log in again", 401));
+
+    if (user.lock && evaluateLock(user.lock).locked && !LOCK_EXEMPT.some((prefix) => req.originalUrl.startsWith(prefix))) {
+      return next(new AppError("It's bedtime. LifeOS opens again soon.", 423));
+    }
 
     req.user = { id: user.id, email: user.email, role: user.role, name: user.name };
     next();

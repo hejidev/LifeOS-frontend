@@ -9,6 +9,13 @@ const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
 
 const MODEL_NAME = "gemini-3.6-flash";
 
+interface ExchangeRateResponse {
+  result?: string;
+  base_code?: string;
+  time_last_update_utc?: string;
+  rates?: Record<string, number>;
+}
+
 export async function getExchangeRates(base: string) {
   const code = base.toUpperCase();
   if (!/^[A-Z]{3}$/.test(code)) throw new AppError("Invalid currency code", 400);
@@ -20,13 +27,13 @@ export async function getExchangeRates(base: string) {
   const res = await fetch(`https://open.er-api.com/v6/latest/${code}`, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) throw new AppError("Couldn't fetch exchange rates right now", 502);
 
-  const data = await res.json();
-  if (data.result !== "success") throw new AppError("Exchange rates are unavailable right now", 502);
+  const data = (await res.json()) as ExchangeRateResponse;
+  if (data.result !== "success" || !data.rates) throw new AppError("Exchange rates are unavailable right now", 502);
 
   const payload = {
-    base: data.base_code,
-    date: data.time_last_update_utc,
-    rates: data.rates as Record<string, number>,
+    base: data.base_code ?? code,
+    date: data.time_last_update_utc ?? null,
+    rates: data.rates,
   };
   await redis.set(cacheKey, JSON.stringify(payload), "EX", TTL_SECONDS);
   return payload;

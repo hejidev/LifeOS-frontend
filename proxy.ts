@@ -24,6 +24,7 @@ export function proxy(req: NextRequest) {
     pathname === "/forgot-password" ||
     pathname === "/reset-password" ||
     pathname === "/family/join" ||
+    pathname === "/family/sign-in" ||
     pathname.startsWith("/emergency/") ||
     pathname.startsWith("/connect/") ||
     pathname.startsWith("/oauth") ||

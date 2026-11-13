@@ -87,6 +87,8 @@ async function notifyLogin(user: { email: string; name: string | null; role: str
       superAdmins.map((sa) => sendAdminLoginAlertEmail(sa.email, user.name ?? "An admin", user.email, time))
     );
   }
+
+  if (user.email.endsWith("@family.invalid")) return;
 }
 
 export async function refreshSession(refreshToken: string) {

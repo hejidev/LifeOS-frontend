@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.invalidateAuthCache = invalidateAuthCache;
 exports.loadAuthUser = loadAuthUser;
 const prisma_1 = require("../config/prisma");
+const family_lock_1 = require("./family-lock");
 const parsedTtl = Number(process.env.AUTH_CACHE_TTL_MS);
 const TTL_MS = Number.isFinite(parsedTtl) && parsedTtl >= 0 ? parsedTtl : 15000;
 const MAX_ENTRIES = 5000;
@@ -28,12 +29,14 @@ async function loadAuthUser(id) {
     if (pending)
         return pending;
     const started = epoch;
-    const task = prisma_1.prisma.user
-        .findUnique({
-        where: { id },
-        select: { id: true, email: true, role: true, name: true, isActive: true, sessionVersion: true },
-    })
-        .then((row) => {
+    const task = Promise.all([
+        prisma_1.prisma.user.findUnique({
+            where: { id },
+            select: { id: true, email: true, role: true, name: true, isActive: true, sessionVersion: true },
+        }),
+        (0, family_lock_1.loadLockRules)(id),
+    ])
+        .then(([row, lock]) => {
         if (!row)
             return null;
         const user = {
@@ -43,6 +46,7 @@ async function loadAuthUser(id) {
             name: row.name,
             isActive: row.isActive,
             sessionVersion: row.sessionVersion,
+            lock,
         };
         if (started === epoch && TTL_MS > 0) {
             if (cache.size >= MAX_ENTRIES)

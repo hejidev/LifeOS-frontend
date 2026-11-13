@@ -20,12 +20,12 @@ async function getExchangeRates(base) {
     const res = await fetch(`https://open.er-api.com/v6/latest/${code}`, { signal: AbortSignal.timeout(10000) });
     if (!res.ok)
         throw new errors_1.AppError("Couldn't fetch exchange rates right now", 502);
-    const data = await res.json();
-    if (data.result !== "success")
+    const data = (await res.json());
+    if (data.result !== "success" || !data.rates)
         throw new errors_1.AppError("Exchange rates are unavailable right now", 502);
     const payload = {
-        base: data.base_code,
-        date: data.time_last_update_utc,
+        base: data.base_code ?? code,
+        date: data.time_last_update_utc ?? null,
         rates: data.rates,
     };
     await redis_1.redis.set(cacheKey, JSON.stringify(payload), "EX", TTL_SECONDS);

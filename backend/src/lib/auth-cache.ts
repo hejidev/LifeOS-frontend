@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma";
+import { loadLockRules, type LockRules } from "./family-lock";
 
 export interface AuthUser {
   id: string;
@@ -7,6 +8,7 @@ export interface AuthUser {
   name: string | null;
   isActive: boolean;
   sessionVersion: number;
+  lock: LockRules | null;
 }
 
 const parsedTtl = Number(process.env.AUTH_CACHE_TTL_MS);
@@ -36,12 +38,14 @@ export async function loadAuthUser(id: string): Promise<AuthUser | null> {
   if (pending) return pending;
 
   const started = epoch;
-  const task = prisma.user
-    .findUnique({
+  const task = Promise.all([
+    prisma.user.findUnique({
       where: { id },
       select: { id: true, email: true, role: true, name: true, isActive: true, sessionVersion: true },
-    })
-    .then((row) => {
+    }),
+    loadLockRules(id),
+  ])
+    .then(([row, lock]) => {
       if (!row) return null;
       const user: AuthUser = {
         id: row.id,
@@ -50,6 +54,7 @@ export async function loadAuthUser(id: string): Promise<AuthUser | null> {
         name: row.name,
         isActive: row.isActive,
         sessionVersion: row.sessionVersion,
+        lock,
       };
       if (started === epoch && TTL_MS > 0) {
         if (cache.size >= MAX_ENTRIES) cache.clear();

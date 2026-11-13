@@ -450,6 +450,10 @@ model FamilyMember {
   controls               FamilyControl[]
   user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  memberUserId           String?            @unique
+  schedules              FamilySchedule[]
+  overrides              FamilyOverride[]
+
   @@index([userId])
 }
 
@@ -482,6 +486,59 @@ model FamilyInvite {
   user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model FamilyGroup {
+  ownerId    String    @id
+  familyCode String    @unique
+  consentAt  DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model FamilySchedule {
+  id       String       @id @default(uuid())
+  memberId String
+  label    String       @default("Bedtime")
+  days     Int[]
+  startMin Int
+  endMin   Int
+  enabled  Boolean      @default(true)
+  member   FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+}
+
+model FamilyOverride {
+  id        String       @id @default(uuid())
+  memberId  String
+  kind      String
+  until     DateTime
+  createdBy String
+  createdAt DateTime     @default(now())
+  member    FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, until])
+}
+
+model FamilyMessage {
+  id         String   @id @default(uuid())
+  ownerId    String
+  threadKey  String
+  senderId   String
+  senderName String
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([ownerId, threadKey, createdAt])
+}
+
+model FamilyRead {
+  userId     String
+  ownerId    String
+  threadKey  String
+  lastReadAt DateTime @default(now())
+
+  @@id([userId, ownerId, threadKey])
 }
 
 model CalendarEvent {

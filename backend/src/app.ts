@@ -64,6 +64,8 @@ import * as familyController from "./controllers/family.controller";
 import { validate } from "./middlewares/validate.middleware";
 import { acceptInviteSchema } from "./validators/family.validator";
 
+import familySpaceRoutes from "./routes/family-space.routes";
+
 import { errorHandler } from "./middlewares/errorHandler.middleware";
 import { startCronJobs } from "./config/cron";
 
@@ -130,6 +132,8 @@ app.use("/api/staff-portal", staffPortalRoutes);
 app.use("/api/staff-pos", staffPosRoutes);
 app.use("/api/my-shifts", staffShiftPortalRoutes);
 app.use("/api/stores", storeRoutes);
+app.use("/api/family-space", familySpaceRoutes);
+
 app.use("/api", chatRoutes);
 app.use("/api", operationsRoutes);
 app.use("/api/business", businessRoutes);

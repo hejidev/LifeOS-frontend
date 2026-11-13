@@ -119,6 +119,9 @@ export const api = {
   delete: (path: string, body?: unknown) =>
     request(path, { method: "DELETE", body: body ? JSON.stringify(body) : undefined }),
   upload: (path: string, formData: FormData) => requestUpload(path, formData),
+
+  fetchPut: (path: string, body?: unknown) =>
+    request(path, { method: "PUT", body: body ? JSON.stringify(body) : undefined }),
 };
 
 export async function streamPost(path: string, body: unknown): Promise<ReadableStreamDefaultReader<Uint8Array>> {
