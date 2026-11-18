@@ -32,28 +32,25 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const multer_1 = __importDefault(require("multer"));
 const auth_middleware_1 = require("../middlewares/auth.middleware");
 const validate_middleware_1 = require("../middlewares/validate.middleware");
 const usage_middleware_1 = require("../middlewares/usage.middleware");
 const rate_limit_1 = require("../lib/rate-limit");
+const upload_1 = require("../lib/upload");
 const ai_image_validator_1 = require("../validators/ai-image.validator");
 const aiImageController = __importStar(require("../controllers/ai-image.controller"));
 const ALLOWED = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/avif"];
-const upload = (0, multer_1.default)({
-    storage: multer_1.default.memoryStorage(),
-    limits: { fileSize: 15 * 1024 * 1024 },
-    fileFilter: (_req, file, cb) => (ALLOWED.includes(file.mimetype) ? cb(null, true) : cb(new Error("Use a PNG, JPG, WebP, GIF or AVIF image"))),
+const imageUpload = (0, upload_1.singleUpload)("file", {
+    maxBytes: 15 * 1024 * 1024,
+    allow: (file) => ALLOWED.includes(file.mimetype),
+    rejectMessage: "Use a PNG, JPG, WebP, GIF or AVIF image.",
 });
 const router = (0, express_1.Router)();
 router.use(auth_middleware_1.requireAuth);
 const guard = (0, rate_limit_1.rateLimitUser)("image-tools", 20, 60, "You're editing too quickly.");
-router.post("/image-tools/upload", (0, rate_limit_1.rateLimitUser)("image-upload", 30, 3600, "You've uploaded a lot of images."), upload.single("file"), aiImageController.uploadImage);
+router.post("/image-tools/upload", (0, rate_limit_1.rateLimitUser)("image-upload", 30, 3600, "You've uploaded a lot of images."), imageUpload, aiImageController.uploadImage);
 router.post("/image-tools/apply", (0, validate_middleware_1.validate)(ai_image_validator_1.applyToolSchema), guard, (0, usage_middleware_1.requireUsageOrSubscription)("AI_IMAGE"), aiImageController.applyTool);
 router.post("/image-tools/convert", (0, validate_middleware_1.validate)(ai_image_validator_1.convertFormatSchema), guard, (0, usage_middleware_1.requireUsageOrSubscription)("AI_IMAGE"), aiImageController.convertFormat);
 router.post("/image-tools/generative", (0, validate_middleware_1.validate)(ai_image_validator_1.generativeEditSchema), guard, (0, usage_middleware_1.requireUsageOrSubscription)("AI_IMAGE"), aiImageController.generativeEdit);

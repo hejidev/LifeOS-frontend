@@ -14,6 +14,7 @@ const promises_1 = require("stream/promises");
 const prisma_1 = require("../config/prisma");
 const errors_1 = require("../lib/errors");
 const cloudinary_1 = require("../config/cloudinary");
+const private_files_1 = require("../lib/private-files");
 function isPrivateFile(url) {
     if (!url)
         return false;
@@ -29,6 +30,11 @@ function isPrivateFile(url) {
 function present(doc) {
     const isPrivate = isPrivateFile(doc.fileUrl);
     return { ...doc, fileUrl: isPrivate ? null : doc.fileUrl, hasFile: !!doc.fileUrl, isPrivate };
+}
+async function assertFolder(userId, folderId) {
+    if (folderId && !(await prisma_1.prisma.documentFolder.findFirst({ where: { id: folderId, userId }, select: { id: true } }))) {
+        throw new errors_1.AppError("Folder not found", 404);
+    }
 }
 async function uploadDocumentFile(buffer, originalName, mimeType) {
     const isImage = mimeType.startsWith("image/");
@@ -91,6 +97,7 @@ async function deleteFolder(userId, id) {
     await prisma_1.prisma.documentFolder.delete({ where: { id } });
 }
 async function createDocument(userId, data) {
+    await assertFolder(userId, data.folderId);
     const doc = await prisma_1.prisma.document.create({
         data: {
             userId,
@@ -114,10 +121,11 @@ async function updateDocument(userId, id, data) {
     const existing = await prisma_1.prisma.document.findFirst({ where: { id, userId } });
     if (!existing)
         throw new errors_1.AppError("Document not found", 404);
+    await assertFolder(userId, data.folderId);
     const doc = await prisma_1.prisma.document.update({
         where: { id },
         data: {
-            ...(data.folderId && { folderId: data.folderId }),
+            ...(data.folderId !== undefined && { folderId: data.folderId }),
             ...(data.title && { title: data.title }),
             ...(data.category && { category: data.category }),
             ...(data.fileUrl && { fileUrl: data.fileUrl }),
@@ -125,7 +133,7 @@ async function updateDocument(userId, id, data) {
             ...(data.fileType && { fileType: data.fileType }),
             ...(data.fileSize !== undefined && { fileSize: data.fileSize }),
             ...(data.tags && { tags: data.tags }),
-            ...(data.summary && { summary: data.summary }),
+            ...(data.summary !== undefined && { summary: data.summary }),
             ...(data.expiresAt !== undefined && { expiresAt: data.expiresAt ? new Date(data.expiresAt) : null }),
             ...(data.status && { status: data.status }),
         },
@@ -137,6 +145,8 @@ async function deleteDocument(userId, id) {
     if (!existing)
         throw new errors_1.AppError("Document not found", 404);
     await prisma_1.prisma.document.delete({ where: { id } });
+    if (isPrivateFile(existing.fileUrl))
+        void (0, private_files_1.destroyPrivate)(existing.fileUrl);
 }
 async function getDocumentsDashboard(userId, filters) {
     const where = { userId };
@@ -149,9 +159,10 @@ async function getDocumentsDashboard(userId, filters) {
             { tags: { has: filters.q } },
         ];
     }
-    const [folders, documents] = await Promise.all([
+    const [folders, documents, storage] = await Promise.all([
         prisma_1.prisma.documentFolder.findMany({ where: { userId }, orderBy: { name: "asc" } }),
         prisma_1.prisma.document.findMany({ where, orderBy: [{ createdAt: "desc" }] }),
+        prisma_1.prisma.document.aggregate({ where: { userId }, _sum: { fileSize: true } }),
     ]);
     const now = new Date();
     const expired = documents.filter((d) => d.expiresAt && d.expiresAt < now).length;
@@ -162,6 +173,7 @@ async function getDocumentsDashboard(userId, filters) {
         archivedDocuments: documents.filter((d) => d.status === "ARCHIVED").length,
         expiredDocuments: expired,
         expiringSoon,
+        totalBytes: Number(storage._sum.fileSize ?? 0),
     };
     const insight = documents.length > 0
         ? "Your document vault reflects real stored documents and expiry metadata."

@@ -13,7 +13,7 @@ const client = env.GEMINI_API_KEY ? new GoogleGenerativeAI(env.GEMINI_API_KEY) :
 
 function modelFor(system: string): GenerativeModel {
   if (!client) throw new AppError("The AI service isn't configured yet.", 503);
-  return client.getGenerativeModel({ model: MODEL_NAME, systemInstruction: system });
+  return client.getGenerativeModel({ model: MODEL_NAME, systemInstruction: system }, { timeout: STREAM_TIMEOUT_MS });
 }
 
 export function friendlyAiError(error: unknown) {
@@ -85,6 +85,17 @@ export async function streamPrompt(input: {
     const result = await modelFor(input.system).generateContentStream(input.prompt);
     const produced = await pump(result.stream, input.onDelta, input.isAborted);
     if (!produced && !input.isAborted?.()) throw new AppError("The AI returned nothing for that input. Try rephrasing.", 422);
+  } catch (error) {
+    throw friendlyAiError(error);
+  }
+}
+
+export async function completeText(input: { system: string; prompt: string }) {
+  try {
+    const result = await modelFor(input.system).generateContent(input.prompt);
+    const text = result.response.text().trim();
+    if (!text) throw new AppError("The AI returned nothing for that input. Try rephrasing.", 422);
+    return text;
   } catch (error) {
     throw friendlyAiError(error);
   }

@@ -43,7 +43,7 @@ const compression_1 = __importDefault(require("compression"));
 const hpp_1 = __importDefault(require("hpp"));
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const env_1 = require("./config/env");
-const utilitiesController = __importStar(require("./controllers/utilities.controller"));
+// import * as utilitiesController from "./controllers/utilities.controller";
 const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
 const oauth_routes_1 = __importDefault(require("./routes/oauth.routes"));
 const staff_auth_routes_1 = __importDefault(require("./routes/staff-auth.routes"));
@@ -67,6 +67,8 @@ const staff_shift_portal_routes_1 = __importDefault(require("./routes/staff-shif
 const store_routes_1 = __importDefault(require("./routes/store.routes"));
 const chat_routes_1 = __importDefault(require("./routes/chat.routes"));
 const operations_routes_1 = __importDefault(require("./routes/operations.routes"));
+const socialProfileService = __importStar(require("./services/social-profile.service"));
+const rate_limit_1 = require("./lib/rate-limit");
 const business_routes_1 = __importDefault(require("./routes/business.routes"));
 const settings_routes_1 = __importDefault(require("./routes/settings.routes"));
 const billing_routes_1 = __importDefault(require("./routes/billing.routes"));
@@ -123,18 +125,22 @@ app.get("/health", (_req, res) => res.json({ status: "ok" }));
 app.post("/api/emergency/public/:token", (0, validate_middleware_1.validate)(emergency_validator_1.publicUnlockSchema), emergencyController.getPublic);
 app.get("/api/family/invites/:token", familyController.getInvite);
 app.post("/api/family/invites/accept", (0, validate_middleware_1.validate)(family_validator_1.acceptInviteSchema), familyController.acceptInvite);
-app.get("/api/public/social-profile/:slug", (req, res, next) => utilitiesController
-    .getPublicSocialProfile(req.params.slug, {
-    userAgent: req.get("user-agent") ?? undefined,
-    referrer: req.get("referer") ?? undefined,
-})
-    .then((data) => res.json(data))
-    .catch((err) => {
-    if (err.message === "Social profile not found") {
-        return res.status(404).json({ error: err.message });
+app.get("/api/public/social-profile/:slug", async (req, res, next) => {
+    try {
+        const forwarded = String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim();
+        const ip = forwarded || req.ip || "unknown";
+        await (0, rate_limit_1.consumeLimit)(`rl:social-public:${ip}`, 120, 60, "Too many requests.");
+        const profile = await socialProfileService.getPublicProfile(req.params.slug, {
+            ip,
+            userAgent: req.get("user-agent") ?? undefined,
+            referrer: req.get("referer") ?? undefined,
+        });
+        res.json(profile);
     }
-    return next(err);
-}));
+    catch (err) {
+        next(err);
+    }
+});
 // Auth-layer routers — no evidence these shadow anything, left in place
 app.use("/api", auth_routes_1.default);
 app.use("/api", oauth_routes_1.default);

@@ -61,6 +61,6 @@ exports.getAccountOverview = (0, errors_1.asyncHandler)(async (req, res) => {
     return res.json(overview);
 });
 exports.deactivateAccount = (0, errors_1.asyncHandler)(async (req, res) => {
-    await settingsService.deactivateAccount(req.user.id);
+    await settingsService.deactivateAccount(req.user.id, req.body ?? {});
     return res.status(204).send();
 });

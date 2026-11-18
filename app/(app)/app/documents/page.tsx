@@ -1,330 +1,412 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { motion } from "framer-motion";
-import {
-  ShieldCheck, Plus, Search, Folder, Lock,
-  Tag, FileText, Sparkles, Trash2, Archive, Link2, Upload,
-  X,
-  AlertCircle,
-  HardDrive,
-} from "lucide-react";
-import { format } from "date-fns";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMemo, useRef, useState } from "react";
+import { AlertCircle, Archive, FileText, Folder, FolderPlus, HardDrive, Link2, Lock, Pencil, Plus, RotateCcw, Search, Trash2, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { FileDrop } from "@/components/app/file-drop";
+import { EmptyState, PageHeader, Section, StatCard } from "@/components/app/kit";
 import {
-  useDocuments, useCreateDocument, useUpdateDocument, useDeleteDocument,
-  useUploadDocumentFile,
-} from "@/lib/hooks/use-life-data";
-import type { VaultDocument } from "@/types/life";
+  useCreateDocument, useCreateDocumentFolder, useDeleteDocument, useDeleteDocumentFolder, useDocumentsDashboard,
+  useUpdateDocument, useUpdateDocumentFolder, useUploadDocumentFile,
+} from "@/lib/hooks/use-documents";
 import { openProtectedFile } from "@/lib/api/client";
+import { cn } from "@/lib/utils";
+import type { DocCategory, DocFolder, DocItem } from "@/types/documents";
 
-const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
-const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
+const CATEGORIES: { key: DocCategory; label: string }[] = [
+  { key: "IDENTITY", label: "Identity" }, { key: "LEGAL", label: "Legal" }, { key: "EDUCATION", label: "Education" },
+  { key: "FINANCE", label: "Finance" }, { key: "HEALTH", label: "Health" }, { key: "WORK", label: "Work" },
+  { key: "PERSONAL", label: "Personal" }, { key: "OTHER", label: "Other" },
+];
+const LABEL = Object.fromEntries(CATEGORIES.map((item) => [item.key, item.label])) as Record<DocCategory, string>;
+const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,.pdf,.doc,.docx,.xls,.xlsx,.txt";
+const MAX_BYTES = 20 * 1024 * 1024;
 
-const CATEGORIES = ["IDENTITY", "LEGAL", "EDUCATION", "FINANCE", "HEALTH", "WORK", "PERSONAL", "OTHER"] as const;
-const CATEGORY_LABELS: Record<string, string> = {
-  IDENTITY: "Identity", LEGAL: "Legal", EDUCATION: "Education",
-  FINANCE: "Finance", HEALTH: "Health", WORK: "Work",
-  PERSONAL: "Personal", OTHER: "Other",
-};
+function bytes(value: number) {
+  if (value >= 1_073_741_824) return `${(value / 1_073_741_824).toFixed(1)} GB`;
+  if (value >= 1_048_576) return `${(value / 1_048_576).toFixed(1)} MB`;
+  if (value >= 1024) return `${Math.round(value / 1024)} KB`;
+  return `${value} B`;
+}
 
-const emptyForm = {
-  title: "",
-  category: "OTHER" as typeof CATEGORIES[number],
-  type: "OTHER" as "PDF" | "IMAGE" | "VIDEO" | "AUDIO" | "OTHER",
-  fileUrl: "",
-  fileName: "",
-  tags: "",
-  summary: "",
-  expiresAt: "",
-};
+function expiry(iso: string | null) {
+  if (!iso) return null;
+  const days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
+  if (days < 0) return { text: `Expired ${-days} ${days === -1 ? "day" : "days"} ago`, tone: "danger" as const };
+  if (days <= 30) return { text: days === 0 ? "Expires today" : `Expires in ${days} ${days === 1 ? "day" : "days"}`, tone: "warning" as const };
+  return { text: `Expires ${new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" })}`, tone: "muted" as const };
+}
 
-function guessCategoryFromMime(mimeType: string): typeof CATEGORIES[number] {
-  if (mimeType.startsWith("image/")) return "PERSONAL";
-  return "OTHER";
+const toneClass = { danger: "text-destructive", warning: "text-amber-600", muted: "text-muted-foreground" };
+const parseTags = (value: string) => [...new Set(value.split(",").map((tag) => tag.trim()).filter(Boolean))].slice(0, 20).map((tag) => tag.slice(0, 40));
+const dateInput = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
+const noon = (day: string) => new Date(`${day}T12:00:00`).toISOString();
+
+function DocDialog({ editing, folders, onClose }: { editing: DocItem | null; folders: DocFolder[]; onClose: () => void }) {
+  const create = useCreateDocument();
+  const update = useUpdateDocument();
+  const upload = useUploadDocumentFile();
+  const [mode, setMode] = useState<"upload" | "link">("upload");
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    title: editing?.title ?? "",
+    category: editing?.category ?? ("OTHER" as DocCategory),
+    folderId: editing?.folderId ?? "",
+    expiresAt: dateInput(editing?.expiresAt ?? null),
+    tags: editing?.tags.join(", ") ?? "",
+    summary: editing?.summary ?? "",
+    link: "",
+  });
+  const busy = create.isPending || update.isPending || upload.isPending;
+
+  function chooseFile(selected: File) {
+    setError(null);
+    setFile(selected);
+    setForm((current) => ({ ...current, title: current.title || selected.name.replace(/\.[^/.]+$/, "") }));
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    const tags = parseTags(form.tags);
+    const summary = form.summary.trim();
+
+    try {
+      if (editing) {
+        await update.mutateAsync({
+          id: editing.id,
+          data: {
+            title: form.title.trim(),
+            category: form.category,
+            folderId: form.folderId || null,
+            tags,
+            summary: summary || null,
+            expiresAt: form.expiresAt ? noon(form.expiresAt) : null,
+          },
+        });
+      } else {
+        let attachment: Record<string, unknown> = {};
+        if (mode === "upload" && file) {
+          attachment = await upload.mutateAsync(file);
+        } else if (mode === "link" && form.link.trim()) {
+          if (!/^https?:\/\//i.test(form.link.trim())) return setError("Links must start with http:// or https://");
+          attachment = { fileUrl: form.link.trim() };
+        }
+        await create.mutateAsync({
+          title: form.title.trim(),
+          category: form.category,
+          tags,
+          ...(form.folderId ? { folderId: form.folderId } : {}),
+          ...(summary ? { summary } : {}),
+          ...(form.expiresAt ? { expiresAt: noon(form.expiresAt) } : {}),
+          ...attachment,
+        });
+      }
+      onClose();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  const select = "flex h-10 w-full rounded-lg border bg-background px-3 text-sm";
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+        <DialogHeader><DialogTitle>{editing ? "Edit document" : "Add document"}</DialogTitle></DialogHeader>
+        <form onSubmit={submit} className="space-y-3 pt-1">
+          {!editing && (
+            <>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant={mode === "upload" ? "default" : "outline"} className="flex-1" onClick={() => setMode("upload")}>Upload a file</Button>
+                <Button type="button" size="sm" variant={mode === "link" ? "default" : "outline"} className="flex-1" onClick={() => setMode("link")}>Save a link</Button>
+              </div>
+              {mode === "upload" ? (
+                file ? (
+                  <div className="flex items-center gap-3 rounded-lg border px-3 py-2.5">
+                    <FileText className="h-5 w-5 shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{file.name}</p><p className="text-xs text-muted-foreground">{bytes(file.size)} · stored privately</p></div>
+                    <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label="Remove file" onClick={() => setFile(null)}><X className="h-4 w-4" /></Button>
+                  </div>
+                ) : (
+                  <FileDrop accept={ACCEPT} maxBytes={MAX_BYTES} title="Drop a file or click to choose" hint="Images, PDF, Word, Excel or text. Up to 20 MB." onFile={chooseFile} onReject={setError} />
+                )
+              ) : (
+                <div className="space-y-1"><Label>Link</Label><Input value={form.link} onChange={(event) => setForm((f) => ({ ...f, link: event.target.value }))} placeholder="https://..." /></div>
+              )}
+            </>
+          )}
+          <div className="space-y-1"><Label>Title</Label><Input value={form.title} onChange={(event) => setForm((f) => ({ ...f, title: event.target.value }))} maxLength={255} required /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Category</Label>
+              <select className={select} value={form.category} onChange={(event) => setForm((f) => ({ ...f, category: event.target.value as DocCategory }))}>{CATEGORIES.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select>
+            </div>
+            <div className="space-y-1">
+              <Label>Folder</Label>
+              <select className={select} value={form.folderId} onChange={(event) => setForm((f) => ({ ...f, folderId: event.target.value }))}>
+                <option value="">No folder</option>
+                {folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1"><Label>Expires (optional)</Label><Input type="date" value={form.expiresAt} onChange={(event) => setForm((f) => ({ ...f, expiresAt: event.target.value }))} /></div>
+            <div className="space-y-1"><Label>Tags</Label><Input value={form.tags} onChange={(event) => setForm((f) => ({ ...f, tags: event.target.value }))} placeholder="insurance, 2026" /></div>
+          </div>
+          <div className="space-y-1"><Label>Summary (optional)</Label><Textarea rows={2} value={form.summary} maxLength={2000} onChange={(event) => setForm((f) => ({ ...f, summary: event.target.value }))} /></div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={busy || !form.title.trim() || (!editing && mode === "upload" && !file && !!form.link)}>
+              {upload.isPending ? "Uploading..." : busy ? "Saving..." : editing ? "Save changes" : "Add document"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function FolderDialog({ editing, onClose }: { editing: DocFolder | null; onClose: () => void }) {
+  const create = useCreateDocumentFolder();
+  const update = useUpdateDocumentFolder();
+  const remove = useDeleteDocumentFolder();
+  const [name, setName] = useState(editing?.name ?? "");
+  const [description, setDescription] = useState(editing?.description ?? "");
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    try {
+      if (editing) await update.mutateAsync({ id: editing.id, data: { name: name.trim(), description: description.trim() } });
+      else await create.mutateAsync({ name: name.trim(), ...(description.trim() ? { description: description.trim() } : {}) });
+      onClose();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  async function removeFolder() {
+    if (!editing || !window.confirm(`Delete the folder "${editing.name}"?`)) return;
+    setError(null);
+    try {
+      await remove.mutateAsync(editing.id);
+      onClose();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>{editing ? "Edit folder" : "New folder"}</DialogTitle></DialogHeader>
+        <form onSubmit={submit} className="space-y-3 pt-1">
+          <div className="space-y-1"><Label>Name</Label><Input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} required autoFocus /></div>
+          <div className="space-y-1"><Label>Description (optional)</Label><Input value={description} onChange={(event) => setDescription(event.target.value)} maxLength={500} /></div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="flex items-center justify-between gap-2">
+            {editing ? <Button type="button" variant="ghost" className="text-destructive hover:text-destructive" disabled={remove.isPending} onClick={removeFolder}><Trash2 className="mr-1.5 h-4 w-4" /> Delete</Button> : <span />}
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={create.isPending || update.isPending || !name.trim()}>Save</Button>
+            </div>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export default function DocumentsPage() {
-  const { documents, stats, isLoading } = useDocuments();
-  const createDoc = useCreateDocument();
-  const updateDoc = useUpdateDocument();
-  const deleteDoc = useDeleteDocument();
-  const uploadFile = useUploadDocumentFile();
+  const { data, isLoading, isError, refetch } = useDocumentsDashboard();
+  const update = useUpdateDocument();
+  const remove = useDeleteDocument();
 
-  const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<DocCategory | "all">("all");
+  const [folderFilter, setFolderFilter] = useState<string>("all");
+  const [status, setStatus] = useState<"active" | "archived" | "all">("active");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const [mode, setMode] = useState<"link" | "upload">("link");
-  const [pickedFile, setPickedFile] = useState<File | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  const [docDialog, setDocDialog] = useState<{ id: number; editing: DocItem | null } | null>(null);
+  const [folderDialog, setFolderDialog] = useState<{ id: number; editing: DocFolder | null } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const panel = useRef<HTMLDivElement>(null);
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    return (documents as VaultDocument[]).filter((d) => {
-      const matchCat = categoryFilter === "all" || d.category.toUpperCase() === categoryFilter;
-      const matchSearch = !q || d.title.toLowerCase().includes(q) ||
-        d.tags.some((t) => t.toLowerCase().includes(q));
-      return matchCat && matchSearch;
+  const documents = data?.documents;
+  const folders = data?.folders;
+  const folderName = useMemo(() => new Map((folders ?? []).map((folder) => [folder.id, folder.name])), [folders]);
+  const folderCount = useMemo(() => {
+    const map = new Map<string, number>();
+    (documents ?? []).forEach((doc) => doc.folderId && map.set(doc.folderId, (map.get(doc.folderId) ?? 0) + 1));
+    return map;
+  }, [documents]);
+
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return (documents ?? []).filter((doc) => {
+      if (status === "active" && doc.status === "ARCHIVED") return false;
+      if (status === "archived" && doc.status !== "ARCHIVED") return false;
+      if (category !== "all" && doc.category !== category) return false;
+      if (folderFilter === "none" && doc.folderId) return false;
+      if (folderFilter !== "all" && folderFilter !== "none" && doc.folderId !== folderFilter) return false;
+      return !needle || doc.title.toLowerCase().includes(needle) || (doc.fileName ?? "").toLowerCase().includes(needle) || (doc.summary ?? "").toLowerCase().includes(needle) || doc.tags.some((tag) => tag.toLowerCase().includes(needle));
     });
-  }, [documents, search, categoryFilter]);
+  }, [documents, query, category, folderFilter, status]);
 
-  const selected = filtered.find((d) => d.id === selectedId) ?? filtered[0] ?? null;
+  const selected = (documents ?? []).find((doc) => doc.id === selectedId) ?? null;
+  const activeFolder = (folders ?? []).find((folder) => folder.id === folderFilter) ?? null;
 
-  function resetDialog() {
-    setUploadOpen(false);
-    setMode("link");
-    setPickedFile(null);
-    setForm(emptyForm);
+  function select(id: string) {
+    setSelectedId(id);
+    setNotice(null);
+    if (window.innerWidth < 1024) setTimeout(() => panel.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
   }
 
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPickedFile(file);
-    setForm((f) => ({
-      ...f,
-      title: f.title || file.name.replace(/\.[^/.]+$/, ""),
-      category: f.category === "OTHER" ? guessCategoryFromMime(file.type) : f.category,
-    }));
+  if (isError && !data) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-20 text-center">
+        <p className="text-sm text-destructive">Couldn't load your documents.</p>
+        <Button size="sm" variant="outline" onClick={() => refetch()}>Try again</Button>
+      </div>
+    );
   }
 
-  function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-
-    const finalize = (fileUrl?: string, fileName?: string, fileType?: string, fileSize?: number) => {
-      createDoc.mutate(
-        {
-          title: form.title,
-          category: form.category,
-          fileUrl: fileUrl ?? (form.fileUrl || undefined),
-          fileName: fileName ?? (form.fileName || undefined),
-          fileType,
-          fileSize,
-          tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
-          summary: form.summary || undefined,
-          expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : undefined,
-        },
-        { onSuccess: resetDialog }
-      );
-    };
-
-    if (mode === "upload") {
-      if (!pickedFile) return;
-      uploadFile.mutate(pickedFile, {
-        onSuccess: (fileData) => finalize(fileData.fileUrl, fileData.fileName, fileData.fileType, fileData.fileSize),
-      });
-      return;
-    }
-
-    finalize();
+  if (isLoading || !data) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-12 w-64" />
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-28 rounded-xl" />)}</div>
+        <Skeleton className="h-64 rounded-xl" />
+      </div>
+    );
   }
 
-  const isSubmitting = uploadFile.isPending || createDoc.isPending;
-
-  if (isLoading) return <Skeleton className="h-[calc(100vh-8rem)] rounded-xl" />;
+  const { stats } = data;
+  const info = selected ? expiry(selected.expiresAt) : null;
+  const chip = (active: boolean) => cn("shrink-0 rounded-full border px-3 py-1 text-xs font-medium", active ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted");
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={item} className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
-            <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-primary" /> Documents
-          </h1>
-          <p className="text-muted-foreground mt-1 text-xs sm:text-sm">Secure vault for your important documents and files.</p>
-        </div>
-        <Button onClick={() => setUploadOpen(true)} className="text-xs sm:text-sm">
-          <Plus className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" /> Add document
-        </Button>
-      </motion.div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={FileText}
+        title="Documents"
+        subtitle="Your important files, kept private and organised."
+        actions={<Button onClick={() => setDocDialog({ id: Date.now(), editing: null })}><Plus className="mr-1.5 h-4 w-4" /> Add document</Button>}
+      />
 
-      {stats && (
-        <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          {[
-            { label: "Total documents", value: stats.totalDocuments, icon: FileText },
-            { label: "Expiring soon", value: stats.expiringSoon, icon: AlertCircle },
-            { label: "Archived", value: stats.archivedDocuments, icon: Archive },
-            { label: "Storage used", value: "--", icon: HardDrive },
-          ].map((s) => (
-            <Card key={s.label} className="hover:border-primary/20 transition-colors">
-              <CardHeader className="pb-2 flex items-center justify-between">
-                <CardTitle className="text-[10px] sm:text-xs text-muted-foreground">{s.label}</CardTitle>
-                <s.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
-              </CardHeader>
-              <CardContent><p className="text-lg sm:text-xl font-semibold">{s.value}</p></CardContent>
-            </Card>
-          ))}
-        </motion.div>
-      )}
-
-      <motion.div variants={item} className="flex flex-col md:flex-row gap-3 items-start md:items-center flex-wrap">
-        <div className="relative w-full md:max-w-sm">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search by title or tag..." className="pl-8 text-xs sm:text-sm" value={search}
-            onChange={(e) => setSearch(e.target.value)} />
-        </div>
-        <div className="flex flex-wrap gap-2 items-center">
-          <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
-          <Button size="sm" variant={categoryFilter === "all" ? "default" : "outline"}
-            onClick={() => setCategoryFilter("all")} className="text-xs sm:text-sm">All</Button>
-          {CATEGORIES.map((cat) => (
-            <Button key={cat} size="sm" variant={categoryFilter === cat ? "default" : "outline"}
-              onClick={() => setCategoryFilter(cat)} className="text-xs sm:text-sm">{CATEGORY_LABELS[cat]}</Button>
-          ))}
-        </div>
-      </motion.div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <motion.div variants={item} className="lg:col-span-2">
-          <Card className="hover:border-primary/20 transition-colors">
-            <CardHeader className="pb-3 flex items-center justify-between flex-wrap gap-2">
-              <CardTitle className="text-sm sm:text-base">Your documents</CardTitle>
-              <div className="flex items-center gap-2 flex-wrap">
-                <Input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-32 sm:w-48 text-xs sm:text-sm" />
-                <select className="h-8 sm:h-9 rounded-lg border border-input bg-background px-3 text-xs sm:text-sm" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-                  <option value="all">All categories</option>
-                  {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {filtered.length === 0 ? (
-                <p className="text-xs sm:text-sm text-muted-foreground text-center py-4">No documents found.</p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
-                  {filtered.map((doc) => (
-                    <div key={doc.id} className="rounded-lg border border-border/60 bg-card/60 p-2 sm:p-3 cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setSelectedId(doc.id)}>
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs sm:text-sm font-medium truncate">{doc.title}</p>
-                          <p className="text-[10px] sm:text-xs text-muted-foreground">{doc.category}</p>
-                        </div>
-                      </div>
-                      <p className="text-[10px] sm:text-xs text-muted-foreground">Added {format(new Date(doc.createdAt), "MMM d, yyyy")}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div variants={item} className="space-y-4">
-          <Card className="hover:border-primary/20 transition-colors">
-            <CardHeader className="pb-3 flex items-center justify-between">
-              <CardTitle className="text-sm sm:text-base">{selected?.title}</CardTitle>
-              <Button size="sm" variant="ghost" onClick={() => setSelectedId(null)} className="h-7 w-7 sm:h-auto sm:w-auto">
-                <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-1 sm:gap-2">
-                <Badge variant="outline" className="text-[10px] sm:text-xs">{selected?.category}</Badge>
-                {selected?.expiresAt && <Badge variant="secondary" className="text-[10px] sm:text-xs">Expires {format(new Date(selected.expiresAt), "MMM d, yyyy")}</Badge>}
-              </div>
-              {selected?.hasFile && (
-                <div className="rounded-lg border border-border/60 bg-card/60 p-3 sm:p-4">
-                  <p className="text-xs sm:text-sm font-medium mb-2 flex items-center gap-1.5">
-                    File {selected.isPrivate && <Lock className="h-3 w-3 text-primary" />}
-                  </p>
-                  {selected.isPrivate ? (
-                    <button
-                      type="button"
-                      onClick={() => openProtectedFile(`/documents/${selected.id}/file`).catch((err) => alert(err.message))}
-                      className="text-xs sm:text-sm text-primary hover:underline text-left"
-                    >
-                      {selected.fileName ?? "Open file"}
-                    </button>
-                  ) : (
-                    <a href={selected.fileUrl ?? undefined} target="_blank" rel="noopener noreferrer" className="text-xs sm:text-sm text-primary hover:underline">
-                      {selected.fileName ?? "Open file"}
-                    </a>
-                  )}
-                </div>
-              )}
-              {selected?.tags?.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {selected.tags.map((tag: string) => <Badge key={tag} variant="secondary" className="text-[9px] sm:text-[10px]">{tag}</Badge>)}
-                </div>
-              )}
-              <div className="flex gap-2 flex-col sm:flex-row">
-                <Button size="sm" variant="outline" onClick={() => updateDoc.mutate({ id: selected?.id, data: { status: "ARCHIVED" } })} className="text-xs sm:text-sm">
-                  <Archive className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5" /> Archive
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => deleteDoc.mutate(selected?.id)} className="text-xs sm:text-sm">
-                  <Trash2 className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5" /> Delete
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <StatCard icon={FileText} label="Documents" value={stats.activeDocuments} hint={`${stats.totalDocuments} in total`} />
+        <StatCard icon={AlertCircle} label="Needs attention" value={stats.expiringSoon + stats.expiredDocuments} tone={stats.expiringSoon + stats.expiredDocuments > 0 ? "warning" : "success"} hint={`${stats.expiringSoon} expiring · ${stats.expiredDocuments} expired`} />
+        <StatCard icon={Archive} label="Archived" value={stats.archivedDocuments} />
+        <StatCard icon={HardDrive} label="Storage used" value={bytes(stats.totalBytes)} hint="Files you uploaded" />
       </div>
 
-      <Dialog open={uploadOpen} onOpenChange={(open) => (open ? setUploadOpen(true) : resetDialog())}>
-        <DialogContent className="flex! flex-col! w-[calc(100vw-2rem)] sm:w-full sm:max-w-lg px-4 sm:px-6 max-h-[85vh] overflow-hidden">
-          <DialogHeader className="shrink-0"><DialogTitle className="text-sm sm:text-base">Add document</DialogTitle></DialogHeader>
-          <form onSubmit={handleCreate} className="flex flex-col flex-1 min-h-0">
-            <div className="flex-1 min-h-0 overflow-y-auto pr-3 -mr-3">
-              <div className="space-y-2 -mt-2 pb-2">
-                <div className="space-y-1 px-1">
-                  <Label className="text-[10px] sm:text-xs">Title</Label>
-                  <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} required className="text-base sm:text-sm" />
-                </div>
-                <div className="space-y-1 px-1">
-                  <Label className="text-[10px] sm:text-xs">Category</Label>
-                  <select className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-base sm:text-sm" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as any }))}>
-                    {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1 px-1">
-                  <Label className="text-[10px] sm:text-xs">Type</Label>
-                  <select className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-base sm:text-sm" value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as any }))}>
-                    {["PDF", "IMAGE", "VIDEO", "AUDIO", "OTHER"].map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1 px-1">
-                  <Label className="text-[10px] sm:text-xs">Expiry date (optional)</Label>
-                  <Input type="date" value={form.expiresAt} onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))} className="text-base sm:text-sm" />
-                </div>
-                <div className="space-y-1 px-1">
-                  <Label className="text-[10px] sm:text-xs">Tags (comma-separated)</Label>
-                  <Input placeholder="e.g. insurance, important" value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} className="text-base sm:text-sm" />
-                </div>
-                <div className="space-y-1 px-1">
-                  <Label className="text-[10px] sm:text-xs">File upload</Label>
-                  <Input type="file" onChange={handleFileSelect} className="text-base sm:text-sm" />
-                </div>
-                <div className="space-y-1 px-1">
-                  <Label className="text-[10px] sm:text-xs">Or link URL</Label>
-                  <Input placeholder="https://..." value={form.fileUrl} onChange={(e) => setForm((f) => ({ ...f, fileUrl: e.target.value }))} className="text-base sm:text-sm" />
-                </div>
-                <div className="space-y-1 px-1">
-                  <Label className="text-[10px] sm:text-xs">Summary (optional)</Label>
-                  <Textarea placeholder="Brief description of this document..." value={form.summary} rows={2} className="text-base sm:text-sm"
-                    onChange={(e) => setForm((f) => ({ ...f, summary: e.target.value }))} />
-                </div>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, file, tag or summary" className="h-9 pl-9" />
+          </div>
+          <div className="flex gap-1.5">
+            {(["active", "archived", "all"] as const).map((key) => <button key={key} type="button" className={chip(status === key)} onClick={() => setStatus(key)}>{key === "active" ? "Active" : key === "archived" ? "Archived" : "All"}</button>)}
+          </div>
+        </div>
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          <button type="button" className={chip(category === "all")} onClick={() => setCategory("all")}>All types</button>
+          {CATEGORIES.map((item) => <button key={item.key} type="button" className={chip(category === item.key)} onClick={() => setCategory(item.key)}>{item.label}</button>)}
+        </div>
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+          <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <button type="button" className={chip(folderFilter === "all")} onClick={() => setFolderFilter("all")}>All folders</button>
+          <button type="button" className={chip(folderFilter === "none")} onClick={() => setFolderFilter("none")}>No folder</button>
+          {data.folders.map((folder) => <button key={folder.id} type="button" className={chip(folderFilter === folder.id)} onClick={() => setFolderFilter(folder.id)}>{folder.name} <span className="opacity-60">{folderCount.get(folder.id) ?? 0}</span></button>)}
+          {activeFolder && <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" aria-label="Edit folder" onClick={() => setFolderDialog({ id: Date.now(), editing: activeFolder })}><Pencil className="h-3.5 w-3.5" /></Button>}
+          <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={() => setFolderDialog({ id: Date.now(), editing: null })}><FolderPlus className="mr-1 h-3.5 w-3.5" /> New folder</Button>
+        </div>
+      </div>
 
-                {uploadFile.error && <p className="text-xs text-destructive">{(uploadFile.error as Error).message}</p>}
-                {createDoc.error && <p className="text-xs text-destructive">{(createDoc.error as Error).message}</p>}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className={selected ? "lg:col-span-2" : "lg:col-span-3"}>
+          {visible.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title={data.documents.length === 0 ? "Your vault is empty" : "No documents match"}
+              body={data.documents.length === 0 ? "Add IDs, certificates, policies and receipts. Files are stored privately." : "Try a different search or filter."}
+              action={data.documents.length === 0 ? <Button size="sm" onClick={() => setDocDialog({ id: Date.now(), editing: null })}>Add your first document</Button> : undefined}
+            />
+          ) : (
+            <div className={cn("grid gap-3 sm:grid-cols-2", !selected && "lg:grid-cols-3")}>
+              {visible.map((doc) => {
+                const due = expiry(doc.expiresAt);
+                return (
+                  <button key={doc.id} type="button" onClick={() => select(doc.id)} className={cn("space-y-2 rounded-xl border bg-card p-3 text-left transition-colors hover:border-primary/40", selectedId === doc.id && "border-primary ring-1 ring-primary/40", doc.status === "ARCHIVED" && "opacity-70")}>
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">{doc.isPrivate ? <Lock className="h-4 w-4" /> : doc.fileUrl ? <Link2 className="h-4 w-4" /> : <FileText className="h-4 w-4" />}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{doc.title}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{LABEL[doc.category]}{doc.folderId ? ` · ${folderName.get(doc.folderId) ?? ""}` : ""}</span>
+                      </span>
+                    </div>
+                    {due && <p className={cn("text-xs", toneClass[due.tone])}>{due.text}</p>}
+                    {doc.tags.length > 0 && <div className="flex flex-wrap gap-1">{doc.tags.slice(0, 3).map((tag) => <Badge key={tag} variant="secondary" className="text-[10px]">{tag}</Badge>)}</div>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {selected && (
+          <div ref={panel} className="lg:col-span-1">
+            <Section title={selected.title} icon={FileText} action={<Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Close details" onClick={() => setSelectedId(null)}><X className="h-4 w-4" /></Button>}>
+              <div className="flex flex-wrap gap-1.5">
+                <Badge variant="outline">{LABEL[selected.category]}</Badge>
+                {selected.status === "ARCHIVED" && <Badge variant="secondary">Archived</Badge>}
+                {selected.folderId && <Badge variant="secondary"><Folder className="mr-1 h-3 w-3" /> {folderName.get(selected.folderId)}</Badge>}
               </div>
-            </div>
+              {info && <p className={cn("text-sm", toneClass[info.tone])}>{info.text}</p>}
+              {selected.summary && <p className="text-sm text-muted-foreground">{selected.summary}</p>}
+              {selected.tags.length > 0 && <div className="flex flex-wrap gap-1">{selected.tags.map((tag) => <Badge key={tag} variant="secondary" className="text-[10px]">{tag}</Badge>)}</div>}
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-border mt-2 shrink-0">
-              <Button type="button" variant="outline" onClick={resetDialog}>Cancel</Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (uploadFile.isPending ? "Uploading..." : "Saving...") : "Save document"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </motion.div >
+              {selected.hasFile && (
+                <div className="space-y-2 rounded-lg border p-3">
+                  <p className="flex items-center gap-1.5 text-xs font-medium">{selected.isPrivate ? <><Lock className="h-3 w-3 text-primary" /> Private file</> : <><Link2 className="h-3 w-3" /> Link</>}</p>
+                  {selected.fileName && <p className="truncate text-xs text-muted-foreground">{selected.fileName}{selected.fileSize ? ` · ${bytes(selected.fileSize)}` : ""}</p>}
+                  {selected.isPrivate ? (
+                    <Button size="sm" onClick={() => openProtectedFile(`/documents/${selected.id}/file`).catch((err) => setNotice(err.message))}>Open file</Button>
+                  ) : selected.fileUrl ? (
+                    <Button size="sm" asChild><a href={selected.fileUrl} target="_blank" rel="noopener noreferrer">Open link</a></Button>
+                  ) : null}
+                </div>
+              )}
+              {notice && <p className="text-xs text-destructive">{notice}</p>}
+
+              <div className="flex flex-wrap gap-2 border-t pt-3">
+                <Button size="sm" variant="outline" onClick={() => setDocDialog({ id: Date.now(), editing: selected })}><Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit</Button>
+                <Button size="sm" variant="outline" disabled={update.isPending} onClick={() => update.mutate({ id: selected.id, data: { status: selected.status === "ARCHIVED" ? "ACTIVE" : "ARCHIVED" } })}>
+                  {selected.status === "ARCHIVED" ? <><RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Restore</> : <><Archive className="mr-1.5 h-3.5 w-3.5" /> Archive</>}
+                </Button>
+                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" disabled={remove.isPending} onClick={() => window.confirm(`Delete "${selected.title}"? Its file is removed too.`) && remove.mutate(selected.id, { onSuccess: () => setSelectedId(null) })}>
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete
+                </Button>
+              </div>
+            </Section>
+          </div>
+        )}
+      </div>
+
+      {docDialog && <DocDialog key={docDialog.id} editing={docDialog.editing} folders={data.folders} onClose={() => setDocDialog(null)} />}
+      {folderDialog && <FolderDialog key={folderDialog.id} editing={folderDialog.editing} onClose={() => { setFolderDialog(null); setFolderFilter("all"); }} />}
+    </div>
   );
 }

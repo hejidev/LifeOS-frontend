@@ -32,34 +32,27 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const multer_1 = __importDefault(require("multer"));
 const auth_middleware_1 = require("../middlewares/auth.middleware");
 const validate_middleware_1 = require("../middlewares/validate.middleware");
+const rate_limit_1 = require("../lib/rate-limit");
+const upload_1 = require("../lib/upload");
 const study_validator_1 = require("../validators/study.validator");
 const studyController = __importStar(require("../controllers/study.controller"));
-const upload = (0, multer_1.default)({
-    storage: multer_1.default.memoryStorage(),
-    limits: { fileSize: 20 * 1024 * 1024 },
-    fileFilter: (_req, file, cb) => {
-        const allowed = [
-            "image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif",
-            "application/pdf",
-            "application/msword",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/vnd.ms-powerpoint",
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            "text/plain",
-        ];
-        if (!allowed.includes(file.mimetype)) {
-            return cb(new Error("Unsupported file type"));
-        }
-        cb(null, true);
-    },
+const ALLOWED = [
+    "image/png", "image/jpeg", "image/webp", "image/gif",
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "text/plain",
+];
+const materialUpload = (0, upload_1.singleUpload)("file", {
+    maxBytes: 20 * 1024 * 1024,
+    allow: (file) => ALLOWED.includes(file.mimetype),
+    rejectMessage: "Use an image, PDF, Word, PowerPoint or text file.",
 });
 const router = (0, express_1.Router)();
 router.use(auth_middleware_1.requireAuth);
@@ -68,10 +61,11 @@ router.get("/study/subjects", studyController.getSubjects);
 router.post("/study/subjects", (0, validate_middleware_1.validate)(study_validator_1.createSubjectSchema), studyController.createSubject);
 router.patch("/study/subjects/:id", (0, validate_middleware_1.validate)(study_validator_1.updateSubjectSchema), studyController.updateSubject);
 router.get("/study/materials", studyController.getMaterials);
+router.get("/study/materials/:id/file", studyController.getMaterialFile);
 router.post("/study/materials", (0, validate_middleware_1.validate)(study_validator_1.createStudyMaterialSchema), studyController.createMaterial);
 router.patch("/study/materials/:id", (0, validate_middleware_1.validate)(study_validator_1.updateStudyMaterialSchema), studyController.updateMaterial);
-router.post("/study/materials/upload", upload.single("file"), studyController.uploadMaterialFile);
+router.post("/study/materials/upload", (0, rate_limit_1.rateLimitUser)("study-upload", 30, 3600, "You've uploaded a lot of files."), materialUpload, studyController.uploadMaterialFile);
+router.delete("/study/materials/:id", studyController.deleteMaterial);
 router.post("/study/sessions", (0, validate_middleware_1.validate)(study_validator_1.createStudySessionSchema), studyController.createSession);
 router.patch("/study/sessions/:id/end", (0, validate_middleware_1.validate)(study_validator_1.endStudySessionSchema), studyController.endSession);
-router.delete("/study/materials/:id", studyController.deleteMaterial);
 exports.default = router;

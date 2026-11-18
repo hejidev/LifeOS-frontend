@@ -4,6 +4,7 @@ import { pipeline } from "stream/promises";
 import { prisma } from "../config/prisma";
 import { AppError } from "../lib/errors";
 import { cloudinary } from "../config/cloudinary";
+import { destroyPrivate } from "../lib/private-files";
 
 function isPrivateFile(url: string | null | undefined): url is string {
   if (!url) return false;
@@ -19,6 +20,12 @@ function isPrivateFile(url: string | null | undefined): url is string {
 function present<T extends { fileUrl: string | null }>(doc: T) {
   const isPrivate = isPrivateFile(doc.fileUrl);
   return { ...doc, fileUrl: isPrivate ? null : doc.fileUrl, hasFile: !!doc.fileUrl, isPrivate };
+}
+
+async function assertFolder(userId: string, folderId?: string | null) {
+  if (folderId && !(await prisma.documentFolder.findFirst({ where: { id: folderId, userId }, select: { id: true } }))) {
+    throw new AppError("Folder not found", 404);
+  }
 }
 
 export async function uploadDocumentFile(buffer: Buffer, originalName: string, mimeType: string) {
@@ -108,6 +115,7 @@ export async function createDocument(
     linkedTaskId?: string;
   }
 ) {
+  await assertFolder(userId, data.folderId);
   const doc = await prisma.document.create({
     data: {
       userId,
@@ -132,7 +140,7 @@ export async function updateDocument(
   userId: string,
   id: string,
   data: {
-    folderId?: string;
+    folderId?: string | null;
     title?: string;
     category?: string;
     fileUrl?: string;
@@ -140,18 +148,19 @@ export async function updateDocument(
     fileType?: string;
     fileSize?: number;
     tags?: string[];
-    summary?: string;
-    expiresAt?: string;
+    summary?: string | null;
+    expiresAt?: string | null;
     status?: string;
   }
 ) {
   const existing = await prisma.document.findFirst({ where: { id, userId } });
   if (!existing) throw new AppError("Document not found", 404);
+  await assertFolder(userId, data.folderId);
 
   const doc = await prisma.document.update({
     where: { id },
     data: {
-      ...(data.folderId && { folderId: data.folderId }),
+      ...(data.folderId !== undefined && { folderId: data.folderId }),
       ...(data.title && { title: data.title }),
       ...(data.category && { category: data.category as any }),
       ...(data.fileUrl && { fileUrl: data.fileUrl }),
@@ -159,7 +168,7 @@ export async function updateDocument(
       ...(data.fileType && { fileType: data.fileType }),
       ...(data.fileSize !== undefined && { fileSize: data.fileSize }),
       ...(data.tags && { tags: data.tags }),
-      ...(data.summary && { summary: data.summary }),
+      ...(data.summary !== undefined && { summary: data.summary }),
       ...(data.expiresAt !== undefined && { expiresAt: data.expiresAt ? new Date(data.expiresAt) : null }),
       ...(data.status && { status: data.status as any }),
     },
@@ -171,6 +180,7 @@ export async function deleteDocument(userId: string, id: string) {
   const existing = await prisma.document.findFirst({ where: { id, userId } });
   if (!existing) throw new AppError("Document not found", 404);
   await prisma.document.delete({ where: { id } });
+  if (isPrivateFile(existing.fileUrl)) void destroyPrivate(existing.fileUrl);
 }
 
 export async function getDocumentsDashboard(userId: string, filters?: { q?: string; category?: string }) {
@@ -186,9 +196,10 @@ export async function getDocumentsDashboard(userId: string, filters?: { q?: stri
     ];
   }
 
-  const [folders, documents] = await Promise.all([
+  const [folders, documents, storage] = await Promise.all([
     prisma.documentFolder.findMany({ where: { userId }, orderBy: { name: "asc" } }),
     prisma.document.findMany({ where, orderBy: [{ createdAt: "desc" }] }),
+    prisma.document.aggregate({ where: { userId }, _sum: { fileSize: true } }),
   ]);
 
   const now = new Date();
@@ -203,6 +214,7 @@ export async function getDocumentsDashboard(userId: string, filters?: { q?: stri
     archivedDocuments: documents.filter((d) => d.status === "ARCHIVED").length,
     expiredDocuments: expired,
     expiringSoon,
+    totalBytes: Number(storage._sum.fileSize ?? 0),
   };
 
   const insight =

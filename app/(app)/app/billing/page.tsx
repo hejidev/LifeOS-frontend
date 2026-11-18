@@ -1,141 +1,211 @@
 "use client";
 
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { CreditCard, Check, Zap, Sparkles, Crown } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from "react";
+import { AlertTriangle, Check, CreditCard, Crown, FileCog, ImageIcon, Loader2, PenTool, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader, ProgressBar, Section } from "@/components/app/kit";
+import { useBillingPortal, useBillingSummary, useCreateCheckout } from "@/lib/hooks/use-billing";
 import { cn } from "@/lib/utils";
-import { useBillingSummary, useCreateCheckout, useBillingPortal } from "@/lib/hooks/use-life-data";
+import type { PlanKey } from "@/types/billing";
 
-const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
-const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
+const ORDER: PlanKey[] = ["STARTER", "PRO", "PREMIUM"];
 
-const PLAN_META: Record<string, { icon: any; ring: string; iconBg: string; iconColor: string; badge?: string }> = {
-  STARTER: { icon: Zap, ring: "hover:border-sky-400/40", iconBg: "bg-sky-500/10", iconColor: "text-sky-500" },
-  PRO: { icon: Sparkles, ring: "hover:border-violet-400/40", iconBg: "bg-violet-500/10", iconColor: "text-violet-500", badge: "Most popular" },
-  PREMIUM: { icon: Crown, ring: "hover:border-amber-400/40", iconBg: "bg-amber-500/10", iconColor: "text-amber-500" },
+const META: Record<PlanKey, { icon: typeof Zap; tint: string; badge?: string }> = {
+  STARTER: { icon: Zap, tint: "bg-sky-500/10 text-sky-500" },
+  PRO: { icon: Sparkles, tint: "bg-violet-500/10 text-violet-500", badge: "Most popular" },
+  PREMIUM: { icon: Crown, tint: "bg-amber-500/10 text-amber-500" },
 };
 
+const TOOLS = [
+  { key: "AI_WRITING", label: "AI Writing", icon: PenTool },
+  { key: "AI_IMAGE", label: "Image Tools", icon: ImageIcon },
+  { key: "FILE_CONVERTER", label: "File Converter", icon: FileCog },
+] as const;
+
+const date = (value?: string) => (value ? new Date(value).toLocaleDateString(undefined, { dateStyle: "medium" }) : "");
+
 export default function BillingPage() {
-  const { data: billing, isLoading } = useBillingSummary();
+  const { data: billing, isLoading, isError, refetch } = useBillingSummary();
   const checkout = useCreateCheckout();
   const portal = useBillingPortal();
-  const [interval, setInterval] = useState<"month" | "year">("month");
+  const [cycle, setCycle] = useState<"month" | "year">("month");
+  const [returned, setReturned] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  if (isLoading || !billing) return <Skeleton className="h-[calc(100vh-8rem)] rounded-xl" />;
-  const b = billing as any;
+  useEffect(() => {
+    setReturned(new URLSearchParams(window.location.search).get("success") === "true");
+  }, []);
 
-  async function handleUpgrade(plan: "STARTER" | "PRO" | "PREMIUM") {
-    const url = await checkout.mutateAsync({ plan, interval });
-    window.location.href = url;
+  useEffect(() => {
+    if (!returned || billing?.isPaid || attempts >= 10) return;
+    const timer = setTimeout(() => {
+      void refetch();
+      setAttempts((count) => count + 1);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [returned, billing?.isPaid, attempts, refetch]);
+
+  useEffect(() => {
+    if (returned && billing?.isPaid) window.history.replaceState(null, "", "/app/billing");
+  }, [returned, billing?.isPaid]);
+
+  async function subscribe(plan: PlanKey) {
+    setError(null);
+    try {
+      window.location.href = await checkout.mutateAsync({ plan, interval: cycle });
+    } catch (err) {
+      setError((err as Error).message);
+    }
   }
 
-  async function handleManage() {
-    const url = await portal.mutateAsync();
-    window.location.href = url;
+  async function manage() {
+    setError(null);
+    try {
+      window.location.href = await portal.mutateAsync();
+    } catch (err) {
+      setError((err as Error).message);
+    }
   }
+
+  if (isError && !billing) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-20 text-center">
+        <p className="text-sm text-destructive">Couldn't load your billing details.</p>
+        <Button size="sm" variant="outline" onClick={() => refetch()}>Try again</Button>
+      </div>
+    );
+  }
+
+  if (isLoading || !billing) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-12 w-56" />
+        <Skeleton className="h-40 rounded-xl" />
+        <div className="grid gap-4 md:grid-cols-3">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-72 rounded-xl" />)}</div>
+      </div>
+    );
+  }
+
+  const hasPlan = billing.tier !== "FREE" && billing.status !== "CANCELED";
+  const pastDue = billing.tier !== "FREE" && billing.status === "PAST_DUE";
+  const currentName = billing.tier === "FREE" ? "Free" : billing.plans[billing.tier]?.name ?? billing.tier;
+  const waiting = returned && !billing.isPaid && attempts < 10;
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={item}>
-        <h1 className="text-xl sm:text-3xl font-bold tracking-tight flex items-center gap-2"><CreditCard className="h-5 w-5 sm:h-6 sm:w-6 text-primary" /> Billing</h1>
-        <p className="text-muted-foreground mt-1 text-xs sm:text-sm">Manage your subscription and see your tool usage.</p>
-      </motion.div>
+    <div className="space-y-6">
+      <PageHeader icon={CreditCard} title="Billing" subtitle="Your plan, usage and payment details." />
 
-      <motion.div variants={item}>
-        <Card className="hover:border-primary/20 transition-colors">
-          <CardHeader className="pb-3"><CardTitle className="text-sm sm:text-base">Current plan</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-xl sm:text-2xl font-bold capitalize">{b.tier.toLowerCase()}</p>
-            {b.isPaid ? (
-              <>
-                <p className="text-[10px] sm:text-xs text-muted-foreground">
-                  Billed {b.billingInterval === "YEAR" ? "yearly" : "monthly"} - {b.cancelAtPeriodEnd ? "cancels" : "renews"} on {new Date(b.currentPeriodEnd).toLocaleDateString()}
-                </p>
-                <Button size="sm" variant="outline" onClick={handleManage} disabled={portal.isPending} className="text-xs sm:text-sm">
-                  {portal.isPending ? "Loading..." : "Manage subscription"}
-                </Button>
-              </>
+      {waiting && (
+        <p className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm"><Loader2 className="h-4 w-4 animate-spin text-primary" /> Payment received. Activating your plan...</p>
+      )}
+      {returned && billing.isPaid && (
+        <p className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 text-sm"><Check className="h-4 w-4 text-emerald-600" /> Your {currentName} plan is active. Thank you!</p>
+      )}
+      {returned && !billing.isPaid && attempts >= 10 && (
+        <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm">Your payment is taking longer than usual to confirm. It will appear here shortly. If it doesn't, contact support.</p>
+      )}
+      {pastDue && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
+          <p className="flex items-center gap-2 text-sm"><AlertTriangle className="h-4 w-4 text-destructive" /> Your last payment failed. Update your payment method to keep your plan.</p>
+          <Button size="sm" onClick={manage} disabled={portal.isPending}>Update payment</Button>
+        </div>
+      )}
+      {error && <p className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Section title="Current plan" icon={CreditCard} className="lg:col-span-1">
+          <div>
+            <p className="text-2xl font-bold">{currentName}</p>
+            {hasPlan ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                Billed {billing.billingInterval === "year" ? "yearly" : "monthly"}.{" "}
+                {billing.currentPeriodEnd && (billing.cancelAtPeriodEnd ? `Ends on ${date(billing.currentPeriodEnd)}. You keep access until then.` : `Renews on ${date(billing.currentPeriodEnd)}.`)}
+              </p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
-                {["AI_WRITING", "AI_IMAGE", "FILE_CONVERTER"].map((tool) => (
-                  <div key={tool} className="rounded-lg border border-border/60 bg-card/60 p-2 text-center">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">{tool.replace("_", " ")}</p>
-                    <p className="text-xs sm:text-sm font-semibold">{Math.max(0, b.freeUsesPerTool - b.usage[tool])} left</p>
-                  </div>
-                ))}
-              </div>
+              <p className="mt-1 text-sm text-muted-foreground">{billing.freeUsesPerTool} free uses on each AI tool.</p>
             )}
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {!b.isPaid && (
-        <motion.div variants={item} className="flex justify-center">
-          <div className="inline-flex rounded-full border border-border bg-card p-1">
-            <button onClick={() => setInterval("month")} className={cn("rounded-full px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold transition-colors", interval === "month" ? "gradient-bg text-white" : "text-muted-foreground hover:text-foreground")}>Monthly</button>
-            <button onClick={() => setInterval("year")} className={cn("rounded-full px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold transition-colors flex items-center gap-1.5", interval === "year" ? "gradient-bg text-white" : "text-muted-foreground hover:text-foreground")}>
-              Yearly <span className="text-[9px] sm:text-[10px] opacity-80">Save ~20%</span>
-            </button>
           </div>
-        </motion.div>
+          {hasPlan && <Button variant="outline" onClick={manage} disabled={portal.isPending}>{portal.isPending ? "Opening..." : "Manage subscription"}</Button>}
+        </Section>
+
+        <Section title="Usage" icon={Sparkles} className="lg:col-span-2">
+          <div className="grid gap-4 sm:grid-cols-3">
+            {TOOLS.map((tool) => {
+              const used = billing.usage[tool.key];
+              const limit = billing.freeUsesPerTool;
+              const unlimited = billing.isPaid;
+              return (
+                <div key={tool.key} className="space-y-2 rounded-lg border p-3">
+                  <div className="flex items-center gap-2 text-sm font-medium"><tool.icon className="h-4 w-4 text-primary" /> {tool.label}</div>
+                  {unlimited ? (
+                    <p className="text-sm text-emerald-600">Unlimited</p>
+                  ) : (
+                    <>
+                      <ProgressBar value={(used / limit) * 100} tone={used >= limit ? "danger" : used >= limit - 1 ? "warning" : "default"} />
+                      <p className="text-xs text-muted-foreground">{Math.max(0, limit - used)} of {limit} free uses left</p>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      </div>
+
+      {!hasPlan && (
+        <div className="flex justify-center">
+          <div className="inline-flex rounded-full border bg-card p-1">
+            {(["month", "year"] as const).map((option) => (
+              <button key={option} type="button" onClick={() => setCycle(option)} className={cn("flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition-colors", cycle === option ? "gradient-bg text-white" : "text-muted-foreground hover:text-foreground")}>
+                {option === "month" ? "Monthly" : "Yearly"}
+                {option === "year" && <span className="text-[10px] opacity-90">2 months free</span>}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
-      <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-        {Object.entries(b.plans).map(([key, plan]: [string, any]) => {
-          const meta = PLAN_META[key] ?? PLAN_META.STARTER;
+      <div className="grid gap-4 md:grid-cols-3">
+        {ORDER.map((key) => {
+          const plan = billing.plans[key];
+          if (!plan) return null;
+          const meta = META[key];
           const Icon = meta.icon;
-          const isCurrent = b.isPaid && b.tier === key;
-          const priceLabel = interval === "year" ? plan.priceLabelYearly : plan.priceLabelMonthly;
+          const current = hasPlan && billing.tier === key;
 
           return (
-            <Card
-              key={key}
-              className={cn(
-                "relative transition-colors",
-                isCurrent ? "border-primary/60 ring-1 ring-primary/30" : `border-border/60 ${meta.ring}`
-              )}
-            >
-              {meta.badge && !isCurrent && (
-                <span className="absolute -top-2.5 right-3 rounded-full bg-violet-500 px-2 py-0.5 text-[10px] font-semibold text-white">
-                  {meta.badge}
+            <div key={key} className={cn("relative space-y-4 rounded-xl border bg-card p-5 transition-colors", current ? "border-primary/60 ring-1 ring-primary/30" : "hover:border-primary/30")}>
+              {(meta.badge || current) && (
+                <span className={cn("absolute -top-2.5 right-4 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", current ? "bg-primary text-primary-foreground" : "bg-violet-500 text-white")}>
+                  {current && <Check className="h-3 w-3" />} {current ? "Current plan" : meta.badge}
                 </span>
               )}
-              {isCurrent && (
-                <span className="absolute -top-2.5 right-3 flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
-                  <Check className="h-3 w-3" /> Current plan
-                </span>
+              <div>
+                <span className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-lg", meta.tint)}><Icon className="h-4 w-4" /></span>
+                <p className="text-base font-semibold">{plan.name}</p>
+                <p className="mt-1 text-2xl font-bold">{cycle === "year" ? plan.priceLabelYearly : plan.priceLabelMonthly}</p>
+              </div>
+              <p className="text-xs text-muted-foreground">{plan.description}</p>
+              <ul className="space-y-1.5 text-xs">
+                {["Unlimited AI Writing", "Unlimited Image Tools", "Unlimited File Conversion"].map((feature) => (
+                  <li key={feature} className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-emerald-500" /> {feature}</li>
+                ))}
+              </ul>
+              {current ? (
+                <Button className="w-full" variant="outline" disabled>Current plan</Button>
+              ) : hasPlan ? (
+                <Button className="w-full" variant="outline" onClick={manage} disabled={portal.isPending}>Change in billing portal</Button>
+              ) : (
+                <Button className="w-full" onClick={() => subscribe(key)} disabled={checkout.isPending}>{checkout.isPending ? "Redirecting..." : "Subscribe"}</Button>
               )}
-              <CardHeader className="pb-3">
-                <div className={cn("mb-2 flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg", meta.iconBg)}>
-                  <Icon className={cn("h-3.5 w-3.5 sm:h-4 sm:w-4", meta.iconColor)} />
-                </div>
-                <CardTitle className="text-sm sm:text-base">{plan.name}</CardTitle>
-                <p className="text-xl sm:text-2xl font-bold">{priceLabel}</p>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-[10px] sm:text-xs text-muted-foreground">{plan.description}</p>
-                <ul className="text-[10px] sm:text-xs space-y-1">
-                  <li className="flex items-center gap-1"><Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-500" /> Unlimited AI Writing</li>
-                  <li className="flex items-center gap-1"><Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-500" /> Unlimited Image Tools</li>
-                  <li className="flex items-center gap-1"><Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-500" /> Unlimited File Conversion</li>
-                </ul>
-                <Button
-                  size="sm"
-                  className="w-full text-xs sm:text-sm"
-                  variant={isCurrent ? "outline" : "default"}
-                  disabled={isCurrent || checkout.isPending}
-                  onClick={() => handleUpgrade(key as any)}
-                >
-                  {isCurrent ? "Current plan" : checkout.isPending ? "Loading..." : "Subscribe"}
-                </Button>
-              </CardContent>
-            </Card>
+            </div>
           );
         })}
-      </motion.div>
-    </motion.div>
+      </div>
+
+      <p className="text-center text-xs text-muted-foreground">Payments are processed securely by Paystack. You can cancel any time from the billing portal.</p>
+    </div>
   );
 }

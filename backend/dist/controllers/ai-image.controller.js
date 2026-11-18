@@ -45,15 +45,21 @@ exports.uploadImage = (0, errors_1.asyncHandler)(async (req, res) => {
 exports.applyTool = (0, errors_1.asyncHandler)(async (req, res) => {
     const { publicId, tool, format } = req.body;
     aiImageService.assertOwnImage(req.user.id, publicId);
-    return res.json({ url: aiImageService.buildTransformedUrl(publicId, tool, format) });
+    const url = aiImageService.buildTransformedUrl(publicId, tool, format);
+    await aiImageService.verifyDerived(url);
+    return res.json({ url });
 });
 exports.convertFormat = (0, errors_1.asyncHandler)(async (req, res) => {
     const { publicId, format, quality } = req.body;
     aiImageService.assertOwnImage(req.user.id, publicId);
-    return res.json({ url: aiImageService.buildFormatConvertedUrl(publicId, format, quality) });
+    const url = aiImageService.buildFormatConvertedUrl(publicId, format, quality);
+    await aiImageService.verifyDerived(url);
+    return res.json({ url });
 });
 exports.generativeEdit = (0, errors_1.asyncHandler)(async (req, res) => {
     const { publicId, prompt, mode } = req.body;
     aiImageService.assertOwnImage(req.user.id, publicId);
-    return res.json({ url: aiImageService.buildGenerativeEditUrl(publicId, prompt, mode) });
+    const url = aiImageService.buildGenerativeEditUrl(publicId, prompt, mode);
+    await aiImageService.verifyDerived(url);
+    return res.json({ url });
 });

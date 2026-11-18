@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteMaterial = exports.endSession = exports.createSession = exports.uploadMaterialFile = exports.updateMaterial = exports.createMaterial = exports.getMaterials = exports.updateSubject = exports.createSubject = exports.getSubjects = exports.getDashboard = void 0;
+exports.getMaterialFile = exports.deleteMaterial = exports.endSession = exports.createSession = exports.uploadMaterialFile = exports.updateMaterial = exports.createMaterial = exports.getMaterials = exports.updateSubject = exports.createSubject = exports.getSubjects = exports.getDashboard = void 0;
 const errors_1 = require("../lib/errors");
 const studyService = __importStar(require("../services/study.service"));
 exports.getDashboard = (0, errors_1.asyncHandler)(async (req, res) => {
@@ -83,4 +83,7 @@ exports.endSession = (0, errors_1.asyncHandler)(async (req, res) => {
 exports.deleteMaterial = (0, errors_1.asyncHandler)(async (req, res) => {
     await studyService.deleteMaterial(req.user.id, req.params.id);
     return res.status(204).send();
+});
+exports.getMaterialFile = (0, errors_1.asyncHandler)(async (req, res) => {
+    await studyService.streamMaterialFile(req.user.id, req.params.id, res);
 });

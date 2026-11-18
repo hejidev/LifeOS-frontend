@@ -32,34 +32,27 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const multer_1 = __importDefault(require("multer"));
 const auth_middleware_1 = require("../middlewares/auth.middleware");
 const validate_middleware_1 = require("../middlewares/validate.middleware");
+const rate_limit_1 = require("../lib/rate-limit");
+const upload_1 = require("../lib/upload");
 const documents_validator_1 = require("../validators/documents.validator");
 const documentsController = __importStar(require("../controllers/documents.controller"));
-const upload = (0, multer_1.default)({
-    storage: multer_1.default.memoryStorage(),
-    limits: { fileSize: 20 * 1024 * 1024 },
-    fileFilter: (_req, file, cb) => {
-        const allowed = [
-            "image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif",
-            "application/pdf",
-            "application/msword",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/vnd.ms-excel",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "text/plain",
-        ];
-        if (!allowed.includes(file.mimetype)) {
-            return cb(new Error("Unsupported file type"));
-        }
-        cb(null, true);
-    },
+const ALLOWED = [
+    "image/png", "image/jpeg", "image/webp", "image/gif",
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain",
+];
+const documentUpload = (0, upload_1.singleUpload)("file", {
+    maxBytes: 20 * 1024 * 1024,
+    allow: (file) => ALLOWED.includes(file.mimetype),
+    rejectMessage: "Use an image, PDF, Word, Excel or text file.",
 });
 const router = (0, express_1.Router)();
 router.get("/documents/dashboard", auth_middleware_1.requireAuth, (0, validate_middleware_1.validate)(documents_validator_1.documentsDashboardQuerySchema), documentsController.getDashboard);
@@ -67,8 +60,8 @@ router.get("/documents/:id/file", auth_middleware_1.requireAuth, documentsContro
 router.post("/documents/folders", auth_middleware_1.requireAuth, (0, validate_middleware_1.validate)(documents_validator_1.createFolderSchema), documentsController.createFolder);
 router.patch("/documents/folders/:id", auth_middleware_1.requireAuth, (0, validate_middleware_1.validate)(documents_validator_1.updateFolderSchema), documentsController.updateFolder);
 router.delete("/documents/folders/:id", auth_middleware_1.requireAuth, documentsController.deleteFolder);
+router.post("/documents/upload", auth_middleware_1.requireAuth, (0, rate_limit_1.rateLimitUser)("doc-upload", 30, 3600, "You've uploaded a lot of files."), documentUpload, documentsController.uploadDocumentFile);
 router.post("/documents", auth_middleware_1.requireAuth, (0, validate_middleware_1.validate)(documents_validator_1.createDocumentSchema), documentsController.createDocument);
 router.patch("/documents/:id", auth_middleware_1.requireAuth, (0, validate_middleware_1.validate)(documents_validator_1.updateDocumentSchema), documentsController.updateDocument);
-router.post("/documents/upload", auth_middleware_1.requireAuth, upload.single("file"), documentsController.uploadDocumentFile);
 router.delete("/documents/:id", auth_middleware_1.requireAuth, documentsController.deleteDocument);
 exports.default = router;

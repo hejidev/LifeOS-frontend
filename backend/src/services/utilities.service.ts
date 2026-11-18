@@ -1,13 +1,8 @@
 import { redis } from "../config/redis";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { env } from "../config/env";
 import { AppError } from "../lib/errors";
+import { completeText } from "../lib/ai-provider";
 
 const TTL_SECONDS = 6 * 60 * 60;
-
-const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-
-const MODEL_NAME = "gemini-3.6-flash";
 
 interface ExchangeRateResponse {
   result?: string;
@@ -16,13 +11,16 @@ interface ExchangeRateResponse {
   rates?: Record<string, number>;
 }
 
-export async function getExchangeRates(base: string) {
-  const code = base.toUpperCase();
-  if (!/^[A-Z]{3}$/.test(code)) throw new AppError("Invalid currency code", 400);
+interface RatePayload {
+  base: string;
+  date: string | null;
+  rates: Record<string, number>;
+}
 
+async function loadRates(code: string): Promise<RatePayload> {
   const cacheKey = `fx:v2:${code}`;
   const cached = await redis.get(cacheKey);
-  if (cached) return JSON.parse(cached);
+  if (cached) return JSON.parse(cached) as RatePayload;
 
   const res = await fetch(`https://open.er-api.com/v6/latest/${code}`, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) throw new AppError("Couldn't fetch exchange rates right now", 502);
@@ -30,64 +28,29 @@ export async function getExchangeRates(base: string) {
   const data = (await res.json()) as ExchangeRateResponse;
   if (data.result !== "success" || !data.rates) throw new AppError("Exchange rates are unavailable right now", 502);
 
-  const payload = {
-    base: data.base_code ?? code,
-    date: data.time_last_update_utc ?? null,
-    rates: data.rates,
-  };
+  const payload: RatePayload = { base: data.base_code ?? code, date: data.time_last_update_utc ?? null, rates: data.rates };
   await redis.set(cacheKey, JSON.stringify(payload), "EX", TTL_SECONDS);
   return payload;
 }
 
-export async function translateText(
-  text: string,
-  targetLanguage: string
-) {
-  if (!text?.trim()) {
-    return "";
+export async function getExchangeRates(base: string) {
+  const code = base.toUpperCase();
+  if (!/^[A-Z]{3}$/.test(code)) throw new AppError("Invalid currency code", 400);
+
+  if (code !== "USD") {
+    const usd = await loadRates("USD");
+    if (!(code in usd.rates)) throw new AppError("That currency isn't supported", 400);
   }
+  return loadRates(code);
+}
 
-  if (!targetLanguage?.trim()) {
-    throw new Error("Target language is required");
-  }
+const TRANSLATE_SYSTEM = [
+  "You are a professional translation assistant.",
+  "Translate the user's text into the requested target language.",
+  "Return only the translated text, with no explanations, introductions or added quotation marks.",
+  "Preserve the meaning, tone, paragraph breaks and formatting.",
+].join("\n");
 
-  const model = genAI.getGenerativeModel({
-    model: MODEL_NAME,
-
-    systemInstruction: `
-You are a professional translation assistant.
-
-Translate the user's text into the requested target language.
-
-Rules:
-- Return ONLY the translated text.
-- Do not add explanations.
-- Do not add introductions.
-- Do not add quotation marks unless they are part of the original text.
-- Preserve the original meaning.
-- Preserve the original tone.
-- Preserve paragraph breaks and formatting where possible.
-`.trim(),
-  });
-
-  try {
-    const prompt = `
-Target language: ${targetLanguage}
-
-Text to translate:
-
-${text}
-`;
-
-    const result = await model.generateContent(prompt);
-
-    return result.response.text().trim();
-  } catch (error: any) {
-    console.error(
-      "[translation] Gemini error:",
-      error?.message ?? error
-    );
-
-    throw error;
-  }
+export async function translateText(text: string, targetLanguage: string) {
+  return completeText({ system: TRANSLATE_SYSTEM, prompt: `Target language: ${targetLanguage}\n\nText to translate:\n\n${text}` });
 }

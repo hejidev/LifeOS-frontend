@@ -46,5 +46,5 @@ router.patch("/preferences", (0, validate_middleware_1.validate)(settings_valida
 router.patch("/notifications", (0, validate_middleware_1.validate)(settings_validator_1.updateNotificationsSchema), settingsController.updateNotifications);
 router.post("/change-password", (0, validate_middleware_1.validate)(settings_validator_1.changePasswordSchema), settingsController.changePassword);
 router.get("/overview", settingsController.getAccountOverview);
-router.post("/deactivate", settingsController.deactivateAccount);
+router.post("/deactivate", (0, validate_middleware_1.validate)(settings_validator_1.deactivateAccountSchema), settingsController.deactivateAccount);
 exports.default = router;

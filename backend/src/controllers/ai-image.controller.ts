@@ -12,17 +12,23 @@ export const uploadImage = asyncHandler(async (req: AuthenticatedRequest, res: R
 export const applyTool = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { publicId, tool, format } = req.body;
   aiImageService.assertOwnImage(req.user!.id, publicId);
-  return res.json({ url: aiImageService.buildTransformedUrl(publicId, tool, format) });
+  const url = aiImageService.buildTransformedUrl(publicId, tool, format);
+  await aiImageService.verifyDerived(url);
+  return res.json({ url });
 });
 
 export const convertFormat = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { publicId, format, quality } = req.body;
   aiImageService.assertOwnImage(req.user!.id, publicId);
-  return res.json({ url: aiImageService.buildFormatConvertedUrl(publicId, format, quality) });
+  const url = aiImageService.buildFormatConvertedUrl(publicId, format, quality);
+  await aiImageService.verifyDerived(url);
+  return res.json({ url });
 });
 
 export const generativeEdit = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { publicId, prompt, mode } = req.body;
   aiImageService.assertOwnImage(req.user!.id, publicId);
-  return res.json({ url: aiImageService.buildGenerativeEditUrl(publicId, prompt, mode) });
+  const url = aiImageService.buildGenerativeEditUrl(publicId, prompt, mode);
+  await aiImageService.verifyDerived(url);
+  return res.json({ url });
 });

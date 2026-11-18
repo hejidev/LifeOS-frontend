@@ -1,269 +1,307 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import {
-  Settings as SettingsIcon,
-  User,
-  Moon,
-  SunMedium,
-  Bell,
-  Shield,
-  LayoutGrid,
-  KeyRound,
-  Globe,
-} from "lucide-react";
-
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMemo, useRef, useState } from "react";
+import { Bell, Camera, Check, Globe, KeyRound, LayoutGrid, LogOut, Moon, Settings as SettingsIcon, ShieldAlert, SunMedium, User, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { PageHeader, Section } from "@/components/app/kit";
 import { useLogout } from "@/lib/hooks/use-auth";
-
 import {
-  useUserProfile,
-  useUpdateUserProfile,
-  useUpdatePreferences,
-  useUpdateNotifications,
-  useChangePassword,
-  useAccountOverview,
+  useAccountOverview, useChangePassword, useDeactivateAccount, useUpdateNotifications, useUpdatePreferences,
+  useUpdateUserProfile, useUploadAccountAvatar, useUserProfile,
 } from "@/lib/hooks/use-life-data";
+import { cn } from "@/lib/utils";
+import type { UserProfile } from "@/types/life";
 
-const container = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.06 } },
-};
-const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
+const CURRENCIES = [
+  "NGN", "USD", "EUR", "GBP", "GHS", "ZAR", "KES", "CAD", "AUD", "AED", "CNY", "INR", "JPY",
+  "XOF", "XAF", "EGP", "TZS", "UGX", "RWF", "BRL", "MXN", "SGD", "CHF", "SAR",
+];
 
-export default function SettingsPage() {
-  const { data: user, isLoading } = useUserProfile();
+const FALLBACK_ZONES = [
+  "Africa/Lagos", "Africa/Accra", "Africa/Nairobi", "Africa/Johannesburg", "Africa/Cairo", "Europe/London", "Europe/Paris",
+  "America/New_York", "America/Chicago", "America/Los_Angeles", "Asia/Dubai", "Asia/Kolkata", "Asia/Shanghai", "Asia/Tokyo", "Australia/Sydney", "UTC",
+];
+
+const PASSWORD_RULES = [
+  { label: "At least 12 characters", test: (value: string) => value.length >= 12 },
+  { label: "An uppercase letter", test: (value: string) => /[A-Z]/.test(value) },
+  { label: "A lowercase letter", test: (value: string) => /[a-z]/.test(value) },
+  { label: "A number", test: (value: string) => /\d/.test(value) },
+  { label: "A symbol", test: (value: string) => /[^A-Za-z0-9]/.test(value) },
+];
+
+function currencyName(code: string) {
+  try {
+    return new Intl.DisplayNames(["en"], { type: "currency" }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
+function zoneList(current: string) {
+  const reader = Intl as unknown as { supportedValuesOf?: (key: string) => string[] };
+  const list = reader.supportedValuesOf?.("timeZone") ?? FALLBACK_ZONES;
+  return list.includes(current) ? list : [current, ...list];
+}
+
+function SwitchRow({ title, hint, checked, onChange }: { title: string; hint?: string; checked: boolean; onChange: (value: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium">{title}</p>
+        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      </div>
+      <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
+function SettingsForm({ user }: { user: UserProfile }) {
   const { data: overview } = useAccountOverview();
   const updateProfile = useUpdateUserProfile();
   const updatePreferences = useUpdatePreferences();
   const updateNotifications = useUpdateNotifications();
   const changePassword = useChangePassword();
-
+  const deactivate = useDeactivateAccount();
+  const uploadAvatar = useUploadAccountAvatar();
   const logout = useLogout();
 
-  const [name, setName] = useState("");
-  const [location, setLocation] = useState("");
-  const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "" });
-  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState(user.name);
+  const [location, setLocation] = useState(user.location ?? "");
+  const [timezone, setTimezone] = useState(user.timezone);
+  const [currency, setCurrency] = useState(user.currency);
+  const [saved, setSaved] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (user) {
-      setName(user.name);
-      setLocation(user.location ?? "");
-    }
-  }, [user]);
+  const [passwords, setPasswords] = useState({ current: "", next: "", confirm: "" });
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordDone, setPasswordDone] = useState(false);
 
-  if (isLoading || !user) {
-    return <Skeleton className="h-[calc(100vh-8rem)] rounded-xl" />;
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const [deactivateInput, setDeactivateInput] = useState("");
+  const [deactivateError, setDeactivateError] = useState<string | null>(null);
+
+  const zones = useMemo(() => zoneList(user.timezone), [user.timezone]);
+  const initials = user.name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase() || "U";
+  const profileDirty = name.trim() !== user.name || location.trim() !== (user.location ?? "");
+  const regionDirty = timezone !== user.timezone || currency !== user.currency;
+
+  function flash(key: string) {
+    setSaved(key);
+    setTimeout(() => setSaved(null), 2500);
   }
 
-  const saveProfile = () => {
-    updateProfile.mutate({ name, location });
-  };
+  function pickAvatar(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setAvatarError(null);
+    if (!file.type.startsWith("image/")) return setAvatarError("Choose an image file.");
+    if (file.size > 5 * 1024 * 1024) return setAvatarError("The image is larger than 5 MB.");
+    uploadAvatar.mutate(file, { onError: (err: Error) => setAvatarError(err.message) });
+  }
 
-  const submitPasswordChange = () => {
-    setPasswordMessage(null);
-    changePassword.mutate(passwordForm, {
-      onSuccess: () => {
-        setPasswordMessage("Password updated.");
-        setPasswordForm({ currentPassword: "", newPassword: "" });
-      },
-      onError: (err: any) => {
-        setPasswordMessage(err?.message ?? "Couldn't update your password.");
-      },
+  function signOut(destination: string) {
+    logout.mutate(undefined, { onSettled: () => { window.location.href = destination; } });
+  }
+
+  function submitPassword(event: React.FormEvent) {
+    event.preventDefault();
+    setPasswordError(null);
+    if (passwords.next !== passwords.confirm) return setPasswordError("The new passwords don't match.");
+    if (!PASSWORD_RULES.every((rule) => rule.test(passwords.next))) return setPasswordError("Your new password doesn't meet all the requirements.");
+
+    changePassword.mutate(
+      { currentPassword: passwords.current, newPassword: passwords.next },
+      {
+        onSuccess: () => {
+          setPasswordDone(true);
+          setTimeout(() => signOut("/login"), 1800);
+        },
+        onError: (err: Error) => setPasswordError(err.message),
+      }
+    );
+  }
+
+  function submitDeactivate(event: React.FormEvent) {
+    event.preventDefault();
+    setDeactivateError(null);
+    deactivate.mutate(user.hasPassword ? { password: deactivateInput } : { confirmEmail: deactivateInput.trim().toLowerCase() }, {
+      onSuccess: () => signOut("/"),
+      onError: (err: Error) => setDeactivateError(err.message),
     });
-  };
+  }
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      {/* Header */}
-      <motion.div variants={item} className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <SettingsIcon className="h-6 w-6 text-primary" />
-            Settings
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Your profile, preferences, and everything LifeOS knows about you
-          </p>
-        </div>
-      </motion.div>
+    <div className="space-y-6">
+      <PageHeader icon={SettingsIcon} title="Settings" subtitle="Your profile, region, security and preferences." />
 
-      <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Profile card */}
-        <Card className="lg:col-span-1 hover:border-primary/20 transition-colors">
-          <CardHeader className="pb-3 flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <User className="h-4 w-4 text-primary" />
-              Profile
-            </CardTitle>
-            <Badge variant="secondary" className="text-[11px] capitalize">
-              {user.role.replace("_", " ")}
-            </Badge>
-          </CardHeader>
-          <CardContent className="space-y-3 text-xs">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Name</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} className="text-xs h-8" />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Section title="Profile" icon={User} action={<Badge variant="secondary" className="capitalize">{user.role.replace("_", " ")}</Badge>}>
+          <div className="flex items-center gap-4">
+            <button type="button" onClick={() => fileInput.current?.click()} disabled={uploadAvatar.isPending} className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-full border bg-primary/10" aria-label="Change photo">
+              {user.avatarUrl ? <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" /> : <span className="flex h-full w-full items-center justify-center text-lg font-semibold text-primary">{initials}</span>}
+              <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"><Camera className="h-4 w-4 text-white" /></span>
+            </button>
+            <div className="min-w-0 text-sm">
+              <p className="truncate font-medium">{user.email}</p>
+              <p className="text-xs text-muted-foreground">
+                {user.emailVerified ? "Email verified" : "Email not verified"}
+                {user.createdAt ? ` · member since ${new Date(user.createdAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}` : ""}
+              </p>
+              {uploadAvatar.isPending && <p className="text-xs text-muted-foreground">Uploading...</p>}
+              {avatarError && <p className="text-xs text-destructive">{avatarError}</p>}
             </div>
-            <p className="text-muted-foreground">{user.email}</p>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Location</Label>
-              <Input value={location} onChange={(e) => setLocation(e.target.value)} className="text-xs h-8" placeholder="City, Country" />
-            </div>
-            <p className="text-muted-foreground flex items-center gap-1">
-              <Globe className="h-3 w-3" /> {user.timezone}
-            </p>
-            <Button
-              size="sm"
-              className="w-full mt-1"
-              disabled={updateProfile.isPending}
-              onClick={saveProfile}
-            >
+            <input ref={fileInput} type="file" accept="image/*" className="hidden" onChange={pickAvatar} />
+          </div>
+          <div className="space-y-1.5"><Label>Name</Label><Input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} /></div>
+          <div className="space-y-1.5"><Label>Location</Label><Input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="City, Country" maxLength={100} /></div>
+          <div className="flex items-center gap-3">
+            <Button disabled={!profileDirty || !name.trim() || updateProfile.isPending} onClick={() => updateProfile.mutate({ name: name.trim(), location: location.trim() }, { onSuccess: () => flash("profile") })}>
               {updateProfile.isPending ? "Saving..." : "Save profile"}
             </Button>
-          </CardContent>
-        </Card>
+            {saved === "profile" && <span className="flex items-center gap-1 text-xs text-emerald-600"><Check className="h-3.5 w-3.5" /> Saved</span>}
+          </div>
+          {updateProfile.isError && <p className="text-xs text-destructive">{(updateProfile.error as Error).message}</p>}
+        </Section>
 
-        {/* Preferences and appearance */}
-        <Card className="lg:col-span-2 hover:border-primary/20 transition-colors">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <SettingsIcon className="h-4 w-4 text-primary" />
-              Preferences & appearance
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 text-xs">
-            {/* Theme */}
-            <div className="flex items-center justify-between rounded-md border border-border/60 bg-card/60 p-3">
-              <div className="flex items-center gap-2">
-                {user.preferences.darkMode ? (
-                  <Moon className="h-4 w-4 text-primary" />
-                ) : (
-                  <SunMedium className="h-4 w-4 text-primary" />
-                )}
-                <div>
-                  <p className="text-sm font-medium">Dark mode</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Toggle the app theme between light and dark.
-                  </p>
-                </div>
-              </div>
-              <Switch
-                checked={user.preferences.darkMode}
-                onCheckedChange={(checked) => updatePreferences.mutate({ darkMode: checked })}
-              />
+        <Section title="Region" icon={Globe}>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label>Timezone</Label>
+              <button type="button" className="text-xs text-primary hover:underline" onClick={() => setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone)}>Use this device's timezone</button>
             </div>
-
-            <div className="flex items-center justify-between rounded-md border border-border/60 bg-card/60 p-3">
-              <div>
-                <p className="text-sm font-medium">Week starts on</p>
-                <p className="text-[11px] text-muted-foreground">
-                  Choose which day appears first in calendars and weekly views.
-                </p>
-              </div>
-              <Select
-                value={user.preferences.weekStartsOn === 0 ? "sunday" : "monday"}
-                onValueChange={(v) => updatePreferences.mutate({ weekStartsOn: v === "sunday" ? 0 : 1 })}
-              >
-                <SelectTrigger className="w-[120px] h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sunday">Sunday</SelectItem>
-                  <SelectItem value="monday">Monday</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2 rounded-md border border-border/60 bg-card/60 p-3">
-              <div className="flex items-center gap-2">
-                <Bell className="h-4 w-4 text-primary" />
-                <div>
-                  <p className="text-sm font-medium">Notifications</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Control reminders and alerts from tasks, calendar, and finance modules.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-2 space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">Task reminders</Label>
-                  <Switch
-                    checked={user.notifications.notifyTasks}
-                    onCheckedChange={(checked) => updateNotifications.mutate({ notifyTasks: checked })}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">Calendar alerts</Label>
-                  <Switch
-                    checked={user.notifications.notifyCalendar}
-                    onCheckedChange={(checked) => updateNotifications.mutate({ notifyCalendar: checked })}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">Finance nudges</Label>
-                  <Switch
-                    checked={user.notifications.notifyFinance}
-                    onCheckedChange={(checked) => updateNotifications.mutate({ notifyFinance: checked })}
-                  />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      <motion.div variants={item}>
-        <Card className="hover:border-primary/20 transition-colors">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <LayoutGrid className="h-4 w-4 text-primary" /> Your data at a glance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              {(overview?.modules ?? []).map((m) => (
-                <div key={m.id} className="rounded-lg border border-border/60 bg-card/60 p-3 text-center">
-                  <p className="text-xl font-bold">{m.count}</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">{m.label}</p>
-                  {m.detail && <p className="text-[10px] text-muted-foreground/70 mt-0.5">{m.detail}</p>}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="hover:border-primary/20 transition-colors">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Account</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-xs text-muted-foreground">
-            <p>Email verified: {user.emailVerified ? "Yes" : "No"}</p>
-            <p>Member since: {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}</p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-1"
-              disabled={logout.isPending}
-              onClick={() => logout.mutate(undefined, { onSettled: () => { window.location.href = "/login"; } })}
-            >
-              Sign out
+            <select className="flex h-10 w-full rounded-lg border bg-background px-3 text-sm" value={timezone} onChange={(event) => setTimezone(event.target.value)}>
+              {zones.map((zone) => <option key={zone} value={zone}>{zone.replace(/_/g, " ")}</option>)}
+            </select>
+            <p className="text-xs text-muted-foreground">Decides when your day starts for tasks, habits, health logs, bedtime and the assistant.</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Currency</Label>
+            <select className="flex h-10 w-full rounded-lg border bg-background px-3 text-sm" value={currency} onChange={(event) => setCurrency(event.target.value)}>
+              {CURRENCIES.map((code) => <option key={code} value={code}>{code} · {currencyName(code)}</option>)}
+            </select>
+            <p className="text-xs text-muted-foreground">Used to show amounts in Finance, the dashboard and the assistant. Existing amounts aren't converted.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button disabled={!regionDirty || updateProfile.isPending} onClick={() => updateProfile.mutate({ timezone, currency }, { onSuccess: () => flash("region") })}>
+              {updateProfile.isPending ? "Saving..." : "Save region"}
             </Button>
-          </CardContent>
-        </Card>
-      </motion.div>
-    </motion.div>
+            {saved === "region" && <span className="flex items-center gap-1 text-xs text-emerald-600"><Check className="h-3.5 w-3.5" /> Saved</span>}
+          </div>
+        </Section>
+
+        <Section title="Preferences" icon={user.preferences.darkMode ? Moon : SunMedium}>
+          <SwitchRow title="Dark mode" hint="Switch the app between light and dark." checked={user.preferences.darkMode} onChange={(value) => updatePreferences.mutate({ darkMode: value })} />
+          <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+            <div>
+              <p className="text-sm font-medium">Week starts on</p>
+              <p className="text-xs text-muted-foreground">Used by the calendar, habits and weekly stats.</p>
+            </div>
+            <Select value={user.preferences.weekStartsOn === 0 ? "sunday" : "monday"} onValueChange={(value) => updatePreferences.mutate({ weekStartsOn: value === "sunday" ? 0 : 1 })}>
+              <SelectTrigger className="h-9 w-32"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="monday">Monday</SelectItem>
+                <SelectItem value="sunday">Sunday</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </Section>
+
+        <Section title="Notifications" icon={Bell}>
+          <SwitchRow title="Task reminders" checked={user.notifications.notifyTasks} onChange={(value) => updateNotifications.mutate({ notifyTasks: value })} />
+          <SwitchRow title="Calendar alerts" checked={user.notifications.notifyCalendar} onChange={(value) => updateNotifications.mutate({ notifyCalendar: value })} />
+          <SwitchRow title="Finance nudges" checked={user.notifications.notifyFinance} onChange={(value) => updateNotifications.mutate({ notifyFinance: value })} />
+        </Section>
+
+        <Section title="Security" icon={KeyRound} className="lg:col-span-2">
+          {user.hasPassword === false ? (
+            <p className="text-sm text-muted-foreground">You sign in with {user.provider ? user.provider.toLowerCase() : "a connected account"}, so there's no LifeOS password to change.</p>
+          ) : passwordDone ? (
+            <p className="rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700">Password updated. You're being signed out on all devices so you can sign in again.</p>
+          ) : (
+            <form onSubmit={submitPassword} className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-3">
+                <div className="space-y-1.5"><Label>Current password</Label><Input type="password" autoComplete="current-password" value={passwords.current} onChange={(event) => setPasswords((p) => ({ ...p, current: event.target.value }))} required /></div>
+                <div className="space-y-1.5"><Label>New password</Label><Input type="password" autoComplete="new-password" value={passwords.next} onChange={(event) => setPasswords((p) => ({ ...p, next: event.target.value }))} required /></div>
+                <div className="space-y-1.5"><Label>Confirm new password</Label><Input type="password" autoComplete="new-password" value={passwords.confirm} onChange={(event) => setPasswords((p) => ({ ...p, confirm: event.target.value }))} required /></div>
+              </div>
+              <div className="space-y-3">
+                <ul className="space-y-1.5 text-sm">
+                  {PASSWORD_RULES.map((rule) => {
+                    const met = rule.test(passwords.next);
+                    return (
+                      <li key={rule.label} className={cn("flex items-center gap-2", met ? "text-emerald-600" : "text-muted-foreground")}>
+                        {met ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />} {rule.label}
+                      </li>
+                    );
+                  })}
+                </ul>
+                {passwordError && <p className="text-xs text-destructive">{passwordError}</p>}
+                <Button type="submit" disabled={changePassword.isPending}>{changePassword.isPending ? "Updating..." : "Update password"}</Button>
+                <p className="text-xs text-muted-foreground">Changing your password signs you out of every device.</p>
+              </div>
+            </form>
+          )}
+          <div className="border-t pt-4">
+            <Button variant="outline" disabled={logout.isPending} onClick={() => signOut("/login")}><LogOut className="mr-1.5 h-4 w-4" /> Sign out</Button>
+          </div>
+        </Section>
+
+        <Section title="Your data" icon={LayoutGrid} className="lg:col-span-2">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            {(overview?.modules ?? []).map((module) => (
+              <div key={module.id} className="rounded-lg border p-3 text-center">
+                <p className="text-xl font-bold tabular-nums">{module.count}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">{module.label}</p>
+                {module.detail && <p className="text-[10px] text-muted-foreground/70">{module.detail}</p>}
+              </div>
+            ))}
+          </div>
+        </Section>
+      </div>
+
+      <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+            <div>
+              <p className="text-sm font-semibold">Deactivate account</p>
+              <p className="text-xs text-muted-foreground">Signs you out everywhere and disables your account. Cancel any subscription first. Contact support to restore it.</p>
+            </div>
+          </div>
+          <Button variant="destructive" onClick={() => { setDeactivateInput(""); setDeactivateError(null); setDeactivateOpen(true); }}>Deactivate</Button>
+        </div>
+      </div>
+
+      <Dialog open={deactivateOpen} onOpenChange={setDeactivateOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Deactivate your account?</DialogTitle></DialogHeader>
+          <form onSubmit={submitDeactivate} className="space-y-3 pt-1">
+            <p className="text-sm text-muted-foreground">{user.hasPassword ? "Enter your password to confirm." : `Type your email (${user.email}) to confirm.`}</p>
+            <Input type={user.hasPassword ? "password" : "email"} value={deactivateInput} onChange={(event) => setDeactivateInput(event.target.value)} autoFocus required />
+            {deactivateError && <p className="text-xs text-destructive">{deactivateError}</p>}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setDeactivateOpen(false)}>Cancel</Button>
+              <Button type="submit" variant="destructive" disabled={deactivate.isPending || !deactivateInput.trim()}>{deactivate.isPending ? "Deactivating..." : "Deactivate"}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
+}
+
+export default function SettingsPage() {
+  const { data: user, isLoading } = useUserProfile();
+  if (isLoading || !user) return <Skeleton className="h-[calc(100vh-8rem)] rounded-xl" />;
+  return <SettingsForm key={user.id} user={user} />;
 }

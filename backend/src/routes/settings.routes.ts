@@ -7,6 +7,7 @@ import {
   updatePreferencesSchema,
   updateNotificationsSchema,
   changePasswordSchema,
+  deactivateAccountSchema,
 } from "../validators/settings.validator";
 
 const router = Router();
@@ -18,6 +19,6 @@ router.patch("/preferences", validate(updatePreferencesSchema), settingsControll
 router.patch("/notifications", validate(updateNotificationsSchema), settingsController.updateNotifications);
 router.post("/change-password", validate(changePasswordSchema), settingsController.changePassword);
 router.get("/overview", settingsController.getAccountOverview);
-router.post("/deactivate", settingsController.deactivateAccount);
+router.post("/deactivate", validate(deactivateAccountSchema), settingsController.deactivateAccount);
 
 export default router;

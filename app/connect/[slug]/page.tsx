@@ -37,6 +37,8 @@ const item = {
   },
 };
 
+const SAFE_LINK = /^(https?:\/\/|mailto:|tel:)/i;
+
 function PageBackground() {
   return (
     <div className="pointer-events-none fixed inset-0 overflow-hidden">
@@ -106,7 +108,7 @@ function SocialLinkButton({ link }: { link: PublicLink }) {
       variants={item}
       href={link.url}
       target="_blank"
-      rel="noopener noreferrer"
+      rel="noopener noreferrer nofollow"
       whileHover={{ scale: 1.02, y: -2 }}
       whileTap={{ scale: 0.98 }}
       className="group relative flex items-center gap-3.5 rounded-2xl border border-border/70 bg-card/70 px-4 py-3.5 backdrop-blur-sm transition-colors hover:border-border hover:bg-card"
@@ -151,15 +153,16 @@ export default function PublicConnectPage({ params }: { params: Promise<{ slug: 
       .get(`/public/social-profile/${encodeURIComponent(slug)}`)
       .then((data: PublicProfile) => {
         if (cancelled) return;
-        setProfile(data);
-        if (data.links.length === 1) {
+        const safe = { ...data, links: data.links.filter((link) => SAFE_LINK.test(link.url)) };
+        setProfile(safe);
+        if (safe.links.length === 1 && /^https?:\/\//i.test(safe.links[0].url)) {
           setRedirecting(true);
-          window.location.replace(data.links[0].url);
+          window.location.replace(safe.links[0].url);
         }
       })
-      .catch((err) => {
-        console.error("Failed to load social profile:", err);
-        if (!cancelled) setError("This profile doesn't exist or isn't public.");
+      .catch((err: Error & { status?: number }) => {
+        if (cancelled) return;
+        setError(err.status === 404 ? "This profile doesn't exist or isn't public." : "We couldn't load this profile right now. Please try again in a moment.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -201,6 +204,7 @@ export default function PublicConnectPage({ params }: { params: Promise<{ slug: 
                 <img
                   src={profile.avatar}
                   alt={profile.displayName}
+                  referrerPolicy="no-referrer"
                   className="h-full w-full object-cover"
                 />
               ) : (

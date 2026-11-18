@@ -6,7 +6,7 @@ import hpp from "hpp";
 import cookieParser from "cookie-parser";
 
 import { env } from "./config/env";
-import * as utilitiesController from "./controllers/utilities.controller";
+// import * as utilitiesController from "./controllers/utilities.controller";
 import authRoutes from "./routes/auth.routes";
 import oauthRoutes from "./routes/oauth.routes";
 import staffAuthRoutes from "./routes/staff-auth.routes";
@@ -31,6 +31,8 @@ import storeRoutes from "./routes/store.routes";
 import chatRoutes from "./routes/chat.routes";
 import operationsRoutes from "./routes/operations.routes";
 
+import * as socialProfileService from "./services/social-profile.service";
+import { consumeLimit } from "./lib/rate-limit";
 
 import businessRoutes from "./routes/business.routes";
 import settingsRoutes from "./routes/settings.routes";
@@ -100,22 +102,21 @@ app.post("/api/emergency/public/:token", validate(publicUnlockSchema), emergency
 app.get("/api/family/invites/:token", familyController.getInvite);
 app.post("/api/family/invites/accept", validate(acceptInviteSchema), familyController.acceptInvite);
 
-app.get(
-  "/api/public/social-profile/:slug",
-  (req, res, next) =>
-    utilitiesController
-      .getPublicSocialProfile(req.params.slug, {
-        userAgent: req.get("user-agent") ?? undefined,
-        referrer: req.get("referer") ?? undefined,
-      })
-      .then((data) => res.json(data))
-      .catch((err) => {
-        if (err.message === "Social profile not found") {
-          return res.status(404).json({ error: err.message });
-        }
-        return next(err);
-      })
-);
+app.get("/api/public/social-profile/:slug", async (req, res, next) => {
+  try {
+    const forwarded = String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim();
+    const ip = forwarded || req.ip || "unknown";
+    await consumeLimit(`rl:social-public:${ip}`, 120, 60, "Too many requests.");
+    const profile = await socialProfileService.getPublicProfile(req.params.slug, {
+      ip,
+      userAgent: req.get("user-agent") ?? undefined,
+      referrer: req.get("referer") ?? undefined,
+    });
+    res.json(profile);
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Auth-layer routers — no evidence these shadow anything, left in place
 app.use("/api", authRoutes);

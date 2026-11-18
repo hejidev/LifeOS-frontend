@@ -60,3 +60,32 @@ export async function cleanupExpiredImageTools(maxAgeHours = 24) {
 
   return removed;
 }
+
+export async function verifyDerived(url: string) {
+  const deadline = Date.now() + 20_000;
+
+  while (Date.now() < deadline) {
+    let response: Awaited<ReturnType<typeof fetch>>;
+    try {
+      response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    } catch {
+      throw new AppError("The image service didn't respond. Please try again.", 502);
+    }
+    await response.body?.cancel().catch(() => undefined);
+
+    if (response.ok) return;
+    if (response.status === 423) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      continue;
+    }
+
+    const detail = response.headers.get("x-cld-error") ?? "";
+    console.error("[image-tools] edit failed:", response.status, detail);
+    if (response.status === 401 || response.status === 403 || response.status === 420 || /not enabled|add-on|quota|limit|plan/i.test(detail)) {
+      throw new AppError("This tool isn't available right now.", 503);
+    }
+    throw new AppError("That edit couldn't be applied to this image. Try another tool or image.", 422);
+  }
+
+  throw new AppError("That edit is taking longer than expected. Try again in a moment.", 504);
+}

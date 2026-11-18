@@ -1,15 +1,13 @@
 import { prisma } from "../config/prisma";
 import { env } from "../config/env";
 import { AppError } from "../lib/errors";
-import { PLANS, PlanKey, planCodeToTier, FREE_USES_PER_TOOL, merchantPlanCodeToTier, BillingInterval } from "../config/plan";
+import { PLANS, PlanKey, planCodeToTier, FREE_USES_PER_TOOL, merchantPlanCodeToTier, BillingInterval, publicPlans } from "../config/plan";
 import { createNotification } from "./notification.service";
 import { sendSubscriptionConfirmationEmail } from "./email.service";
 import * as paystack from "./paystack.service";
 
 export async function getOrCreateSubscription(userId: string) {
-  let sub = await prisma.subscription.findUnique({ where: { userId } });
-  if (!sub) sub = await prisma.subscription.create({ data: { userId } });
-  return sub;
+  return prisma.subscription.upsert({ where: { userId }, update: {}, create: { userId } });
 }
 
 export async function getBillingSummary(userId: string) {
@@ -31,28 +29,30 @@ export async function getBillingSummary(userId: string) {
       AI_IMAGE: usageMap.AI_IMAGE ?? 0,
       FILE_CONVERTER: usageMap.FILE_CONVERTER ?? 0,
     },
-    plans: PLANS,
+    billingInterval: sub.billingInterval ?? null,
+    plans: publicPlans(),
   };
 }
 
 export async function checkAndConsumeUsage(userId: string, tool: "AI_WRITING" | "AI_IMAGE" | "FILE_CONVERTER") {
   const sub = await getOrCreateSubscription(userId);
-  if (sub.tier !== "FREE" && sub.status === "ACTIVE") return;
+  if (sub.tier !== "FREE" && sub.status === "ACTIVE") return false;
 
-  const usage = await prisma.toolUsage.upsert({
-    where: { userId_tool: { userId, tool } },
-    update: {},
-    create: { userId, tool, count: 0 },
+  await prisma.toolUsage.createMany({ data: [{ userId, tool, count: 0 }], skipDuplicates: true });
+
+  const updated = await prisma.toolUsage.updateMany({
+    where: { userId, tool, count: { lt: FREE_USES_PER_TOOL } },
+    data: { count: { increment: 1 } },
   });
 
-  if (usage.count >= FREE_USES_PER_TOOL) {
-    throw new AppError(
-      `You've used your ${FREE_USES_PER_TOOL} free uses for this tool. Subscribe to keep using it.`,
-      402
-    );
+  if (updated.count === 0) {
+    throw new AppError(`You've used your ${FREE_USES_PER_TOOL} free uses for this tool. Subscribe to keep using it.`, 402);
   }
+  return true;
+}
 
-  await prisma.toolUsage.update({ where: { id: usage.id }, data: { count: { increment: 1 } } });
+export async function refundUsage(userId: string, tool: "AI_WRITING" | "AI_IMAGE" | "FILE_CONVERTER") {
+  await prisma.toolUsage.updateMany({ where: { userId, tool, count: { gt: 0 } }, data: { count: { decrement: 1 } } });
 }
 
 export async function createCheckoutSession(userId: string, email: string, planKey: PlanKey, interval: BillingInterval = "month") {
@@ -85,109 +85,172 @@ export async function createPortalSession(userId: string) {
   return result.link;
 }
 
+async function handleChargeSuccess(data: any) {
+  const userId = data.metadata?.userId;
+  const planCode = data.plan?.plan_code ?? data.plan_object?.plan_code;
+  if (!userId || !planCode) return;
+
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+  if (!user) return;
+
+  const periodEnd = data.plan_object?.next_payment_date ? new Date(data.plan_object.next_payment_date) : null;
+  const customerCode = data.customer?.customer_code;
+  const subscriptionCode = data.subscription?.subscription_code ?? undefined;
+
+  if (data.metadata?.type === "merchant") {
+    const resolved = merchantPlanCodeToTier(planCode);
+    const profile = await prisma.bizProfile.findUnique({ where: { userId } });
+    if (!profile) return;
+
+    const renewal = profile.planStatus === "ACTIVE" && profile.planTier === (resolved?.tier ?? "NONE");
+    await prisma.bizProfile.update({
+      where: { userId },
+      data: {
+        planTier: resolved?.tier ?? "NONE",
+        planStatus: "ACTIVE",
+        paystackCustomerCode: customerCode,
+        paystackSubscriptionCode: subscriptionCode,
+        currentPeriodEnd: periodEnd ?? undefined,
+      },
+    });
+    if (renewal) return;
+
+    await createNotification(userId, {
+      type: "BILLING",
+      title: "Merchant plan active",
+      message: `Your ${resolved?.tier ?? "plan"} merchant plan is now active. Your dashboard is unlocked.`,
+      actionUrl: "/merchant/dashboard",
+    });
+    if (user.email && periodEnd) {
+      await sendSubscriptionConfirmationEmail(user.email, { planName: `Merchant ${resolved?.tier ?? "plan"}`, interval: resolved?.interval === "year" ? "year" : "month", periodEnd });
+    }
+    return;
+  }
+
+  const resolved = planCodeToTier(planCode);
+  const existing = await prisma.subscription.findUnique({ where: { userId } });
+  const renewal = !!existing && existing.status === "ACTIVE" && existing.tier === (resolved?.tier ?? "FREE");
+
+  await prisma.subscription.upsert({
+    where: { userId },
+    update: {
+      tier: resolved?.tier ?? "FREE",
+      status: "ACTIVE",
+      cancelAtPeriodEnd: false,
+      billingInterval: resolved?.interval,
+      paystackCustomerCode: customerCode,
+      paystackSubscriptionCode: subscriptionCode,
+      currentPeriodEnd: periodEnd ?? undefined,
+    },
+    create: {
+      userId,
+      tier: resolved?.tier ?? "FREE",
+      status: "ACTIVE",
+      billingInterval: resolved?.interval,
+      paystackCustomerCode: customerCode,
+      paystackSubscriptionCode: subscriptionCode,
+      currentPeriodEnd: periodEnd ?? undefined,
+    },
+  });
+  if (renewal) return;
+
+  await createNotification(userId, {
+    type: "BILLING",
+    title: "Subscription active",
+    message: `Your ${resolved?.tier ?? "plan"} subscription is now active.`,
+    actionUrl: "/app/billing",
+  });
+  if (user.email && periodEnd) {
+    await sendSubscriptionConfirmationEmail(user.email, { planName: resolved?.tier ?? "plan", interval: resolved?.interval === "year" ? "year" : "month", periodEnd });
+  }
+}
+
+async function handleSubscriptionCreate(data: any) {
+  const email = String(data.customer?.email ?? "").trim();
+  const planCode = data.plan?.plan_code;
+  const subscriptionCode = data.subscription_code;
+  if (!email || !planCode || !subscriptionCode) return;
+
+  const user = await prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true } });
+  if (!user) return;
+
+  const periodEnd = data.next_payment_date ? new Date(data.next_payment_date) : undefined;
+  const customerCode = data.customer?.customer_code;
+
+  if (merchantPlanCodeToTier(planCode)) {
+    await prisma.bizProfile.updateMany({
+      where: { userId: user.id },
+      data: { paystackSubscriptionCode: subscriptionCode, paystackCustomerCode: customerCode, currentPeriodEnd: periodEnd },
+    });
+    return;
+  }
+
+  const resolved = planCodeToTier(planCode);
+  if (!resolved) return;
+
+  await prisma.subscription.upsert({
+    where: { userId: user.id },
+    update: {
+      tier: resolved.tier,
+      status: "ACTIVE",
+      cancelAtPeriodEnd: false,
+      billingInterval: resolved.interval,
+      paystackSubscriptionCode: subscriptionCode,
+      paystackCustomerCode: customerCode,
+      currentPeriodEnd: periodEnd,
+    },
+    create: {
+      userId: user.id,
+      tier: resolved.tier,
+      status: "ACTIVE",
+      billingInterval: resolved.interval,
+      paystackSubscriptionCode: subscriptionCode,
+      paystackCustomerCode: customerCode,
+      currentPeriodEnd: periodEnd,
+    },
+  });
+}
+
+async function handleNotRenewing(data: any) {
+  const code = data.subscription_code;
+  if (code) await prisma.subscription.updateMany({ where: { paystackSubscriptionCode: code }, data: { cancelAtPeriodEnd: true } });
+}
+
+async function handleDisable(data: any) {
+  const code = data.subscription_code;
+  if (!code) return;
+
+  const toolSub = await prisma.subscription.findFirst({ where: { paystackSubscriptionCode: code } });
+  if (toolSub) {
+    await prisma.subscription.update({
+      where: { id: toolSub.id },
+      data: { tier: "FREE", status: "CANCELED", cancelAtPeriodEnd: false, billingInterval: null, paystackSubscriptionCode: null },
+    });
+    return;
+  }
+
+  await prisma.bizProfile.updateMany({ where: { paystackSubscriptionCode: code }, data: { planTier: "NONE", planStatus: "INACTIVE", paystackSubscriptionCode: null } });
+}
+
+async function handlePaymentFailed(data: any) {
+  const code = data.subscription?.subscription_code;
+  if (!code) return;
+
+  const updated = await prisma.subscription.updateMany({ where: { paystackSubscriptionCode: code }, data: { status: "PAST_DUE" } });
+  if (updated.count === 0) await prisma.bizProfile.updateMany({ where: { paystackSubscriptionCode: code }, data: { planStatus: "PAST_DUE" } });
+}
+
 export async function handleWebhookEvent(event: { event: string; data: any }) {
   switch (event.event) {
-    case "charge.success": {
-      const data = event.data;
-      const userId = data.metadata?.userId;
-      const type = data.metadata?.type;
-      const planCode = data.plan?.plan_code ?? data.plan_object?.plan_code;
-      if (!userId || !planCode) break;
-
-      const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
-      const periodEnd = data.plan_object?.next_payment_date ? new Date(data.plan_object.next_payment_date) : null;
-
-      if (type === "merchant") {
-        const resolved = merchantPlanCodeToTier(planCode);
-        const updated = await prisma.bizProfile.update({
-          where: { userId },
-          data: {
-            planTier: resolved?.tier ?? "NONE",
-            planStatus: "ACTIVE",
-            paystackCustomerCode: data.customer?.customer_code,
-            paystackSubscriptionCode: data.subscription?.subscription_code ?? undefined,
-            currentPeriodEnd: periodEnd ?? undefined,
-          },
-        });
-
-        await createNotification(userId, {
-          type: "BILLING",
-          title: "Merchant plan active",
-          message: `Your ${resolved?.tier ?? "plan"} merchant plan is now active — your dashboard is unlocked.`,
-          actionUrl: "/merchant/dashboard",
-        });
-
-        if (user?.email && periodEnd) {
-          await sendSubscriptionConfirmationEmail(user.email, {
-            planName: `Merchant ${resolved?.tier ?? "plan"}`,
-            interval: resolved?.interval === "year" ? "year" : "month",
-            periodEnd,
-          });
-        }
-      } else {
-        const resolved = planCodeToTier(planCode);
-        await prisma.subscription.update({
-          where: { userId },
-          data: {
-            tier: resolved?.tier ?? "FREE",
-            status: "ACTIVE",
-            paystackCustomerCode: data.customer?.customer_code,
-            paystackSubscriptionCode: data.subscription?.subscription_code ?? undefined,
-            currentPeriodEnd: periodEnd ?? undefined,
-          },
-        });
-
-        await createNotification(userId, {
-          type: "BILLING",
-          title: "Subscription active",
-          message: `Your ${resolved?.tier ?? "plan"} subscription is now active.`,
-          actionUrl: "/app/billing",
-        });
-
-        if (user?.email && periodEnd) {
-          await sendSubscriptionConfirmationEmail(user.email, {
-            planName: resolved?.tier ?? "plan",
-            interval: resolved?.interval === "year" ? "year" : "month",
-            periodEnd,
-          });
-        }
-      }
-      break;
-    }
-
-    case "subscription.disable": {
-      const data = event.data;
-      const subscriptionCode = data.subscription_code;
-
-      const toolSub = await prisma.subscription.findFirst({ where: { paystackSubscriptionCode: subscriptionCode } });
-      if (toolSub) {
-        await prisma.subscription.update({ where: { id: toolSub.id }, data: { tier: "FREE", status: "CANCELED", paystackSubscriptionCode: null } });
-        break;
-      }
-
-      const bizProfile = await prisma.bizProfile.findFirst({ where: { paystackSubscriptionCode: subscriptionCode } });
-      if (bizProfile) {
-        await prisma.bizProfile.update({ where: { id: bizProfile.id }, data: { planTier: "NONE", planStatus: "INACTIVE", paystackSubscriptionCode: null } });
-      }
-      break;
-    }
-
-    case "invoice.payment_failed": {
-      const data = event.data;
-      const subscriptionCode = data.subscription?.subscription_code;
-      if (!subscriptionCode) break;
-
-      const toolSub = await prisma.subscription.findFirst({ where: { paystackSubscriptionCode: subscriptionCode } });
-      if (toolSub) {
-        await prisma.subscription.update({ where: { id: toolSub.id }, data: { status: "PAST_DUE" } });
-        break;
-      }
-
-      const bizProfile = await prisma.bizProfile.findFirst({ where: { paystackSubscriptionCode: subscriptionCode } });
-      if (bizProfile) {
-        await prisma.bizProfile.update({ where: { id: bizProfile.id }, data: { planStatus: "PAST_DUE" } });
-      }
-      break;
-    }
+    case "charge.success":
+      return handleChargeSuccess(event.data);
+    case "subscription.create":
+      return handleSubscriptionCreate(event.data);
+    case "subscription.not_renew":
+      return handleNotRenewing(event.data);
+    case "subscription.disable":
+      return handleDisable(event.data);
+    case "invoice.payment_failed":
+      return handlePaymentFailed(event.data);
   }
 }

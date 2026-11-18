@@ -79,3 +79,12 @@ export function merchantPlanCodeToTier(planCode: string): { tier: MerchantPlanKe
   }
   return null;
 }
+
+export function publicPlans() {
+  return Object.fromEntries(
+    Object.entries(PLANS).map(([key, plan]) => [
+      key,
+      { name: plan.name, priceLabelMonthly: plan.priceLabelMonthly, priceLabelYearly: plan.priceLabelYearly, description: plan.description },
+    ])
+  );
+}

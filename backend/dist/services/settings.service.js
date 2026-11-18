@@ -15,6 +15,7 @@ const prisma_1 = require("../config/prisma");
 const errors_1 = require("../lib/errors");
 const password_policy_1 = require("../lib/password-policy");
 const email_service_1 = require("./email.service");
+const user_clock_1 = require("../lib/user-clock");
 const auth_cache_1 = require("../lib/auth-cache");
 function serializeUser(u) {
     return {
@@ -37,6 +38,7 @@ function serializeUser(u) {
         },
         provider: u.provider,
         emailVerified: u.emailVerified,
+        hasPassword: !!u.passwordHash,
         createdAt: u.createdAt.toISOString(),
     };
 }
@@ -47,11 +49,23 @@ async function getProfile(userId) {
     return serializeUser(user);
 }
 async function updateProfile(userId, data) {
-    const user = await prisma_1.prisma.user.update({ where: { id: userId }, data });
+    const user = await prisma_1.prisma.user.update({
+        where: { id: userId },
+        data: {
+            ...(data.name !== undefined && { name: data.name }),
+            ...(data.avatarUrl !== undefined && { avatarUrl: data.avatarUrl }),
+            ...(data.timezone !== undefined && { timezone: data.timezone }),
+            ...(data.location !== undefined && { location: data.location || null }),
+            ...(data.currency !== undefined && { currency: data.currency }),
+        },
+    });
+    (0, user_clock_1.invalidateUserClock)(userId);
+    (0, auth_cache_1.invalidateAuthCache)(userId);
     return serializeUser(user);
 }
 async function updatePreferences(userId, data) {
     const user = await prisma_1.prisma.user.update({ where: { id: userId }, data });
+    (0, user_clock_1.invalidateUserClock)(userId);
     return serializeUser(user);
 }
 async function updateNotifications(userId, data) {
@@ -68,7 +82,7 @@ async function changePassword(userId, currentPassword, newPassword) {
     }
     const valid = await bcryptjs_1.default.compare(currentPassword, user.passwordHash);
     if (!valid)
-        throw new errors_1.AppError("Current password is incorrect", 401);
+        throw new errors_1.AppError("Current password is incorrect", 403);
     const passwordHash = await bcryptjs_1.default.hash(newPassword, 12);
     await prisma_1.prisma.user.update({
         where: { id: userId },
@@ -109,7 +123,27 @@ async function getAccountOverview(userId) {
         ],
     };
 }
-async function deactivateAccount(userId) {
-    await prisma_1.prisma.user.update({ where: { id: userId }, data: { isActive: false } });
+async function deactivateAccount(userId, input) {
+    const user = await prisma_1.prisma.user.findUnique({ where: { id: userId } });
+    if (!user)
+        throw new errors_1.AppError("User not found", 404);
+    const [subscription, business] = await Promise.all([
+        prisma_1.prisma.subscription.findUnique({ where: { userId } }),
+        prisma_1.prisma.bizProfile.findUnique({ where: { userId }, select: { planStatus: true } }),
+    ]);
+    if (subscription && subscription.tier !== "FREE" && subscription.status === "ACTIVE") {
+        throw new errors_1.AppError("Cancel your subscription before deactivating your account.", 409);
+    }
+    if (business?.planStatus === "ACTIVE") {
+        throw new errors_1.AppError("Cancel your merchant plan before deactivating your account.", 409);
+    }
+    if (user.passwordHash) {
+        if (!input.password || !(await bcryptjs_1.default.compare(input.password, user.passwordHash)))
+            throw new errors_1.AppError("Your password is incorrect.", 403);
+    }
+    else if (input.confirmEmail !== user.email.toLowerCase()) {
+        throw new errors_1.AppError("Type your email address to confirm.", 400);
+    }
+    await prisma_1.prisma.user.update({ where: { id: userId }, data: { isActive: false, sessionVersion: { increment: 1 } } });
     (0, auth_cache_1.invalidateAuthCache)(userId);
 }

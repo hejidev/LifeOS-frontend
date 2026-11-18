@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MERCHANT_PLANS = exports.PLANS = exports.FREE_USES_PER_TOOL = void 0;
 exports.planCodeToTier = planCodeToTier;
 exports.merchantPlanCodeToTier = merchantPlanCodeToTier;
+exports.publicPlans = publicPlans;
 const env_1 = require("./env");
 exports.FREE_USES_PER_TOOL = 3;
 exports.PLANS = {
@@ -77,4 +78,10 @@ function merchantPlanCodeToTier(planCode) {
             return { tier: key, interval: "year" };
     }
     return null;
+}
+function publicPlans() {
+    return Object.fromEntries(Object.entries(exports.PLANS).map(([key, plan]) => [
+        key,
+        { name: plan.name, priceLabelMonthly: plan.priceLabelMonthly, priceLabelYearly: plan.priceLabelYearly, description: plan.description },
+    ]));
 }

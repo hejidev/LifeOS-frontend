@@ -11,6 +11,11 @@ exports.createAchievement = createAchievement;
 exports.deleteAchievement = deleteAchievement;
 const prisma_1 = require("../config/prisma");
 const errors_1 = require("../lib/errors");
+async function assertGoal(userId, goalId) {
+    if (goalId && !(await prisma_1.prisma.careerGoal.findFirst({ where: { id: goalId, userId }, select: { id: true } }))) {
+        throw new errors_1.AppError("Goal not found", 404);
+    }
+}
 async function getCareerDashboard(userId) {
     const [goals, skills, achievements] = await Promise.all([
         prisma_1.prisma.careerGoal.findMany({ where: { userId }, orderBy: [{ status: "asc" }, { targetDate: "asc" }] }),
@@ -77,6 +82,7 @@ async function deleteGoal(userId, id) {
     await prisma_1.prisma.careerGoal.delete({ where: { id } });
 }
 async function createSkill(userId, data) {
+    await assertGoal(userId, data.relatedGoalId);
     const existing = await prisma_1.prisma.skill.findFirst({ where: { userId, name: data.name } });
     if (existing)
         throw new errors_1.AppError("You already have a skill with this name", 409);
@@ -86,6 +92,7 @@ async function createSkill(userId, data) {
 }
 async function updateSkill(userId, id, data) {
     const existing = await prisma_1.prisma.skill.findFirst({ where: { id, userId } });
+    await assertGoal(userId, data.relatedGoalId);
     if (!existing)
         throw new errors_1.AppError("Skill not found", 404);
     return prisma_1.prisma.skill.update({

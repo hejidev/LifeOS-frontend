@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.friendlyAiError = friendlyAiError;
 exports.streamChat = streamChat;
 exports.streamPrompt = streamPrompt;
+exports.completeText = completeText;
 const generative_ai_1 = require("@google/generative-ai");
 const env_1 = require("../config/env");
 const errors_1 = require("./errors");
@@ -12,7 +13,7 @@ const client = env_1.env.GEMINI_API_KEY ? new generative_ai_1.GoogleGenerativeAI
 function modelFor(system) {
     if (!client)
         throw new errors_1.AppError("The AI service isn't configured yet.", 503);
-    return client.getGenerativeModel({ model: MODEL_NAME, systemInstruction: system });
+    return client.getGenerativeModel({ model: MODEL_NAME, systemInstruction: system }, { timeout: STREAM_TIMEOUT_MS });
 }
 function friendlyAiError(error) {
     if (error instanceof errors_1.AppError)
@@ -77,6 +78,18 @@ async function streamPrompt(input) {
         const produced = await pump(result.stream, input.onDelta, input.isAborted);
         if (!produced && !input.isAborted?.())
             throw new errors_1.AppError("The AI returned nothing for that input. Try rephrasing.", 422);
+    }
+    catch (error) {
+        throw friendlyAiError(error);
+    }
+}
+async function completeText(input) {
+    try {
+        const result = await modelFor(input.system).generateContent(input.prompt);
+        const text = result.response.text().trim();
+        if (!text)
+            throw new errors_1.AppError("The AI returned nothing for that input. Try rephrasing.", 422);
+        return text;
     }
     catch (error) {
         throw friendlyAiError(error);

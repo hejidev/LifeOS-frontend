@@ -1,6 +1,12 @@
 import { prisma } from "../config/prisma";
 import { AppError } from "../lib/errors";
 
+async function assertGoal(userId: string, goalId?: string | null) {
+  if (goalId && !(await prisma.careerGoal.findFirst({ where: { id: goalId, userId }, select: { id: true } }))) {
+    throw new AppError("Goal not found", 404);
+  }
+}
+
 export async function getCareerDashboard(userId: string) {
   const [goals, skills, achievements] = await Promise.all([
     prisma.careerGoal.findMany({ where: { userId }, orderBy: [{ status: "asc" }, { targetDate: "asc" }] }),
@@ -41,6 +47,7 @@ export async function getCareerDashboard(userId: string) {
   };
 }
 
+
 export async function createGoal(userId: string, data: { title: string; area: string; targetDate?: string; notes?: string }) {
   return prisma.careerGoal.create({
     data: { userId, title: data.title, area: data.area as any, targetDate: data.targetDate ? new Date(data.targetDate) : undefined, notes: data.notes },
@@ -74,6 +81,7 @@ export async function deleteGoal(userId: string, id: string) {
 export async function createSkill(userId: string, data: {
   name: string; level?: string; progress?: number; category?: string; relatedGoalId?: string;
 }) {
+  await assertGoal(userId, data.relatedGoalId);
   const existing = await prisma.skill.findFirst({ where: { userId, name: data.name } });
   if (existing) throw new AppError("You already have a skill with this name", 409);
   return prisma.skill.create({
@@ -85,6 +93,7 @@ export async function updateSkill(userId: string, id: string, data: {
   name?: string; level?: string; progress?: number; category?: string; relatedGoalId?: string; lastPracticedAt?: string;
 }) {
   const existing = await prisma.skill.findFirst({ where: { id, userId } });
+  await assertGoal(userId, data.relatedGoalId);
   if (!existing) throw new AppError("Skill not found", 404);
   return prisma.skill.update({
     where: { id },

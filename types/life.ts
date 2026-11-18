@@ -47,6 +47,7 @@ export interface UserProfile {
   };
   provider?: string;
   emailVerified?: boolean;
+  hasPassword?: boolean;
   createdAt?: string;
 }
 

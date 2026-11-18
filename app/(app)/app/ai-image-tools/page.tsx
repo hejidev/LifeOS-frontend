@@ -1,157 +1,244 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { ImageIcon, Sparkles, Upload, Download, Eraser, Wand2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Download, Eraser, ImageIcon, Loader2, RotateCcw, Sparkles, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { FileDrop } from "@/components/app/file-drop";
+import { PageHeader, Section } from "@/components/app/kit";
 import { PaywallDialog } from "@/components/PaywallDialog";
-import {
-    useUploadImageForTools, useApplyImageTool, useBillingSummary, useConvertImageFormat, useGenerativeImageEdit,
-} from "@/lib/hooks/use-life-data";
+import { useApplyImageTool, useBillingSummary, useConvertImageFormat, useGenerativeImageEdit, useUploadImageForTools } from "@/lib/hooks/use-life-data";
+import { saveUrlAs } from "@/lib/download";
+import { cn } from "@/lib/utils";
 
-const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
-const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
+interface Uploaded {
+  publicId: string;
+  url: string;
+  name: string;
+  width: number;
+  height: number;
+}
 
-const TOOLS = [
-    { key: "REMOVE_BACKGROUND", label: "Remove background" }, { key: "UPSCALE", label: "Upscale" },
-    { key: "ENHANCE", label: "Auto enhance" }, { key: "GRAYSCALE", label: "Grayscale" }, { key: "SEPIA", label: "Sepia" },
+interface Result {
+  id: string;
+  label: string;
+  url: string;
+}
+
+const GROUPS = [
+  {
+    title: "Enhance",
+    tools: [
+      { key: "ENHANCE", label: "Auto enhance", hint: "Fix colour, contrast and brightness" },
+      { key: "UPSCALE", label: "Upscale", hint: "Increase resolution with AI" },
+    ],
+  },
+  { title: "Background", tools: [{ key: "REMOVE_BACKGROUND", label: "Remove background", hint: "Cut out the subject" }] },
+  {
+    title: "Style",
+    tools: [
+      { key: "GRAYSCALE", label: "Grayscale", hint: "Black and white" },
+      { key: "SEPIA", label: "Sepia", hint: "Warm vintage tone" },
+    ],
+  },
 ];
-const FORMATS = ["webp", "png", "jpg", "avif"];
+
+const FORMATS = [
+  { key: "webp", hint: "Small files" },
+  { key: "png", hint: "Lossless" },
+  { key: "jpg", hint: "Compatible" },
+  { key: "avif", hint: "Best compression" },
+];
+
+const MAX_BYTES = 15 * 1024 * 1024;
+const checkerboard = { backgroundImage: "repeating-conic-gradient(#88888822 0% 25%, transparent 0% 50%)", backgroundSize: "20px 20px" };
+const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 export default function AIImageToolsPage() {
-    const uploadImage = useUploadImageForTools();
-    const applyTool = useApplyImageTool();
-    const convertFormat = useConvertImageFormat();
-    const generativeEdit = useGenerativeImageEdit();
+  const qc = useQueryClient();
+  const upload = useUploadImageForTools();
+  const applyTool = useApplyImageTool();
+  const convertFormat = useConvertImageFormat();
+  const generative = useGenerativeImageEdit();
+  const { data: billing } = useBillingSummary();
 
+  const [uploaded, setUploaded] = useState<Uploaded | null>(null);
+  const [results, setResults] = useState<Result[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [working, setWorking] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [broken, setBroken] = useState(false);
+  const [paywall, setPaywall] = useState(false);
+  const [mode, setMode] = useState<"remove" | "fill">("remove");
+  const [prompt, setPrompt] = useState("");
 
-    const { data: billing } = useBillingSummary();
-    const [paywallOpen, setPaywallOpen] = useState(false);
+  const active = results.find((result) => result.id === activeId) ?? null;
+  const freeLeft = billing && !billing.isPaid ? Math.max(0, billing.freeUsesPerTool - (billing.usage?.AI_IMAGE ?? 0)) : null;
+  const locked = !uploaded || !!working || upload.isPending;
 
-    const [uploaded, setUploaded] = useState<{ publicId: string; url: string } | null>(null);
-    const [resultUrl, setResultUrl] = useState<string | null>(null);
-    const [genPrompt, setGenPrompt] = useState("");
-    const [genMode, setGenMode] = useState<"remove" | "fill">("remove");
+  function pick(file: File) {
+    setError(null);
+    upload.mutate(file, {
+      onSuccess: (data) => {
+        setUploaded({ ...data, name: file.name.replace(/\.[^.]+$/, "") });
+        setResults([]);
+        setActiveId(null);
+      },
+      onError: (err: Error) => setError(err.message),
+    });
+  }
 
-    function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setResultUrl(null);
-        uploadImage.mutate(file, { onSuccess: (data) => setUploaded(data) });
+  async function run(label: string, task: () => Promise<{ url: string }>) {
+    if (working) return;
+    setWorking(label);
+    setError(null);
+    setBroken(false);
+
+    try {
+      const { url } = await task();
+      const entry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, label, url };
+      setResults((current) => [entry, ...current].slice(0, 8));
+      setActiveId(entry.id);
+    } catch (err) {
+      const failure = err as Error & { status?: number };
+      if (failure.status === 402 || failure.message.includes("free uses")) setPaywall(true);
+      else setError(failure.message);
+    } finally {
+      setWorking(null);
+      void qc.invalidateQueries({ queryKey: ["billing"] });
     }
+  }
 
-    function runTool(tool: string) {
-        if (!uploaded) return;
-        applyTool.mutate({ publicId: uploaded.publicId, tool }, { onSuccess: (d) => setResultUrl(d.url) });
-    }
+  const runTool = (key: string, label: string) => uploaded && run(label, () => applyTool.mutateAsync({ publicId: uploaded.publicId, tool: key }));
+  const runFormat = (key: string) => uploaded && run(`To ${key.toUpperCase()}`, () => convertFormat.mutateAsync({ publicId: uploaded.publicId, format: key }));
+  const runGenerative = () =>
+    uploaded && prompt.trim() && run(mode === "remove" ? "Remove object" : "Replace background", () => generative.mutateAsync({ publicId: uploaded.publicId, prompt: prompt.trim(), mode }));
 
-    function runFormat(format: string) {
-        if (!uploaded) return;
-        convertFormat.mutate({ publicId: uploaded.publicId, format }, { onSuccess: (d) => setResultUrl(d.url) });
-    }
+  function reset() {
+    setUploaded(null);
+    setResults([]);
+    setActiveId(null);
+    setError(null);
+    setPrompt("");
+  }
 
-    function runGenerative() {
-        if (!uploaded || !genPrompt.trim()) return;
-        setResultUrl(null);
-        generativeEdit.mutate({ publicId: uploaded.publicId, prompt: genPrompt, mode: genMode }, { onSuccess: (d) => setResultUrl(d.url) });
-    }
-
-    const isBusy = applyTool.isPending || convertFormat.isPending || generativeEdit.isPending;
-
-    useEffect(() => {
-        if (applyTool.error?.message?.includes("free uses") || convertFormat.error?.message?.includes("free uses") || generativeEdit.error?.message?.includes("free uses")) {
-            setPaywallOpen(true);
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        icon={ImageIcon}
+        title="Image Tools"
+        subtitle="Remove backgrounds, enhance, convert and edit with AI."
+        actions={
+          <>
+            {freeLeft !== null && <span className="text-xs text-muted-foreground">{freeLeft} free {freeLeft === 1 ? "use" : "uses"} left</span>}
+            {uploaded && <Button variant="outline" size="sm" onClick={reset}><RotateCcw className="mr-1.5 h-3.5 w-3.5" /> New image</Button>}
+          </>
         }
-    }, [applyTool.error, convertFormat.error, generativeEdit.error]);
+      />
 
-    return (
-        <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-            <motion.div variants={item}>
-                <h1 className="text-xl sm:text-3xl font-bold tracking-tight flex items-center gap-2"><ImageIcon className="h-5 w-5 sm:h-6 sm:w-6 text-primary" /> AI Image Tools</h1>
-                <p className="text-muted-foreground mt-1 text-xs sm:text-sm">Background removal, upscaling, generative edits, and format conversion.</p>
-            </motion.div>
+      {!uploaded ? (
+        <FileDrop accept="image/png,image/jpeg,image/webp,image/gif,image/avif" maxBytes={MAX_BYTES} title="Drop an image here, or click to upload" hint="PNG, JPG, WebP, GIF or AVIF, up to 15 MB. Uploads are deleted automatically after 24 hours." busy={upload.isPending} onFile={pick} onReject={setError} />
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="space-y-4 lg:col-span-2">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Original · {uploaded.width} × {uploaded.height}</p>
+                <div className="flex min-h-[14rem] items-center justify-center overflow-hidden rounded-xl border bg-card/40">
+                  <img src={uploaded.url} alt="Original" className="max-h-[26rem] w-full object-contain" />
+                </div>
+              </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
-                <motion.div variants={item} className="lg:col-span-2 space-y-4">
-                    <Card className="hover:border-primary/20 transition-colors">
-                        <CardContent className="pt-4 sm:pt-6">
-                            {!uploaded ? (
-                                <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-border rounded-xl py-12 sm:py-16 cursor-pointer hover:border-primary/40 transition-colors">
-                                    <Upload className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
-                                    <p className="text-xs sm:text-sm text-muted-foreground">{uploadImage.isPending ? "Uploading..." : "Click to upload an image"}</p>
-                                    <input type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
-                                </label>
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                                    <div className="space-y-2">
-                                        <p className="text-[10px] sm:text-xs text-muted-foreground">Original</p>
-                                        <img src={uploaded.url} alt="Original" className="w-full rounded-lg border border_border/60" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <p className="text-[10px] sm:text-xs text-muted-foreground">Result</p>
-                                        <div className="w-full rounded-lg border border-border/60 min-h-[150px] sm:min-h-[150px] flex items-center justify-center bg-card/40">
-                                            {isBusy ? <p className="text-xs sm:text-sm text-muted-foreground">Processing...</p> :
-                                                resultUrl ? <img src={resultUrl} alt="Result" className="w-full rounded-lg" /> :
-                                                    <p className="text-xs sm:text-sm text-muted-foreground">Apply a tool to see the result</p>}
-                                        </div>
-                                        {resultUrl && (
-                                            <Button size="sm" variant="outline" asChild className="text-xs sm:text-sm">
-                                                <a href={resultUrl} download target="_blank" rel="noopener noreferrer"><Download className="mr-1 h-3 w-3" /> Download</a>
-                                            </Button>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    {uploaded && (
-                        <Card className="hover:border-primary/20 transition-colors">
-                            <CardHeader className="pb-3"><CardTitle className="text-sm sm:text-base">Quick tools</CardTitle></CardHeader>
-                            <CardContent className="flex flex-wrap gap-1 sm:gap-2">
-                                {TOOLS.map((t) => (
-                                    <Button key={t.key} size="sm" variant="outline" onClick={() => runTool(t.key)} disabled={isBusy} className="text-[10px] sm:text-xs h-7 sm:h-8">{t.label}</Button>
-                                ))}
-                                {FORMATS.map((f) => (
-                                    <Button key={f} size="sm" variant="outline" onClick={() => runFormat(f)} disabled={isBusy} className="text-[10px] sm:text-xs h-7 sm:h-8">To {f.toUpperCase()}</Button>
-                                ))}
-                            </CardContent>
-                        </Card>
-                    )}
-                </motion.div>
-
-                <motion.div variants={item} className="space-y-3 sm:space-y-4">
-                    <Card className="border-primary/20 bg-primary/5 hover:border-primary/30 transition-colors">
-                        <CardHeader className="pb-3"><CardTitle className="text-sm sm:text-base flex items-center gap-2"><Wand2 className="h-4 w-4 text-primary" /> Generative edit</CardTitle></CardHeader>
-                        <CardContent className="space-y-3">
-                            <div className="flex gap-2">
-                                <Button size="sm" variant={genMode === "remove" ? "default" : "outline"} className="flex-1 text-xs sm:text-sm" onClick={() => setGenMode("remove")}><Eraser className="mr-1 h-3 w-3" /> Remove</Button>
-                                <Button size="sm" variant={genMode === "fill" ? "default" : "outline"} className="flex-1 text-xs sm:text-sm" onClick={() => setGenMode("fill")}><Sparkles className="mr-1 h-3 w-3" /> Fill</Button>
-                            </div>
-
-                            {billing && !billing.isPaid && (
-                                <p className="text-[10px] sm:text-xs text-muted-foreground">
-                                    {Math.max(0, billing.freeUsesPerTool - billing.usage.AI_WRITING)} free uses left
-                                </p>
-                            )}
-
-                            <div className="space-y-1">
-                                <Label className="text-[10px] sm:text-xs">{genMode === "remove" ? "What to remove" : "What to generate"}</Label>
-                                <Input placeholder={genMode === "remove" ? "e.g. the person in the background" : "e.g. a sunset sky"} value={genPrompt} onChange={(e) => setGenPrompt(e.target.value)} className="text-xs sm:text-sm" />
-                            </div>
-                            <Button size="sm" className="w-full text-xs sm:text-sm" onClick={runGenerative} disabled={!uploaded || isBusy || !genPrompt.trim()}>
-                                {isBusy ? "Working..." : "Apply"}
-                            </Button>
-                            <p className="text-[10px] sm:text-[11px] text-muted-foreground">Requires Cloudinary's Generative AI add-on to be enabled on your account.</p>
-                        </CardContent>
-                    </Card>
-                </motion.div>
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">{active ? active.label : "Result"}</p>
+                <div className="flex min-h-[14rem] items-center justify-center overflow-hidden rounded-xl border" style={checkerboard}>
+                  {working ? (
+                    <p className="flex items-center gap-2 bg-background/80 px-3 py-2 text-sm"><Loader2 className="h-4 w-4 animate-spin text-primary" /> {working}...</p>
+                  ) : active && !broken ? (
+                    <img src={active.url} alt={active.label} className="max-h-[26rem] w-full object-contain" onError={() => setBroken(true)} />
+                  ) : broken ? (
+                    <p className="bg-background/80 px-3 py-2 text-sm text-destructive">The result couldn't be displayed. Try again.</p>
+                  ) : (
+                    <p className="bg-background/80 px-3 py-2 text-sm text-muted-foreground">Choose a tool to see the result</p>
+                  )}
+                </div>
+                {active && !working && (
+                  <Button size="sm" variant="outline" onClick={() => saveUrlAs(active.url, `${slug(uploaded.name)}-${slug(active.label)}`)}>
+                    <Download className="mr-1.5 h-3.5 w-3.5" /> Download
+                  </Button>
+                )}
+              </div>
             </div>
 
-            <PaywallDialog open={paywallOpen} onOpenChange={setPaywallOpen} toolName="AI Writing" />
-        </motion.div>
-    );
+            {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+
+            {results.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">This session</p>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {results.map((result) => (
+                    <button
+                      key={result.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveId(result.id);
+                        setBroken(false);
+                      }}
+                      className={cn("w-20 shrink-0 space-y-1 rounded-lg border p-1 text-left", result.id === activeId && "border-primary ring-1 ring-primary")}
+                    >
+                      <span className="block h-14 overflow-hidden rounded" style={checkerboard}>
+                        <img src={result.url} alt="" className="h-full w-full object-cover" />
+                      </span>
+                      <span className="block truncate text-[10px] text-muted-foreground">{result.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            {GROUPS.map((group) => (
+              <Section key={group.title} title={group.title} icon={Sparkles}>
+                <div className="grid gap-2">
+                  {group.tools.map((tool) => (
+                    <button key={tool.key} type="button" disabled={locked} onClick={() => runTool(tool.key, tool.label)} className="rounded-lg border px-3 py-2 text-left transition-colors hover:border-primary/40 disabled:opacity-50">
+                      <span className="block text-sm font-medium">{tool.label}</span>
+                      <span className="block text-xs text-muted-foreground">{tool.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </Section>
+            ))}
+
+            <Section title="Convert format" icon={ImageIcon}>
+              <div className="grid grid-cols-2 gap-2">
+                {FORMATS.map((format) => (
+                  <button key={format.key} type="button" disabled={locked} onClick={() => runFormat(format.key)} className="rounded-lg border px-3 py-2 text-left transition-colors hover:border-primary/40 disabled:opacity-50">
+                    <span className="block text-sm font-medium">{format.key.toUpperCase()}</span>
+                    <span className="block text-[11px] text-muted-foreground">{format.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </Section>
+
+            <Section title="Generative edit" icon={Wand2} className="border-primary/20 bg-primary/5">
+              <div className="flex gap-2">
+                <Button size="sm" variant={mode === "remove" ? "default" : "outline"} className="flex-1" onClick={() => setMode("remove")}><Eraser className="mr-1.5 h-3.5 w-3.5" /> Remove</Button>
+                <Button size="sm" variant={mode === "fill" ? "default" : "outline"} className="flex-1" onClick={() => setMode("fill")}><Sparkles className="mr-1.5 h-3.5 w-3.5" /> Background</Button>
+              </div>
+              <Input value={prompt} onChange={(event) => setPrompt(event.target.value)} maxLength={300} placeholder={mode === "remove" ? "What to remove, e.g. the person on the left" : "New background, e.g. a sunset beach"} />
+              <Button className="w-full" disabled={locked || !prompt.trim()} onClick={runGenerative}>{working && (working === "Remove object" || working === "Replace background") ? "Working..." : "Apply"}</Button>
+              <p className="text-[11px] text-muted-foreground">Generative edits can take up to 20 seconds.</p>
+            </Section>
+          </div>
+        </div>
+      )}
+
+      {!uploaded && error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+
+      <PaywallDialog open={paywall} onOpenChange={setPaywall} toolName="Image Tools" />
+    </div>
+  );
 }

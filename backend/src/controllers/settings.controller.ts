@@ -34,6 +34,6 @@ export const getAccountOverview = asyncHandler(async (req: AuthenticatedRequest,
 });
 
 export const deactivateAccount = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  await settingsService.deactivateAccount(req.user!.id);
+  await settingsService.deactivateAccount(req.user!.id, req.body ?? {});
   return res.status(204).send();
 });

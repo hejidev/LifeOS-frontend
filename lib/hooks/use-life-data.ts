@@ -22,7 +22,8 @@ export * from "./use-finance";
 export * from "./use-health";
 export * from "./use-habits";
 export * from "./use-ai";
-
+export * from "./use-billing";
+export * from "./use-documents";
 
 
 function refreshBusinessData(qc: QueryClient) {
@@ -451,102 +452,102 @@ export function useCompleteHabit() {
 
 // ─── DOCUMENTS ────────────────────────────────────────────────────────────────
 
-export function useDocumentsDashboard() {
-  return useQuery({
-    queryKey: ["documentsDashboard"],
-    queryFn: () =>
-      api.get("/documents/dashboard").then((d) => d as {
-        stats: {
-          totalDocuments: number;
-          activeDocuments: number;
-          archivedDocuments: number;
-          expiredDocuments: number;
-          expiringSoon: number;
-        };
-        folders: any[];
-        documents: VaultDocument[];
-        insight: string;
-      }),
-    staleTime: 1000 * 60 * 2,
-  });
-}
+// export function useDocumentsDashboard() {
+//   return useQuery({
+//     queryKey: ["documentsDashboard"],
+//     queryFn: () =>
+//       api.get("/documents/dashboard").then((d) => d as {
+//         stats: {
+//           totalDocuments: number;
+//           activeDocuments: number;
+//           archivedDocuments: number;
+//           expiredDocuments: number;
+//           expiringSoon: number;
+//         };
+//         folders: any[];
+//         documents: VaultDocument[];
+//         insight: string;
+//       }),
+//     staleTime: 1000 * 60 * 2,
+//   });
+// }
 
-export function useDocuments() {
-  const { data, ...rest } = useDocumentsDashboard();
-  return {
-    documents: data?.documents ?? [],
-    folders: data?.folders ?? [],
-    stats: data?.stats,
-    ...rest,
-  };
-}
+// export function useDocuments() {
+//   const { data, ...rest } = useDocumentsDashboard();
+//   return {
+//     documents: data?.documents ?? [],
+//     folders: data?.folders ?? [],
+//     stats: data?.stats,
+//     ...rest,
+//   };
+// }
 
-export function useCreateDocument() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (data: {
-      folderId?: string;
-      title: string;
-      category:
-      | "IDENTITY"
-      | "LEGAL"
-      | "EDUCATION"
-      | "FINANCE"
-      | "HEALTH"
-      | "WORK"
-      | "PERSONAL"
-      | "OTHER";
-      fileUrl?: string;
-      fileName?: string;
-      fileType?: string;
-      fileSize?: number;
-      tags?: string[];
-      summary?: string;
-      expiresAt?: string;
-      linkedNoteId?: string;
-      linkedTaskId?: string;
-    }) => api.post("/documents", data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["documentsDashboard"] });
-    },
-  });
-}
+// export function useCreateDocument() {
+//   const qc = useQueryClient();
+//   return useMutation({
+//     mutationFn: (data: {
+//       folderId?: string;
+//       title: string;
+//       category:
+//       | "IDENTITY"
+//       | "LEGAL"
+//       | "EDUCATION"
+//       | "FINANCE"
+//       | "HEALTH"
+//       | "WORK"
+//       | "PERSONAL"
+//       | "OTHER";
+//       fileUrl?: string;
+//       fileName?: string;
+//       fileType?: string;
+//       fileSize?: number;
+//       tags?: string[];
+//       summary?: string;
+//       expiresAt?: string;
+//       linkedNoteId?: string;
+//       linkedTaskId?: string;
+//     }) => api.post("/documents", data),
+//     onSuccess: () => {
+//       qc.invalidateQueries({ queryKey: ["documentsDashboard"] });
+//     },
+//   });
+// }
 
-export function useUpdateDocument() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
-      api.patch(`/documents/${id}`, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["documentsDashboard"] });
-    },
-  });
-}
+// export function useUpdateDocument() {
+//   const qc = useQueryClient();
+//   return useMutation({
+//     mutationFn: ({ id, data }: { id: string; data: any }) =>
+//       api.patch(`/documents/${id}`, data),
+//     onSuccess: () => {
+//       qc.invalidateQueries({ queryKey: ["documentsDashboard"] });
+//     },
+//   });
+// }
 
-export function useDeleteDocument() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => api.delete(`/documents/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["documentsDashboard"] });
-    },
-  });
-}
+// export function useDeleteDocument() {
+//   const qc = useQueryClient();
+//   return useMutation({
+//     mutationFn: (id: string) => api.delete(`/documents/${id}`),
+//     onSuccess: () => {
+//       qc.invalidateQueries({ queryKey: ["documentsDashboard"] });
+//     },
+//   });
+// }
 
-export function useUploadDocumentFile() {
-  return useMutation({
-    mutationFn: (file: File) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      return api.upload("/documents/upload", formData) as Promise<{
-        fileUrl: string;
-        fileName: string;
-        fileType: string;
-        fileSize: number;
-      }>;
-    },
-  });
-}
+// export function useUploadDocumentFile() {
+//   return useMutation({
+//     mutationFn: (file: File) => {
+//       const formData = new FormData();
+//       formData.append("file", file);
+//       return api.upload("/documents/upload", formData) as Promise<{
+//         fileUrl: string;
+//         fileName: string;
+//         fileType: string;
+//         fileSize: number;
+//       }>;
+//     },
+//   });
+// }
 
 // ─── Study ────────────────────────────────────────────────────────────────────
 
@@ -1578,7 +1579,12 @@ export function useUpdateUserProfile() {
   return useMutation({
     mutationFn: (data: { name?: string; avatarUrl?: string; timezone?: string; location?: string; currency?: string }) =>
       api.patch("/settings/profile", data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["userProfile"] }),
+    onSuccess: () =>
+      Promise.all(
+        ["userProfile", "me", "finance", "financeAccounts", "todayOverview", "habitSummary", "habitsList", "health", "calendarEvents", "assistant"].map((key) =>
+          qc.invalidateQueries({ queryKey: [key] })
+        )
+      ),
   });
 }
 
@@ -1646,7 +1652,7 @@ export function useAccountOverview() {
 
 export function useDeactivateAccount() {
   return useMutation({
-    mutationFn: () => api.post("/settings/deactivate"),
+    mutationFn: (data: { password?: string; confirmEmail?: string }) => api.post("/settings/deactivate", data),
   });
 }
 
@@ -1973,22 +1979,22 @@ export function useEmergencyPublic(token: string | null, pin?: string) {
 }
 
 //-----------------BILLING DATA--------------------
-export function useBillingSummary() {
-  return useQuery({ queryKey: ["billing"], queryFn: () => api.get("/billing/summary"), staleTime: 1000 * 30 });
-}
+// export function useBillingSummary() {
+//   return useQuery({ queryKey: ["billing"], queryFn: () => api.get("/billing/summary"), staleTime: 1000 * 30 });
+// }
 
-export function useCreateCheckout() {
-  return useMutation({
-    mutationFn: ({ plan, interval }: { plan: "STARTER" | "PRO" | "PREMIUM"; interval: "month" | "year" }) =>
-      api.post("/billing/checkout", { plan, interval }).then((d) => d.url as string),
-  });
-}
+// export function useCreateCheckout() {
+//   return useMutation({
+//     mutationFn: ({ plan, interval }: { plan: "STARTER" | "PRO" | "PREMIUM"; interval: "month" | "year" }) =>
+//       api.post("/billing/checkout", { plan, interval }).then((d) => d.url as string),
+//   });
+// }
 
-export function useBillingPortal() {
-  return useMutation({
-    mutationFn: () => api.post("/billing/portal").then((d) => d.url as string),
-  });
-}
+// export function useBillingPortal() {
+//   return useMutation({
+//     mutationFn: () => api.post("/billing/portal").then((d) => d.url as string),
+//   });
+// }
 
 export function usePlatformOverview() {
   return useQuery({ queryKey: ["platformOverview"], queryFn: () => api.get("/platform-admin/overview") });

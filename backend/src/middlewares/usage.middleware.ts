@@ -1,11 +1,22 @@
-import type { Response, NextFunction } from "express";
+import type { NextFunction, Response } from "express";
 import type { AuthenticatedRequest } from "./auth.middleware";
-import { checkAndConsumeUsage } from "../services/billing.service";
+import { checkAndConsumeUsage, refundUsage } from "../services/billing.service";
 
-export function requireUsageOrSubscription(tool: "AI_WRITING" | "AI_IMAGE" | "FILE_CONVERTER") {
-  return async (req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
+type Tool = "AI_WRITING" | "AI_IMAGE" | "FILE_CONVERTER";
+
+export function requireUsageOrSubscription(tool: Tool) {
+  return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      await checkAndConsumeUsage(req.user!.id, tool);
+      const userId = req.user!.id;
+      const charged = await checkAndConsumeUsage(userId, tool);
+
+      if (charged) {
+        res.once("close", () => {
+          if (res.statusCode >= 400 || !res.headersSent) {
+            void refundUsage(userId, tool).catch((err) => console.error("[usage] refund failed:", err));
+          }
+        });
+      }
       next();
     } catch (err) {
       next(err);

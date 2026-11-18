@@ -60,3 +60,7 @@ export const deleteMaterial = asyncHandler(async (req: AuthenticatedRequest, res
   await studyService.deleteMaterial(req.user!.id, req.params.id);
   return res.status(204).send();
 });
+
+export const getMaterialFile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  await studyService.streamMaterialFile(req.user!.id, req.params.id, res);
+});

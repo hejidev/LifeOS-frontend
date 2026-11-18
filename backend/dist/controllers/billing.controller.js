@@ -38,6 +38,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.webhook = exports.portal = exports.checkout = exports.getSummary = void 0;
 const crypto_1 = __importDefault(require("crypto"));
+const redis_1 = require("../config/redis");
 const errors_1 = require("../lib/errors");
 const env_1 = require("../config/env");
 const billingService = __importStar(require("../services/billing.service"));
@@ -54,18 +55,40 @@ exports.portal = (0, errors_1.asyncHandler)(async (req, res) => {
     const url = await billingService.createPortalSession(req.user.id);
     return res.json({ url });
 });
+async function claimEvent(key) {
+    try {
+        return (await redis_1.redis.set(key, "1", "EX", 7 * 86400, "NX")) === "OK";
+    }
+    catch {
+        return true;
+    }
+}
 exports.webhook = (0, errors_1.asyncHandler)(async (req, res) => {
-    const signature = req.headers["x-paystack-signature"];
+    const signature = String(req.headers["x-paystack-signature"] ?? "");
     if (!signature)
         throw new errors_1.AppError("Missing signature", 400);
-    const expected = crypto_1.default
-        .createHmac("sha512", env_1.env.PAYSTACK_SECRET_KEY)
-        .update(req.body)
-        .digest("hex");
-    if (expected !== signature) {
+    const expected = Buffer.from(crypto_1.default.createHmac("sha512", env_1.env.PAYSTACK_SECRET_KEY).update(req.body).digest("hex"));
+    const received = Buffer.from(signature);
+    if (expected.length !== received.length || !crypto_1.default.timingSafeEqual(expected, received))
         throw new errors_1.AppError("Invalid webhook signature", 400);
+    let event;
+    try {
+        event = JSON.parse(req.body.toString());
     }
-    const event = JSON.parse(req.body.toString());
-    await billingService.handleWebhookEvent(event);
+    catch {
+        throw new errors_1.AppError("Invalid webhook body", 400);
+    }
+    const reference = event.data?.id ?? event.data?.reference ?? event.data?.subscription_code;
+    const key = reference ? `paystack:event:${event.event}:${reference}` : null;
+    if (key && !(await claimEvent(key)))
+        return res.status(200).json({ received: true, duplicate: true });
+    try {
+        await billingService.handleWebhookEvent(event);
+    }
+    catch (err) {
+        if (key)
+            await redis_1.redis.del(key).catch(() => undefined);
+        throw err;
+    }
     return res.status(200).json({ received: true });
 });

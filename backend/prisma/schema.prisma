@@ -1052,6 +1052,7 @@ model Subscription {
   userId                   String             @unique
   tier                     SubscriptionTier   @default(FREE)
   status                   SubscriptionStatus @default(ACTIVE)
+  billingInterval          String?
   paystackCustomerCode     String?
   paystackSubscriptionCode String?
   currentPeriodEnd         DateTime?
