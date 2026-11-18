@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.completeHabit = exports.createHabit = exports.getHabits = exports.logHealth = exports.getHealthSummary = void 0;
+exports.logHealth = exports.getHealthSummary = void 0;
 const errors_1 = require("../lib/errors");
 const healthService = __importStar(require("../services/health.service"));
 exports.getHealthSummary = (0, errors_1.asyncHandler)(async (req, res) => {
@@ -43,16 +43,4 @@ exports.getHealthSummary = (0, errors_1.asyncHandler)(async (req, res) => {
 exports.logHealth = (0, errors_1.asyncHandler)(async (req, res) => {
     const log = await healthService.logHealth(req.user.id, req.body);
     return res.json({ log });
-});
-exports.getHabits = (0, errors_1.asyncHandler)(async (req, res) => {
-    const habits = await healthService.getHabits(req.user.id);
-    return res.json({ habits });
-});
-exports.createHabit = (0, errors_1.asyncHandler)(async (req, res) => {
-    const habit = await healthService.createHabit(req.user.id, req.body);
-    return res.status(201).json({ habit });
-});
-exports.completeHabit = (0, errors_1.asyncHandler)(async (req, res) => {
-    const result = await healthService.completeHabit(req.user.id, req.params.id);
-    return res.json(result);
 });

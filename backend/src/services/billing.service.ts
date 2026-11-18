@@ -56,6 +56,11 @@ export async function checkAndConsumeUsage(userId: string, tool: "AI_WRITING" | 
 }
 
 export async function createCheckoutSession(userId: string, email: string, planKey: PlanKey, interval: BillingInterval = "month") {
+  const current = await getOrCreateSubscription(userId);
+  if (current.tier !== "FREE" && current.status === "ACTIVE") {
+    throw new AppError("You already have an active subscription. Use Manage subscription to change or cancel it.", 409);
+  }
+  
   const plan = PLANS[planKey];
   if (!plan) throw new AppError("Invalid plan", 400);
 

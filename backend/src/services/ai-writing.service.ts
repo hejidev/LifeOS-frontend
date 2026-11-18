@@ -1,260 +1,69 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { env } from "../config/env";
 import { prisma } from "../config/prisma";
 import { AppError } from "../lib/errors";
+import { streamPrompt } from "../lib/ai-provider";
 import * as noteService from "./note.service";
 
-const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
+type Options = { tone?: string; targetLanguage?: string };
 
-const MODEL_NAME = "gemini-3.6-flash";
+const toneLine = (tone?: string) => (tone ? `\nUse a ${tone.toLowerCase()} tone.` : "");
 
-const MODE_PROMPTS: Record<
-  string,
-  (input: string, opts: { tone?: string; targetLanguage?: string }) => string
-> = {
-  GENERATE: (input) => `
-Write the following:
-
-${input}
-`,
-
-  REWRITE: (input) => `
-Rewrite the following text using different words while keeping the same meaning, intent, and important details:
-
-${input}
-`,
-
-  IMPROVE: (input) => `
-Improve the following text by fixing grammar, spelling, punctuation, clarity, and readability.
-
-Keep the original meaning, personality, and voice. Do not add unnecessary information.
-
-Text:
-
-${input}
-`,
-
-  SHORTEN: (input) => `
-Make the following text more concise.
-
-Reduce the length by at least 30% while preserving the important meaning, facts, and intent.
-
-Text:
-
-${input}
-`,
-
-  EXPAND: (input) => `
-Expand the following text with useful detail, examples, explanation, and depth.
-
-Keep the original meaning and intent.
-
-Text:
-
-${input}
-`,
-
-  SUMMARIZE: (input) => `
-Summarize the following text into the most important points.
-
-Be concise and preserve the key information.
-
-Text:
-
-${input}
-`,
-
-  TRANSLATE: (input, opts) => `
-Translate the following text into ${
-    opts.targetLanguage || "Spanish"
-  }.
-
-Preserve the original meaning, tone, context, and formatting as much as possible.
-
-Text:
-
-${input}
-`,
-
-  TONE_CHANGE: (input, opts) => `
-Rewrite the following text using a ${
-    opts.tone || "professional"
-  } tone.
-
-Preserve the original meaning and important details.
-
-Text:
-
-${input}
-`,
+const PROMPTS: Record<string, (input: string, options: Options) => string> = {
+  GENERATE: (input, o) => `Write the following.${toneLine(o.tone)}\n\n${input}`,
+  REWRITE: (input, o) => `Rewrite this text in different words, keeping the meaning, intent and every important detail.${toneLine(o.tone)}\n\n${input}`,
+  IMPROVE: (input) => `Fix the grammar, spelling, punctuation and clarity of this text. Keep the meaning and the writer's voice. Add nothing new.\n\n${input}`,
+  SHORTEN: (input) => `Make this text at least 30% shorter while keeping the key facts and intent.\n\n${input}`,
+  EXPAND: (input) => `Expand this text with useful detail, examples and explanation. Keep the original meaning and intent.\n\n${input}`,
+  SUMMARIZE: (input) => `Summarize this text into its most important points. Be concise.\n\n${input}`,
+  TRANSLATE: (input, o) => `Translate this text into ${o.targetLanguage || "English"}. Preserve the meaning, tone and formatting.\n\n${input}`,
+  TONE_CHANGE: (input, o) => `Rewrite this text in a ${(o.tone || "professional").toLowerCase()} tone. Keep the meaning and every important detail.\n\n${input}`,
 };
+
+const SYSTEM = [
+  "You are the LifeOS writing assistant. You generate, rewrite, improve, summarize, translate, shorten and expand text.",
+  "Follow the requested mode exactly and preserve the user's meaning.",
+  "Do not invent facts unless asked to write fictional or creative content.",
+  "Write plain text. Do not use Markdown symbols such as asterisks or pound signs.",
+  "Return only the requested writing, with no introduction or closing remarks.",
+].join("\n");
 
 export async function streamWriting(
   mode: string,
   input: string,
-  opts: { tone?: string; targetLanguage?: string },
-  onDelta: (text: string) => void
-): Promise<void> {
-  if (!env.GEMINI_API_KEY) {
-    throw new AppError("Gemini API key is not configured");
-  }
-
-  if (!input?.trim()) {
-    throw new AppError("Input text is required");
-  }
-
-  const promptFn =
-    MODE_PROMPTS[mode?.toUpperCase()] ?? MODE_PROMPTS.GENERATE;
-
-  const prompt = promptFn(input, opts || {});
-
-  try {
-    const model = genAI.getGenerativeModel({
-      model: MODEL_NAME,
-      systemInstruction: `
-You are LifeOS AI Writer.
-
-Your job is to help users generate, rewrite, improve, summarize,
-translate, shorten, and expand written content.
-
-Rules:
-- Follow the requested writing mode.
-- Preserve the user's intended meaning.
-- Do not invent facts unless the user explicitly asks you to generate fictional content.
-- Return only the requested writing.
-- Do not add unnecessary introductions such as "Sure!" or "Here is the rewritten version."
-      `.trim(),
-    });
-
-    const result = await model.generateContentStream(prompt);
-
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
-
-      if (text) {
-        onDelta(text);
-      }
-    }
-  } catch (error: any) {
-    console.error(
-      "[ai-writing] Gemini error:",
-      error?.message ?? error
-    );
-
-    throw error;
-  }
+  options: Options,
+  onDelta: (text: string) => void,
+  isAborted?: () => boolean
+) {
+  const build = PROMPTS[mode.toUpperCase()] ?? PROMPTS.GENERATE;
+  await streamPrompt({ system: SYSTEM, prompt: build(input, options), onDelta, isAborted });
 }
 
-/**
- * Save an AI-generated writing document
- */
 export async function saveDocument(
   userId: string,
-  data: {
-    title: string;
-    mode: string;
-    input: string;
-    output: string;
-    tone?: string;
-  }
+  data: { title: string; mode: string; input: string; output: string; tone?: string }
 ) {
-  if (!userId) {
-    throw new AppError("Authentication required");
-  }
-
-  if (!data.title?.trim()) {
-    throw new AppError("Document title is required");
-  }
-
-  if (!data.output?.trim()) {
-    throw new AppError("Document output is required");
-  }
-
   return prisma.writingDocument.create({
     data: {
       userId,
       title: data.title.trim(),
       mode: data.mode as "EXPAND" | "SUMMARIZE" | "TRANSLATE" | "TONE_CHANGE" | "GENERATE" | "REWRITE" | "IMPROVE" | "SHORTEN",
-      input: data.input || "",
+      input: data.input,
       output: data.output,
-      tone: data.tone || null,
+      tone: data.tone ?? null,
     },
   });
 }
 
-/**
- * Get user's saved AI writing documents
- */
 export async function getDocuments(userId: string) {
-  if (!userId) {
-    throw new AppError("Authentication required");
-  }
-
-  return prisma.writingDocument.findMany({
-    where: {
-      userId,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+  return prisma.writingDocument.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 100 });
 }
 
-/**
- * Delete an AI writing document
- */
-export async function deleteDocument(
-  userId: string,
-  documentId: string
-) {
-  if (!userId) {
-    throw new AppError("Authentication required");
-  }
-
-  const document = await prisma.writingDocument.findFirst({
-    where: {
-      id: documentId,
-      userId,
-    },
-  });
-
-  if (!document) {
-    throw new AppError("Writing document not found");
-  }
-
-  await prisma.writingDocument.delete({
-    where: {
-      id: documentId,
-    },
-  });
+export async function deleteDocument(userId: string, documentId: string) {
+  const result = await prisma.writingDocument.deleteMany({ where: { id: documentId, userId } });
+  if (result.count === 0) throw new AppError("Writing document not found", 404);
 }
 
-/**
- * Convert a saved AI document into a LifeOS note
- */
-export async function convertToNote(
-  userId: string,
-  documentId: string
-) {
-  if (!userId) {
-    throw new AppError("Authentication required");
-  }
-
-  const document = await prisma.writingDocument.findFirst({
-    where: {
-      id: documentId,
-      userId,
-    },
-  });
-
-  if (!document) {
-    throw new AppError("Writing document not found");
-  }
-
-  const note = await noteService.createNote(userId, {
-    title: document.title,
-    content: document.output,
-  });
-
-  return note;
+export async function convertToNote(userId: string, documentId: string) {
+  const document = await prisma.writingDocument.findFirst({ where: { id: documentId, userId } });
+  if (!document) throw new AppError("Writing document not found", 404);
+  return noteService.createNote(userId, { title: document.title, content: document.output, folder: "Personal" });
 }

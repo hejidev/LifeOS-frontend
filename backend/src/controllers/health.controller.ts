@@ -12,18 +12,3 @@ export const logHealth = asyncHandler(async (req: AuthenticatedRequest, res: Res
   const log = await healthService.logHealth(req.user!.id, req.body);
   return res.json({ log });
 });
-
-export const getHabits = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const habits = await healthService.getHabits(req.user!.id);
-  return res.json({ habits });
-});
-
-export const createHabit = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const habit = await healthService.createHabit(req.user!.id, req.body);
-  return res.status(201).json({ habit });
-});
-
-export const completeHabit = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const result = await healthService.completeHabit(req.user!.id, req.params.id);
-  return res.json(result);
-});

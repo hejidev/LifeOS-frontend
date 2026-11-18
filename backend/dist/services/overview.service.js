@@ -71,6 +71,7 @@ async function getTodayOverview(userId) {
             title: task.title,
             status: task.status === "DONE" ? "done" : task.status === "IN_PROGRESS" ? "in_progress" : "todo",
             priority: task.priority,
+            dueTime: task.dueTime ?? undefined,
             suggestedSchedule: task.suggestedSchedule ?? undefined,
         })),
         goals: goals.map((goal) => ({
@@ -128,5 +129,6 @@ async function getTodayOverview(userId) {
             ? { sleepHours: todayHealth.sleepHours ?? 0, steps: todayHealth.steps ?? 0 }
             : { sleepHours: 0, steps: 0 },
         suggestions,
+        overdueCount: overdue.length,
     };
 }

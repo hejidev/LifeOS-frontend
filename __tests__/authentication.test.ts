@@ -209,11 +209,10 @@ describe('Authentication Flow', () => {
     });
 
     it('should redirect unauthenticated users to login', () => {
-      const mockCookies = {};
-      const isAuthed = mockCookies['lifeos_authed'] === '1';
+      const mockCookies: Record<string, string> = {};
       
       let redirectUrl = '';
-      if (!isAuthed) {
+      if (!mockCookies) {
         redirectUrl = '/login';
       }
       

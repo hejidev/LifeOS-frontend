@@ -29,6 +29,7 @@ export const deleteHabit = asyncHandler(async (req: AuthenticatedRequest, res: R
 });
 
 export const toggleCompletion = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const habit = await habitService.toggleCompletion(req.user!.id, req.params.id);
+  const date = typeof req.body?.date === "string" ? req.body.date : undefined;
+  const habit = await habitService.toggleCompletion(req.user!.id, req.params.id, date);
   return res.json({ habit });
 });

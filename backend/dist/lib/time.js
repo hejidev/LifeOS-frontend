@@ -1,6 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.startOfLocalDay = startOfLocalDay;
 exports.dayBounds = dayBounds;
+exports.shiftDateKey = shiftDateKey;
+exports.dayNumber = dayNumber;
+exports.keyToDate = keyToDate;
+exports.dateToKey = dateToKey;
+exports.localDateKey = localDateKey;
 function validZone(zone) {
     if (!zone)
         return "Africa/Lagos";
@@ -45,4 +51,21 @@ function dayBounds(timeZone, at = new Date()) {
         end: startOfLocalDay(nextKey, zone),
         dateOnly: new Date(`${dateKey}T00:00:00.000Z`),
     };
+}
+function shiftDateKey(key, days) {
+    const [year, month, day] = key.split("-").map(Number);
+    return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+function dayNumber(key) {
+    const [year, month, day] = key.split("-").map(Number);
+    return Math.round(Date.UTC(year, month - 1, day) / 86400000);
+}
+function keyToDate(key) {
+    return new Date(`${key}T00:00:00.000Z`);
+}
+function dateToKey(date) {
+    return date.toISOString().slice(0, 10);
+}
+function localDateKey(zone, at) {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: validZone(zone), year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
 }

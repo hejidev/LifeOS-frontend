@@ -98,6 +98,7 @@ const familyController = __importStar(require("./controllers/family.controller")
 const validate_middleware_1 = require("./middlewares/validate.middleware");
 const family_validator_1 = require("./validators/family.validator");
 const family_space_routes_1 = __importDefault(require("./routes/family-space.routes"));
+const finance_extras_routes_1 = __importDefault(require("./routes/finance-extras.routes"));
 const errorHandler_middleware_1 = require("./middlewares/errorHandler.middleware");
 const cron_1 = require("./config/cron");
 const app = (0, express_1.default)();
@@ -170,6 +171,7 @@ app.use("/api/ai-assistant", ai_assistant_routes_1.default);
 app.use("/api", habit_routes_1.default);
 // Generic "/api" block — anything landing here didn't match a more
 // specific prefix above, so it's safe for these to apply blanket auth.
+app.use("/api/finance", finance_extras_routes_1.default);
 app.use("/api", overview_routes_1.default);
 app.use("/api", task_routes_1.default);
 app.use("/api", note_routes_1.default);

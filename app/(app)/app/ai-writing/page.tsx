@@ -1,183 +1,179 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { PenTool, Sparkles, Copy, Save, FileText, Trash2, Loader2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Check, Copy, FileText, Loader2, PenTool, Save, Sparkles, Square, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { EmptyState, PageHeader, Section } from "@/components/app/kit";
 import { PaywallDialog } from "@/components/PaywallDialog";
 import {
-    useStreamWriting, useWritingDocuments, useBillingSummary, useSaveWritingDocument, useDeleteWritingDocument, useConvertWritingToNote,
+  useBillingSummary, useConvertWritingToNote, useDeleteWritingDocument, useSaveWritingDocument, useStreamWriting, useWritingDocuments,
 } from "@/lib/hooks/use-life-data";
-
-const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
-const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
+import { cn } from "@/lib/utils";
 
 const MODES = [
-    { key: "GENERATE", label: "Generate" }, { key: "REWRITE", label: "Rewrite" },
-    { key: "IMPROVE", label: "Fix grammar" }, { key: "SHORTEN", label: "Shorten" },
-    { key: "EXPAND", label: "Expand" }, { key: "SUMMARIZE", label: "Summarize" },
-    { key: "TRANSLATE", label: "Translate" }, { key: "TONE_CHANGE", label: "Change tone" },
-];
-const TONES = ["Professional", "Casual", "Friendly", "Persuasive", "Confident", "Formal"];
-const LANGUAGES = ["Spanish", "French", "German", "Portuguese", "Italian", "Japanese", "Chinese", "Arabic"];
+  { key: "GENERATE", label: "Write", hint: "Describe what you want written.", tone: true },
+  { key: "REWRITE", label: "Rewrite", hint: "Paste text to say in different words.", tone: true },
+  { key: "IMPROVE", label: "Fix grammar", hint: "Paste text to polish." },
+  { key: "SHORTEN", label: "Shorten", hint: "Paste text to make it shorter." },
+  { key: "EXPAND", label: "Expand", hint: "Paste text to add detail." },
+  { key: "SUMMARIZE", label: "Summarize", hint: "Paste text to get the key points." },
+  { key: "TRANSLATE", label: "Translate", hint: "Paste text to translate.", language: true },
+  { key: "TONE_CHANGE", label: "Change tone", hint: "Paste text to restyle.", tone: true },
+] as const;
+
+const TONES = ["Professional", "Casual", "Friendly", "Persuasive", "Confident", "Formal", "Empathetic", "Humorous"];
+const LANGUAGES = ["English", "French", "Yoruba", "Igbo", "Hausa", "Nigerian Pidgin", "Spanish", "German", "Portuguese", "Italian", "Arabic", "Chinese", "Japanese"];
+const MAX_INPUT = 8000;
 
 export default function AIWritingPage() {
-    const { output, isStreaming, error, generate, reset } = useStreamWriting();
-    const { data: documents = [] } = useWritingDocuments();
-    const saveDoc = useSaveWritingDocument();
-    const deleteDoc = useDeleteWritingDocument();
-    const convertToNote = useConvertWritingToNote();
+  const { output, setOutput, isStreaming, error, generate, stop, reset } = useStreamWriting();
+  const { data: documents = [] } = useWritingDocuments();
+  const saveDoc = useSaveWritingDocument();
+  const deleteDoc = useDeleteWritingDocument();
+  const toNote = useConvertWritingToNote();
+  const { data: billing } = useBillingSummary();
 
-    const { data: billing } = useBillingSummary();
-    const [paywallOpen, setPaywallOpen] = useState(false);
+  const [mode, setMode] = useState<(typeof MODES)[number]["key"]>("GENERATE");
+  const [input, setInput] = useState("");
+  const [tone, setTone] = useState("Auto");
+  const [language, setLanguage] = useState("English");
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [paywall, setPaywall] = useState(false);
 
-    const [mode, setMode] = useState("GENERATE");
-    const [input, setInput] = useState("");
-    const [tone, setTone] = useState(TONES[0]);
-    const [language, setLanguage] = useState(LANGUAGES[0]);
-    const [saveOpen, setSaveOpen] = useState(false);
-    const [title, setTitle] = useState("");
-    const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  const current = MODES.find((item) => item.key === mode)!;
+  const usesTone = "tone" in current;
+  const usesLanguage = "language" in current;
+  const words = output.trim() ? output.trim().split(/\s+/).length : 0;
+  const freeLeft = billing && !billing.isPaid ? Math.max(0, billing.freeUsesPerTool - (billing.usage?.AI_WRITING ?? 0)) : null;
 
-    function handleGenerate() {
-        if (!input.trim()) return;
-        reset();
-        generate({ mode, input, tone: mode === "TONE_CHANGE" ? tone : undefined, targetLanguage: mode === "TRANSLATE" ? language : undefined })
-            .catch(() => { });
-    }
+  useEffect(() => {
+    if (error?.includes("free uses")) setPaywall(true);
+  }, [error]);
 
-    function handleSave() {
-        saveDoc.mutate(
-            { title: title || input.slice(0, 40), mode, input, output, tone: mode === "TONE_CHANGE" ? tone : undefined },
-            { onSuccess: () => { setSaveOpen(false); setTitle(""); } }
-        );
-    }
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 2500);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
-    function handleSendToNotes(id: string) {
-        convertToNote.mutate(id, { onSuccess: () => setSavedMsg("Added to Notes") });
-        setTimeout(() => setSavedMsg(null), 2000);
-    }
+  function run() {
+    const text = input.trim();
+    if (!text || isStreaming) return;
+    const chosenTone = usesTone ? (tone === "Auto" ? (mode === "TONE_CHANGE" ? "Professional" : undefined) : tone) : undefined;
+    void generate({ mode, input: text, ...(chosenTone ? { tone: chosenTone } : {}), ...(usesLanguage ? { targetLanguage: language } : {}) });
+  }
 
-    const wordCount = output.trim() ? output.trim().split(/\s+/).length : 0;
-
-    useEffect(() => {
-        if (error?.includes("free uses")) setPaywallOpen(true);
-    }, [error]);
-
-    return (
-        <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-            <motion.div variants={item}>
-                <h1 className="text-xl sm:text-3xl font-bold tracking-tight flex items-center gap-2"><PenTool className="h-5 w-5 sm:h-6 sm:w-6 text-primary" /> AI Writing</h1>
-                <p className="text-muted-foreground mt-1 text-xs sm:text-sm">Generate, rewrite, and polish text — streamed live from Claude.</p>
-            </motion.div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
-                <motion.div variants={item} className="lg:col-span-2 space-y-4">
-                    <Card className="hover:border-primary/20 transition-colors">
-                        <CardHeader className="pb-3">
-                            <div className="flex flex-wrap gap-1">
-                                {MODES.map((m) => (
-                                    <Button key={m.key} type="button" size="sm" variant={mode === m.key ? "default" : "outline"} onClick={() => setMode(m.key)} className="text-[10px] sm:text-xs h-7 sm:h-8">
-                                        {m.label}
-                                    </Button>
-                                ))}
-
-                                {billing && !billing.isPaid && (
-                                    <p className="text-[10px] sm:text-xs text-muted-foreground">
-                                        {Math.max(0, billing.freeUsesPerTool - billing.usage.AI_WRITING)} free uses left
-                                    </p>
-                                )}
-                            </div>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                            {mode === "TONE_CHANGE" && (
-                                <select className="flex h-8 sm:h-9 w-full rounded-lg border border-input bg-background px-3 text-xs sm:text-sm" value={tone} onChange={(e) => setTone(e.target.value)}>
-                                    {TONES.map((t) => <option key={t} value={t}>{t}</option>)}
-                                </select>
-                            )}
-                            {mode === "TRANSLATE" && (
-                                <select className="flex h-8 sm:h-9 w-full rounded-lg border border-input bg-background px-3 text-xs sm:text-sm" value={language} onChange={(e) => setLanguage(e.target.value)}>
-                                    {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
-                                </select>
-                            )}
-                            <Textarea rows={4} placeholder="Paste or write your text here..." value={input} onChange={(e) => setInput(e.target.value)} className="text-xs sm:text-sm" />
-                            <Button onClick={handleGenerate} disabled={isStreaming || !input.trim()} className="text-xs sm:text-sm">
-                                {isStreaming ? <><Loader2 className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" /> Generating...</> : <><Sparkles className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" /> Generate</>}
-                            </Button>
-                            {error && <p className="text-[10px] sm:text-xs text-destructive">{error}</p>}
-                        </CardContent>
-                    </Card>
-
-                    {(output || isStreaming) && (
-                        <Card className="hover:border-primary/20 transition-colors">
-                            <CardHeader className="pb-3 flex items-center justify-between">
-                                <CardTitle className="text-sm sm:text-base">Output</CardTitle>
-                                <Badge variant="secondary" className="text-[10px] sm:text-[11px]">{wordCount} words</Badge>
-                            </CardHeader>
-                            <CardContent className="space-y-3">
-                                <div className="whitespace-pre-wrap text-xs sm:text-sm rounded-lg border border-border/60 bg-card/60 p-3 sm:p-4 min-h-[80px] sm:min-h-[100px]">
-                                    {output}{isStreaming && <span className="inline-block w-1.5 h-3 sm:h-4 bg-primary ml-0.5 animate-pulse" />}
-                                </div>
-                                {!isStreaming && output && (
-                                    <div className="flex gap-2 flex-wrap">
-                                        <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(output)} className="text-xs sm:text-sm"><Copy className="mr-1 h-3 w-3" /> Copy</Button>
-                                        <Button size="sm" variant="outline" onClick={() => setSaveOpen(true)} className="text-xs sm:text-sm"><Save className="mr-1 h-3 w-3" /> Save</Button>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    )}
-                </motion.div>
-
-                <motion.div variants={item}>
-                    <Card className="hover:border-primary/20 transition-colors">
-                        <CardHeader className="pb-3"><CardTitle className="text-sm sm:text-base flex items-center gap-2"><FileText className="h-4 w-4 text-primary" /> History</CardTitle></CardHeader>
-                        <CardContent>
-                            {documents.length === 0 ? (
-                                <p className="text-xs sm:text-sm text-muted-foreground text-center py-4">No saved documents yet.</p>
-                            ) : (
-                                <ScrollArea className="max-h-[400px] sm:max-h-[500px]">
-                                    <div className="space-y-2">
-                                        {documents.map((d: any) => (
-                                            <div key={d.id} className="rounded-lg border border-border/60 bg-card/60 p-2 sm:p-3 space-y-1">
-                                                <p className="text-xs sm:text-sm font-medium truncate">{d.title}</p>
-                                                <p className="text-[10px] sm:text-[11px] text-muted-foreground">{d.mode.replace("_", " ").toLowerCase()} · {new Date(d.createdAt).toLocaleDateString()}</p>
-                                                <div className="flex gap-1 pt-1">
-                                                    <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px] sm:text-[11px]" onClick={() => handleSendToNotes(d.id)}>To Notes</Button>
-                                                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:text-destructive ml-auto" onClick={() => deleteDoc.mutate(d.id)}><Trash2 className="h-3 w-3" /></Button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </ScrollArea>
-                            )}
-                            {savedMsg && <p className="text-[10px] sm:text-xs text-emerald-500 mt-2">{savedMsg}</p>}
-                        </CardContent>
-                    </Card>
-                </motion.div>
-            </div>
-
-            <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
-                <DialogContent className="max-w-sm">
-                    <DialogHeader><DialogTitle>Save document</DialogTitle></DialogHeader>
-                    <div className="space-y-4 pt-2">
-                        <Input placeholder="Document title" value={title} onChange={(e) => setTitle(e.target.value)} />
-                        <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setSaveOpen(false)}>Cancel</Button>
-                            <Button onClick={handleSave} disabled={saveDoc.isPending}>{saveDoc.isPending ? "Saving..." : "Save"}</Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            <PaywallDialog open={paywallOpen} onOpenChange={setPaywallOpen} toolName="AI Writing" />
-        </motion.div>
+  function save() {
+    saveDoc.mutate(
+      { title: title.trim() || input.trim().slice(0, 40) || "Untitled", mode, input, output, ...(usesTone && tone !== "Auto" ? { tone } : {}) },
+      { onSuccess: () => { setSaveOpen(false); setTitle(""); setNotice("Saved to history"); } }
     );
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader icon={PenTool} title="AI Writing" subtitle="Write, rewrite, translate and polish text with AI." />
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
+          <Section title="Your text" icon={Sparkles} action={freeLeft !== null ? <span className="text-xs text-muted-foreground">{freeLeft} free {freeLeft === 1 ? "use" : "uses"} left</span> : undefined}>
+            <div className="flex flex-wrap gap-1.5">
+              {MODES.map((item) => (
+                <button key={item.key} type="button" onClick={() => setMode(item.key)} className={cn("rounded-full border px-3 py-1 text-xs font-medium", mode === item.key ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted")}>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">{current.hint}</p>
+
+            {(usesTone || usesLanguage) && (
+              <select
+                className="flex h-9 w-full rounded-lg border bg-background px-3 text-sm sm:w-64"
+                value={usesLanguage ? language : tone}
+                onChange={(event) => (usesLanguage ? setLanguage(event.target.value) : setTone(event.target.value))}
+              >
+                {usesLanguage
+                  ? LANGUAGES.map((name) => <option key={name} value={name}>{name}</option>)
+                  : [...(mode === "TONE_CHANGE" ? [] : ["Auto"]), ...TONES].map((name) => <option key={name} value={name}>{name === "Auto" ? "Tone: automatic" : name}</option>)}
+              </select>
+            )}
+
+            <Textarea rows={6} value={input} maxLength={MAX_INPUT} onChange={(event) => setInput(event.target.value)} placeholder="Paste or write your text here..." className="resize-y" />
+            <div className="flex flex-wrap items-center gap-2">
+              {isStreaming ? (
+                <Button variant="outline" onClick={stop}><Square className="mr-1.5 h-4 w-4" /> Stop</Button>
+              ) : (
+                <Button onClick={run} disabled={!input.trim()}><Sparkles className="mr-1.5 h-4 w-4" /> Generate</Button>
+              )}
+              <span className="ml-auto text-xs tabular-nums text-muted-foreground">{input.length.toLocaleString()} / {MAX_INPUT.toLocaleString()}</span>
+            </div>
+            {error && !error.includes("free uses") && <p className="text-xs text-destructive">{error}</p>}
+          </Section>
+
+          {(output || isStreaming) && (
+            <Section title="Result" icon={PenTool} action={<span className="text-xs text-muted-foreground">{words} words</span>}>
+              <div className="min-h-[6rem] whitespace-pre-wrap break-words rounded-lg border bg-card/60 p-4 text-sm">
+                {output}
+                {isStreaming && <Loader2 className="ml-1 inline h-3.5 w-3.5 animate-spin align-middle text-primary" />}
+              </div>
+              {!isStreaming && output && (
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => { void navigator.clipboard.writeText(output); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
+                    {copied ? <Check className="mr-1.5 h-3.5 w-3.5" /> : <Copy className="mr-1.5 h-3.5 w-3.5" />} {copied ? "Copied" : "Copy"}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setSaveOpen(true)}><Save className="mr-1.5 h-3.5 w-3.5" /> Save</Button>
+                  <Button size="sm" variant="outline" onClick={() => { setInput(output.slice(0, MAX_INPUT)); reset(); }}>Use as input</Button>
+                  <Button size="sm" variant="outline" onClick={run}>Try again</Button>
+                </div>
+              )}
+            </Section>
+          )}
+        </div>
+
+        <Section title="History" icon={FileText}>
+          {notice && <p className="text-xs text-emerald-600">{notice}</p>}
+          {documents.length === 0 ? (
+            <EmptyState icon={FileText} title="Nothing saved yet" body="Save a result to find it here." />
+          ) : (
+            <div className="max-h-[32rem] space-y-2 overflow-y-auto">
+              {documents.map((doc: any) => (
+                <div key={doc.id} className="space-y-1 rounded-lg border p-3">
+                  <p className="truncate text-sm font-medium">{doc.title}</p>
+                  <p className="text-[11px] text-muted-foreground">{String(doc.mode).replace("_", " ").toLowerCase()} · {new Date(doc.createdAt).toLocaleDateString()}</p>
+                  <div className="flex gap-1 pt-1">
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setMode(doc.mode); setInput(doc.input); setOutput(doc.output); }}>Open</Button>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={toNote.isPending} onClick={() => toNote.mutate(doc.id, { onSuccess: () => setNotice("Added to Notes"), onError: () => setNotice("Couldn't add to Notes") })}>To Notes</Button>
+                    <Button size="icon" variant="ghost" className="ml-auto h-7 w-7 text-destructive hover:text-destructive" aria-label="Delete" onClick={() => window.confirm(`Delete "${doc.title}"?`) && deleteDoc.mutate(doc.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+      </div>
+
+      <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Save to history</DialogTitle></DialogHeader>
+          <div className="space-y-4 pt-1">
+            <Input placeholder="Title" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={150} autoFocus />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setSaveOpen(false)}>Cancel</Button>
+              <Button onClick={save} disabled={saveDoc.isPending}>{saveDoc.isPending ? "Saving..." : "Save"}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <PaywallDialog open={paywall} onOpenChange={setPaywall} toolName="AI Writing" />
+    </div>
+  );
 }

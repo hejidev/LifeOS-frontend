@@ -66,6 +66,8 @@ import { acceptInviteSchema } from "./validators/family.validator";
 
 import familySpaceRoutes from "./routes/family-space.routes";
 
+import financeExtrasRoutes from "./routes/finance-extras.routes";
+
 import { errorHandler } from "./middlewares/errorHandler.middleware";
 import { startCronJobs } from "./config/cron";
 
@@ -155,6 +157,7 @@ app.use("/api", habitRoutes);
 
 // Generic "/api" block — anything landing here didn't match a more
 // specific prefix above, so it's safe for these to apply blanket auth.
+app.use("/api/finance", financeExtrasRoutes);
 app.use("/api", overviewRoutes);
 app.use("/api", taskRoutes);
 app.use("/api", noteRoutes);

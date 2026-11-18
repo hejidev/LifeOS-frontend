@@ -4,8 +4,8 @@ import type { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import * as calendarService from "../services/calendar.service";
 
 export const list = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const range = req.query.range as "today" | "week" | "month" | undefined;
-  const events = await calendarService.listEvents(req.user!.id, range);
+  const { range, from, to } = req.query as { range?: string; from?: string; to?: string };
+  const events = await calendarService.listEvents(req.user!.id, { range, from, to });
   return res.json({ events });
 });
 

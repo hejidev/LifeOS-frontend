@@ -24,7 +24,7 @@ function validZone(zone?: string | null) {
     return local - Math.floor(at / 1000) * 1000;
   }
   
-  function startOfLocalDay(dateKey: string, zone: string) {
+  export function startOfLocalDay(dateKey: string, zone: string) {
     const [year, month, day] = dateKey.split("-").map(Number);
     const guess = Date.UTC(year, month - 1, day);
     const first = guess - offsetMs(zone, guess);
@@ -43,4 +43,26 @@ function validZone(zone?: string | null) {
       end: startOfLocalDay(nextKey, zone),
       dateOnly: new Date(`${dateKey}T00:00:00.000Z`),
     };
+  }
+
+  export function shiftDateKey(key: string, days: number) {
+    const [year, month, day] = key.split("-").map(Number);
+    return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+  }
+  
+  export function dayNumber(key: string) {
+    const [year, month, day] = key.split("-").map(Number);
+    return Math.round(Date.UTC(year, month - 1, day) / 86_400_000);
+  }
+  
+  export function keyToDate(key: string) {
+    return new Date(`${key}T00:00:00.000Z`);
+  }
+  
+  export function dateToKey(date: Date) {
+    return date.toISOString().slice(0, 10);
+  }
+  
+  export function localDateKey(zone: string, at: Date) {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: validZone(zone), year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
   }

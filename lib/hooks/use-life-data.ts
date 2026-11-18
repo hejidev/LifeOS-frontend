@@ -1,25 +1,29 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, downloadFile, setAccessToken, streamPost } from "@/lib/api/client";
+import { api, downloadFile } from "@/lib/api/client";
 import type {
-  Task, TaskStatus, Note, HealthSummary,
-  StudyMaterial, FinanceSummary, Transaction,
-  Habit, HabitSummary,
-  SmallBusinessSummary,
+  Task, TaskStatus, Note,
+  StudyMaterial,
   VaultDocument,
   BizProduct,
   BizCustomer,
   BizSale,
   BizExpense,
   UserProfile, AccountOverview,
-  UserRole,
 } from "@/types/life";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { DashboardRangeValue } from "@/components/merchant/dashboard-range-selector";
 import { useStoreContext } from "@/lib/context/store-context";
 
 import type { QueryClient } from "@tanstack/react-query";
+
+export * from "./use-finance";
+export * from "./use-health";
+export * from "./use-habits";
+export * from "./use-ai";
+
+
 
 function refreshBusinessData(qc: QueryClient) {
   return qc.invalidateQueries({
@@ -303,28 +307,28 @@ export function useConvertNoteToTask() {
 
 // ─── Health ───────────────────────────────────────────────────────────────────
 
-export function useHealthSummary() {
-  return useQuery<HealthSummary>({
-    queryKey: ["health"],
-    queryFn: () => api.get("/health/summary"),
-    staleTime: 1000 * 60 * 2,
-  });
-}
+// export function useHealthSummary() {
+//   return useQuery<HealthSummary>({
+//     queryKey: ["health"],
+//     queryFn: () => api.get("/health/summary"),
+//     staleTime: 1000 * 60 * 2,
+//   });
+// }
 
-export function useLogHealth() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (data: {
-      date?: string;
-      sleepHours?: number;
-      steps?: number;
-      waterGlasses?: number;
-      workoutDone?: boolean;
-      notes?: string;
-    }) => api.post("/health/log", data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["health"] }),
-  });
-}
+// export function useLogHealth() {
+//   const qc = useQueryClient();
+//   return useMutation({
+//     mutationFn: (data: {
+//       date?: string;
+//       sleepHours?: number;
+//       steps?: number;
+//       waterGlasses?: number;
+//       workoutDone?: boolean;
+//       notes?: string;
+//     }) => api.post("/health/log", data),
+//     onSuccess: () => qc.invalidateQueries({ queryKey: ["health"] }),
+//   });
+// }
 
 export function useHabits() {
   return useQuery({
@@ -345,104 +349,104 @@ export function useCompleteHabit() {
 
 // ─── Finance ──────────────────────────────────────────────────────────────────
 
-export function useFinanceSummary() {
-  return useQuery<{ summary: FinanceSummary; transactions: Transaction[] }>({
-    queryKey: ["finance"],
-    queryFn: () =>
-      api.get("/finance/dashboard").then((d) => ({
-        summary: d.summary as FinanceSummary,
-        transactions: d.transactions as Transaction[],
-      })),
-    staleTime: 1000 * 60 * 2,
-  });
-}
+// export function useFinanceSummary() {
+//   return useQuery<{ summary: FinanceSummary; transactions: Transaction[] }>({
+//     queryKey: ["finance"],
+//     queryFn: () =>
+//       api.get("/finance/dashboard").then((d) => ({
+//         summary: d.summary as FinanceSummary,
+//         transactions: d.transactions as Transaction[],
+//       })),
+//     staleTime: 1000 * 60 * 2,
+//   });
+// }
 
-export function useFinanceAccounts() {
-  return useQuery({
-    queryKey: ["financeAccounts"],
-    queryFn: () => api.get("/finance/accounts").then((d) => d.accounts),
-  });
-}
+// export function useFinanceAccounts() {
+//   return useQuery({
+//     queryKey: ["financeAccounts"],
+//     queryFn: () => api.get("/finance/accounts").then((d) => d.accounts),
+//   });
+// }
 
-export function useFinanceCategories() {
-  return useQuery({
-    queryKey: ["financeCategories"],
-    queryFn: () => api.get("/finance/categories").then((d) => d.categories),
-  });
-}
+// export function useFinanceCategories() {
+//   return useQuery({
+//     queryKey: ["financeCategories"],
+//     queryFn: () => api.get("/finance/categories").then((d) => d.categories),
+//   });
+// }
 
-export function useCreateFinanceTransaction() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (data: {
-      accountId?: string;
-      categoryId?: string;
-      type: "INCOME" | "EXPENSE" | "TRANSFER";
-      amount: number;
-      description: string;
-      date?: string;
-      isRecurring?: boolean;
-      linkedTaskId?: string;
-      linkedNoteId?: string;
-    }) => api.post("/finance/transactions", data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["finance"] });
-      qc.invalidateQueries({ queryKey: ["financeAccounts"] });
-    },
-  });
-}
+// export function useCreateFinanceTransaction() {
+//   const qc = useQueryClient();
+//   return useMutation({
+//     mutationFn: (data: {
+//       accountId?: string;
+//       categoryId?: string;
+//       type: "INCOME" | "EXPENSE" | "TRANSFER";
+//       amount: number;
+//       description: string;
+//       date?: string;
+//       isRecurring?: boolean;
+//       linkedTaskId?: string;
+//       linkedNoteId?: string;
+//     }) => api.post("/finance/transactions", data),
+//     onSuccess: () => {
+//       qc.invalidateQueries({ queryKey: ["finance"] });
+//       qc.invalidateQueries({ queryKey: ["financeAccounts"] });
+//     },
+//   });
+// }
 
-export function useUpdateFinanceTransaction() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Transaction> }) =>
-      api.patch(`/finance/transactions/${id}`, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["finance"] });
-    },
-  });
-}
+// export function useUpdateFinanceTransaction() {
+//   const qc = useQueryClient();
+//   return useMutation({
+//     mutationFn: ({ id, data }: { id: string; data: Partial<Transaction> }) =>
+//       api.patch(`/finance/transactions/${id}`, data),
+//     onSuccess: () => {
+//       qc.invalidateQueries({ queryKey: ["finance"] });
+//     },
+//   });
+// }
 
-export function useDeleteFinanceTransaction() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => api.delete(`/finance/transactions/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["finance"] });
-    },
-  });
-}
+// export function useDeleteFinanceTransaction() {
+//   const qc = useQueryClient();
+//   return useMutation({
+//     mutationFn: (id: string) => api.delete(`/finance/transactions/${id}`),
+//     onSuccess: () => {
+//       qc.invalidateQueries({ queryKey: ["finance"] });
+//     },
+//   });
+// }
 
 // ─── AI ASSISTANTS ────────────────────────────────────────────────────────────────
 
-export function useAIContext() {
-  return useQuery({ queryKey: ["aiContext"], queryFn: () => api.get("/ai-assistant/context") });
-}
+// export function useAIContext() {
+//   return useQuery({ queryKey: ["aiContext"], queryFn: () => api.get("/ai-assistant/context") });
+// }
 
-export function useAIAssistantChat() {
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+// export function useAIAssistantChat() {
+//   const [isStreaming, setIsStreaming] = useState(false);
+//   const [error, setError] = useState<string | null>(null);
 
-  async function sendMessage(message: string, onDelta: (chunk: string) => void) {
-    setIsStreaming(true);
-    setError(null);
-    try {
-      const reader = await streamPost("/ai-assistant/chat", { message });
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        onDelta(decoder.decode(value, { stream: true }));
-      }
-    } catch (err: any) {
-      setError(err.message ?? "Failed to reach the assistant");
-    } finally {
-      setIsStreaming(false);
-    }
-  }
+//   async function sendMessage(message: string, onDelta: (chunk: string) => void) {
+//     setIsStreaming(true);
+//     setError(null);
+//     try {
+//       const reader = await streamPost("/ai-assistant/chat", { message });
+//       const decoder = new TextDecoder();
+//       while (true) {
+//         const { done, value } = await reader.read();
+//         if (done) break;
+//         onDelta(decoder.decode(value, { stream: true }));
+//       }
+//     } catch (err: any) {
+//       setError(err.message ?? "Failed to reach the assistant");
+//     } finally {
+//       setIsStreaming(false);
+//     }
+//   }
 
-  return { sendMessage, isStreaming, error };
-}
+//   return { sendMessage, isStreaming, error };
+// }
 
 
 // ─── DOCUMENTS ────────────────────────────────────────────────────────────────
@@ -891,7 +895,12 @@ export function useUpdateCalendarEvent() {
 }
 export function useDeleteCalendarEvent() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (id: string) => api.delete(`/calendar/${id}`), onSuccess: () => qc.invalidateQueries({ queryKey: ["calendarEvents"] }) });
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/calendar/${id}`), onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["calendarEvents"] });
+      void qc.invalidateQueries({ queryKey: ["todayOverview"] });
+    }
+  });
 }
 
 export function useGoals() {
@@ -1642,125 +1651,125 @@ export function useDeactivateAccount() {
 }
 
 // --------------HABIT DATA ---------------------------
-export function useHabitSummary() {
-  return useQuery<HabitSummary>({
-    queryKey: ["habitSummary"],
-    queryFn: () => api.get("/health/habits/summary"),
-    staleTime: 1000 * 30,
-  });
-}
+// export function useHabitSummary() {
+//   return useQuery<HabitSummary>({
+//     queryKey: ["habitSummary"],
+//     queryFn: () => api.get("/health/habits/summary"),
+//     staleTime: 1000 * 30,
+//   });
+// }
 
-export function useHabitsList(includeArchived = false) {
-  return useQuery<Habit[]>({
-    queryKey: ["habitsList", includeArchived],
-    queryFn: () =>
-      api.get(`/health/habits?archived=${includeArchived}`).then((d) => d.habits as Habit[]),
-  });
-}
+// export function useHabitsList(includeArchived = false) {
+//   return useQuery<Habit[]>({
+//     queryKey: ["habitsList", includeArchived],
+//     queryFn: () =>
+//       api.get(`/health/habits?archived=${includeArchived}`).then((d) => d.habits as Habit[]),
+//   });
+// }
 
-export function useCreateHabit() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (data: {
-      title: string;
-      description?: string;
-      frequency?: "daily" | "weekly";
-      category?: string;
-      colorHex?: string;
-    }) => api.post("/health/habits", data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["habitSummary"] });
-      qc.invalidateQueries({ queryKey: ["habitsList"] });
-    },
-  });
-}
+// export function useCreateHabit() {
+//   const qc = useQueryClient();
+//   return useMutation({
+//     mutationFn: (data: {
+//       title: string;
+//       description?: string;
+//       frequency?: "daily" | "weekly";
+//       category?: string;
+//       colorHex?: string;
+//     }) => api.post("/health/habits", data),
+//     onSuccess: () => {
+//       qc.invalidateQueries({ queryKey: ["habitSummary"] });
+//       qc.invalidateQueries({ queryKey: ["habitsList"] });
+//     },
+//   });
+// }
 
-export function useUpdateHabit() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Habit> }) =>
-      api.patch(`/health/habits/${id}`, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["habitSummary"] });
-      qc.invalidateQueries({ queryKey: ["habitsList"] });
-    },
-  });
-}
+// export function useUpdateHabit() {
+//   const qc = useQueryClient();
+//   return useMutation({
+//     mutationFn: ({ id, data }: { id: string; data: Partial<Habit> }) =>
+//       api.patch(`/health/habits/${id}`, data),
+//     onSuccess: () => {
+//       qc.invalidateQueries({ queryKey: ["habitSummary"] });
+//       qc.invalidateQueries({ queryKey: ["habitsList"] });
+//     },
+//   });
+// }
 
-export function useDeleteHabit() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => api.delete(`/health/habits/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["habitSummary"] });
-      qc.invalidateQueries({ queryKey: ["habitsList"] });
-    },
-  });
-}
+// export function useDeleteHabit() {
+//   const qc = useQueryClient();
+//   return useMutation({
+//     mutationFn: (id: string) => api.delete(`/health/habits/${id}`),
+//     onSuccess: () => {
+//       qc.invalidateQueries({ queryKey: ["habitSummary"] });
+//       qc.invalidateQueries({ queryKey: ["habitsList"] });
+//     },
+//   });
+// }
 
-export function useToggleHabitCompletion() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (habitId: string) => api.post(`/health/habits/${habitId}/complete`),
-    onMutate: async (habitId) => {
-      await qc.cancelQueries({ queryKey: ["habitSummary"] });
-      const prev = qc.getQueryData<HabitSummary>(["habitSummary"]);
-      if (prev) {
-        const habits = prev.habits.map((h) =>
-          h.id === habitId
-            ? {
-              ...h,
-              completedToday: !h.completedToday,
-              streak: h.completedToday ? Math.max(0, h.streak - 1) : h.streak + 1,
-            }
-            : h
-        );
-        qc.setQueryData<HabitSummary>(["habitSummary"], {
-          ...prev,
-          habits,
-          completionRateToday: Math.round(
-            (habits.filter((h) => h.completedToday).length / Math.max(1, habits.length)) * 100
-          ),
-        });
-      }
-      return { prev };
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) qc.setQueryData(["habitSummary"], ctx.prev);
-    },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ["habitSummary"] });
-      qc.invalidateQueries({ queryKey: ["habitsList"] });
-    },
-  });
-}
+// export function useToggleHabitCompletion() {
+//   const qc = useQueryClient();
+//   return useMutation({
+//     mutationFn: (habitId: string) => api.post(`/health/habits/${habitId}/complete`),
+//     onMutate: async (habitId) => {
+//       await qc.cancelQueries({ queryKey: ["habitSummary"] });
+//       const prev = qc.getQueryData<HabitSummary>(["habitSummary"]);
+//       if (prev) {
+//         const habits = prev.habits.map((h) =>
+//           h.id === habitId
+//             ? {
+//               ...h,
+//               completedToday: !h.completedToday,
+//               streak: h.completedToday ? Math.max(0, h.streak - 1) : h.streak + 1,
+//             }
+//             : h
+//         );
+//         qc.setQueryData<HabitSummary>(["habitSummary"], {
+//           ...prev,
+//           habits,
+//           completionRateToday: Math.round(
+//             (habits.filter((h) => h.completedToday).length / Math.max(1, habits.length)) * 100
+//           ),
+//         });
+//       }
+//       return { prev };
+//     },
+//     onError: (_err, _vars, ctx) => {
+//       if (ctx?.prev) qc.setQueryData(["habitSummary"], ctx.prev);
+//     },
+//     onSettled: () => {
+//       qc.invalidateQueries({ queryKey: ["habitSummary"] });
+//       qc.invalidateQueries({ queryKey: ["habitsList"] });
+//     },
+//   });
+// }
 
 // ─── AI Writing ───────────────────────────────────────────────────────────
 
-export function useStreamWriting() {
-  const [output, setOutput] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+// export function useStreamWriting() {
+//   const [output, setOutput] = useState("");
+//   const [isStreaming, setIsStreaming] = useState(false);
+//   const [error, setError] = useState<string | null>(null);
 
-  async function generate(payload: { mode: string; input: string; tone?: string; targetLanguage?: string }) {
-    setOutput(""); setError(null); setIsStreaming(true);
-    try {
-      const reader = await streamPost("/ai/writing/stream", payload);
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        setOutput((prev) => prev + decoder.decode(value, { stream: true }));
-      }
-    } catch (err: any) {
-      setError(err.message ?? "Failed to generate");
-    } finally {
-      setIsStreaming(false);
-    }
-  }
+//   async function generate(payload: { mode: string; input: string; tone?: string; targetLanguage?: string }) {
+//     setOutput(""); setError(null); setIsStreaming(true);
+//     try {
+//       const reader = await streamPost("/ai/writing/stream", payload);
+//       const decoder = new TextDecoder();
+//       while (true) {
+//         const { done, value } = await reader.read();
+//         if (done) break;
+//         setOutput((prev) => prev + decoder.decode(value, { stream: true }));
+//       }
+//     } catch (err: any) {
+//       setError(err.message ?? "Failed to generate");
+//     } finally {
+//       setIsStreaming(false);
+//     }
+//   }
 
-  return { output, isStreaming, error, generate, reset: () => setOutput("") };
-}
+//   return { output, isStreaming, error, generate, reset: () => setOutput("") };
+// }
 
 export function useWritingDocuments() {
   return useQuery({ queryKey: ["writingDocuments"], queryFn: () => api.get("/ai/writing/documents").then((d) => d.documents) });
@@ -1958,6 +1967,8 @@ export function useEmergencyPublic(token: string | null, pin?: string) {
     retry: false,
     gcTime: 0,
     staleTime: 0,
+    throwOnError: false,
+    refetchOnWindowFocus: false,
   });
 }
 

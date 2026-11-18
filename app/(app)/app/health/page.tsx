@@ -1,322 +1,251 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
-import {
-  HeartPulse, Moon, Footprints, Droplets,
-  Dumbbell, Sparkles, CheckCircle2, Plus,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
+import { CheckCircle2, Droplets, Dumbbell, Footprints, HeartPulse, Lightbulb, Moon, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  useHealthSummary, useLogHealth, useCompleteHabit, useCreateHabit,
-} from "@/lib/hooks/use-life-data";
-import type { HealthSummary } from "@/types/life";
+import { EmptyState, PageHeader, Section, SectionLink, StatCard } from "@/components/app/kit";
+import { useHealthSummary, useLogHealth } from "@/lib/hooks/use-health";
+import { useToggleHabitCompletion } from "@/lib/hooks/use-habits";
+import { cn } from "@/lib/utils";
+import type { HealthDashboard, HealthDay, HealthInsight } from "@/types/health";
 
-const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
-const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
+const INSIGHT_STYLE: Record<HealthInsight["tone"], string> = {
+  success: "border-emerald-500/30 bg-emerald-500/5",
+  warning: "border-amber-500/30 bg-amber-500/5",
+  danger: "border-destructive/30 bg-destructive/5",
+  info: "border-primary/20 bg-primary/5",
+};
 
-export default function HealthPage() {
-  const { data, isLoading } = useHealthSummary();
-  const logHealth = useLogHealth();
-  const completeHabit = useCompleteHabit();
-  const createHabit = useCreateHabit();
+const percent = (value: number, goal: number) => Math.min(100, goal > 0 ? (value / goal) * 100 : 0);
 
-  const [logOpen, setLogOpen] = useState(false);
-  const [habitOpen, setHabitOpen] = useState(false);
-  const [logForm, setLogForm] = useState({
-    sleepHours: "", steps: "", waterGlasses: "", workoutDone: false,
-  });
-  const [habitForm, setHabitForm] = useState({ title: "", category: "" });
+function Trend({
+  title,
+  icon,
+  days,
+  pick,
+  goal,
+  average,
+  format,
+}: {
+  title: string;
+  icon: typeof Moon;
+  days: HealthDay[];
+  pick: (day: HealthDay) => number | null;
+  goal: number;
+  average: number | null;
+  format: (value: number) => string;
+}) {
+  const values = days.map(pick);
+  const max = Math.max(goal, ...values.map((value) => value ?? 0), 1);
 
-  const summary: HealthSummary = data ?? {
-    sleepHours: 0, steps: 0, waterGlasses: 0, workoutsThisWeek: 0,
-    insight: "No data yet — log your first entry below.",
-    metrics: [], habits: [],
+  return (
+    <Section title={title} icon={icon} action={average !== null ? <span className="text-xs text-muted-foreground">Avg {format(average)}</span> : undefined}>
+      <div className="relative flex h-28 items-end gap-2">
+        <div className="pointer-events-none absolute inset-x-0 border-t border-dashed border-primary/40" style={{ bottom: `${(goal / max) * 100}%` }} />
+        {days.map((day, index) => {
+          const value = values[index];
+          return (
+            <div key={day.date} className="flex h-full flex-1 flex-col justify-end" title={`${day.label}: ${value === null ? "not logged" : format(value)}`}>
+              <div
+                className={cn("w-full rounded-t-md", value === null ? "bg-muted" : value >= goal ? "bg-emerald-500" : "bg-primary", index === days.length - 1 && "ring-1 ring-primary")}
+                style={{ height: `${value === null ? 4 : Math.max(6, (value / max) * 100)}%` }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex gap-2 text-[11px] text-muted-foreground">{days.map((day) => <span key={day.date} className="flex-1 text-center">{day.label.slice(0, 1)}</span>)}</div>
+    </Section>
+  );
+}
+
+function LogDialog({ data, onClose }: { data: HealthDashboard; onClose: () => void }) {
+  const log = useLogHealth();
+  const todayKey = data.date;
+  const minKey = new Date(new Date(`${todayKey}T12:00:00Z`).getTime() - 30 * 86_400_000).toISOString().slice(0, 10);
+
+  const toForm = (key: string) => {
+    const row = data.week.find((day) => day.date === key);
+    return {
+      sleepHours: row?.sleepHours != null ? String(row.sleepHours) : "",
+      steps: row?.steps != null ? String(row.steps) : "",
+      waterGlasses: row?.waterGlasses != null ? String(row.waterGlasses) : "",
+      workoutDone: row?.workoutDone ?? false,
+    };
   };
 
-  function handleLogSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    logHealth.mutate({
-      sleepHours: logForm.sleepHours ? parseFloat(logForm.sleepHours) : undefined,
-      steps: logForm.steps ? parseInt(logForm.steps) : undefined,
-      waterGlasses: logForm.waterGlasses ? parseInt(logForm.waterGlasses) : undefined,
-      workoutDone: logForm.workoutDone,
-    }, {
-      onSuccess: () => {
-        setLogOpen(false);
-        setLogForm({ sleepHours: "", steps: "", waterGlasses: "", workoutDone: false });
-      },
-    });
+  const [date, setDate] = useState(todayKey);
+  const [form, setForm] = useState(() => toForm(todayKey));
+  const [error, setError] = useState<string | null>(null);
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    const payload: Record<string, unknown> = { date, workoutDone: form.workoutDone };
+    const fields = [["sleepHours", form.sleepHours], ["steps", form.steps], ["waterGlasses", form.waterGlasses]] as const;
+    let any = form.workoutDone;
+
+    for (const [key, raw] of fields) {
+      if (raw.trim() === "") continue;
+      const value = Number(raw);
+      if (!Number.isFinite(value)) return setError("Enter valid numbers.");
+      payload[key] = value;
+      any = true;
+    }
+    if (!any) return setError("Enter at least one value.");
+
+    log.mutate(payload, { onSuccess: onClose, onError: (err: Error) => setError(err.message) });
   }
 
-  function handleHabitSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!habitForm.title.trim()) return;
-    createHabit.mutate(
-      { title: habitForm.title, category: habitForm.category || undefined },
-      { onSuccess: () => { setHabitOpen(false); setHabitForm({ title: "", category: "" }); } }
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Log health</DialogTitle></DialogHeader>
+        <form onSubmit={submit} className="space-y-3 pt-1">
+          <div className="space-y-1">
+            <Label>Date</Label>
+            <Input type="date" value={date} min={minKey} max={todayKey} onChange={(e) => { setDate(e.target.value); setForm(toForm(e.target.value)); }} required />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Sleep (hours)</Label>
+              <Input type="number" inputMode="decimal" step="0.1" min="0" max="24" placeholder="7.5" value={form.sleepHours} onChange={(e) => setForm((f) => ({ ...f, sleepHours: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <Label>Steps</Label>
+              <Input type="number" inputMode="numeric" min="0" max="100000" placeholder="8000" value={form.steps} onChange={(e) => setForm((f) => ({ ...f, steps: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <Label>Water (glasses)</Label>
+              <Input type="number" inputMode="numeric" min="0" max="30" placeholder="6" value={form.waterGlasses} onChange={(e) => setForm((f) => ({ ...f, waterGlasses: e.target.value }))} />
+            </div>
+            <label className="flex items-end gap-2 pb-2 text-sm">
+              <input type="checkbox" checked={form.workoutDone} onChange={(e) => setForm((f) => ({ ...f, workoutDone: e.target.checked }))} /> Workout done
+            </label>
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={log.isPending}>{log.isPending ? "Saving..." : "Save"}</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default function HealthPage() {
+  const { data, isLoading, isError, refetch } = useHealthSummary();
+  const log = useLogHealth();
+  const toggleHabit = useToggleHabitCompletion();
+  const [dialogId, setDialogId] = useState<number | null>(null);
+
+  if (isError && !data) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-20 text-center">
+        <p className="text-sm text-destructive">Couldn't load your health data.</p>
+        <Button size="sm" variant="outline" onClick={() => refetch()}>Try again</Button>
+      </div>
     );
   }
 
-  if (isLoading) return <Skeleton className="h-[calc(100vh-8rem)] rounded-xl" />;
+  if (isLoading || !data) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-12 w-56" />
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-36 rounded-xl" />)}</div>
+        <Skeleton className="h-56 rounded-xl" />
+      </div>
+    );
+  }
+
+  const { today, goals, week, averages } = data;
+  const sleep = today.sleepHours ?? 0;
+  const steps = today.steps ?? 0;
+  const water = today.waterGlasses ?? 0;
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={item} className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <HeartPulse className="h-6 w-6 text-primary" /> Health
-          </h1>
-          <p className="text-muted-foreground mt-1 text-[10px] sm:text-xl">Track sleep, activity, hydration, and habits</p>
-        </div>
-        <div className="flex gap-2 flex-col sm:flex-row">
-          <Button variant="outline" onClick={() => setHabitOpen(true)} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl ml-2">
-            <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Add habit
-          </Button>
-          <Button onClick={() => setLogOpen(true)} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl ml-2">
-            <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Log today
-          </Button>
-        </div>
-      </motion.div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={HeartPulse}
+        title="Health"
+        subtitle="Sleep, movement, hydration and habits in one place."
+        actions={<Button onClick={() => setDialogId(Date.now())}><Plus className="mr-1.5 h-4 w-4" /> Log health</Button>}
+      />
 
-      <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[
-          { label: "Sleep", value: `${summary.sleepHours} h`, icon: Moon },
-          { label: "Steps", value: summary.steps.toLocaleString(), icon: Footprints },
-          { label: "Water", value: `${summary.waterGlasses} glasses`, icon: Droplets },
-          { label: "Workouts", value: `${summary.workoutsThisWeek} / week`, icon: Dumbbell },
-        ].map((stat) => (
-          <Card key={stat.label} className="hover:border-primary/20 transition-colors">
-            <CardHeader className="pb-2 flex items-center justify-between">
-              <CardTitle className="text-xs text-muted-foreground">{stat.label}</CardTitle>
-              <stat.icon className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <p className="text-xl font-semibold">{stat.value}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </motion.div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <motion.div variants={item} className="lg:col-span-2">
-          <Card className="hover:border-primary/20 transition-colors">
-            <CardHeader className="pb-3 flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <HeartPulse className="h-4 w-4" /> Wellness metrics
-              </CardTitle>
-              <Badge variant="secondary" className="text-[11px]">{summary.metrics.length} metrics</Badge>
-            </CardHeader>
-            <CardContent>
-              {summary.metrics.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No data yet. Click &quot;Log today&quot; to add your first entry.
-                </p>
-              ) : (
-                <ScrollArea className="max-h-90">
-                  <div className="space-y-3 pt-1">
-                    {summary.metrics.map((m) => {
-                      const trendConfig = {
-                        up: { label: "On target", className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
-                        down: { label: "Needs attention", className: "bg-destructive/15 text-destructive border-destructive/30" },
-                        stable: { label: "Stable", className: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
-                      }[m.trend ?? "stable"];
-
-                      return (
-                        <div
-                          key={m.id}
-                          className="flex items-center justify-between rounded-lg border border-border/60 bg-card/60 p-3"
-                        >
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{m.label}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {m.value}{m.target ? ` · target ${m.target}` : ""}
-                            </p>
-                          </div>
-                          {m.trend && (
-                            <span className={`text-[10px] shrink-0 px-2 py-0.5 rounded-full border font-medium ${trendConfig.className}`}>
-                              {trendConfig.label}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div variants={item} className="space-y-4">
-          <Card className="hover:border-primary/20 transition-colors">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-primary" /> Habits
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {summary.habits.length === 0 ? (
-                <div className="text-center py-4">
-                  <p className="text-sm text-muted-foreground mb-3">No habits yet.</p>
-                  <Button size="sm" variant="outline" onClick={() => setHabitOpen(true)}>
-                    <Plus className="h-3 w-3 mr-1" /> Add first habit
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {summary.habits.map((habit) => (
-                    <div key={habit.id} className="flex items-center justify-between rounded-lg border border-border/60 bg-card/60 p-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{habit.title}</p>
-                        <p className="text-xs text-muted-foreground">Streak: {habit.streak} days</p>
-                      </div>
-                      {habit.completedToday ? (
-                        <Badge variant="secondary" className="text-[10px]">Done</Badge>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-[10px] h-6 px-2"
-                          disabled={completeHabit.isPending}
-                          onClick={() => completeHabit.mutate(habit.id)}
-                        >
-                          Mark done
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-primary/20 bg-primary/5 hover:border-primary/30 transition-colors">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" /> Insight
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">{summary.insight}</p>
-            </CardContent>
-          </Card>
-        </motion.div>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <StatCard icon={Moon} label="Sleep" value={`${sleep} h`} progress={percent(sleep, goals.sleepHours)} tone={sleep >= goals.sleepHours ? "success" : "default"} hint={`Goal ${goals.sleepHours} h`} />
+        <StatCard icon={Footprints} label="Steps" value={steps.toLocaleString()} progress={percent(steps, goals.steps)} tone={steps >= goals.steps ? "success" : "default"} hint={`Goal ${goals.steps.toLocaleString()}`} />
+        <StatCard
+          icon={Droplets}
+          label="Water"
+          value={`${water} / ${goals.waterGlasses}`}
+          progress={percent(water, goals.waterGlasses)}
+          tone={water >= goals.waterGlasses ? "success" : "default"}
+          hint={
+            <Button size="sm" variant="outline" className="mt-0.5 h-7 px-2 text-xs" disabled={log.isPending || water >= 30} onClick={() => log.mutate({ waterGlasses: water + 1 })}>
+              <Plus className="mr-1 h-3 w-3" /> 1 glass
+            </Button>
+          }
+        />
+        <StatCard
+          icon={Dumbbell}
+          label="Workouts this week"
+          value={`${data.workoutsThisWeek} / ${goals.workoutsPerWeek}`}
+          progress={percent(data.workoutsThisWeek, goals.workoutsPerWeek)}
+          tone={data.workoutsThisWeek >= goals.workoutsPerWeek ? "success" : "default"}
+          hint={
+            <Button size="sm" variant={today.workoutDone ? "default" : "outline"} className="mt-0.5 h-7 px-2 text-xs" disabled={log.isPending} onClick={() => log.mutate({ workoutDone: !today.workoutDone })}>
+              {today.workoutDone ? "Done today" : "Mark today"}
+            </Button>
+          }
+        />
       </div>
 
-      <Dialog open={logOpen} onOpenChange={setLogOpen}>
-        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5">
-          <DialogHeader>
-            <DialogTitle>Log today&apos;s health</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleLogSubmit} className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="sleep">Sleep (hours)</Label>
-                <Input
-                  id="sleep"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="24"
-                  placeholder="7.5"
-                  value={logForm.sleepHours}
-                  onChange={(e) => setLogForm((f) => ({ ...f, sleepHours: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="steps">Steps</Label>
-                <Input
-                  id="steps"
-                  type="number"
-                  min="0"
-                  placeholder="8000"
-                  value={logForm.steps}
-                  onChange={(e) => setLogForm((f) => ({ ...f, steps: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="water">Water (glasses)</Label>
-                <Input
-                  id="water"
-                  type="number"
-                  min="0"
-                  placeholder="6"
-                  value={logForm.waterGlasses}
-                  onChange={(e) => setLogForm((f) => ({ ...f, waterGlasses: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1 flex flex-col justify-end">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={logForm.workoutDone}
-                    onChange={(e) => setLogForm((f) => ({ ...f, workoutDone: e.target.checked }))}
-                    className="rounded"
-                  />
-                  <span className="text-sm">Workout done</span>
-                </label>
-              </div>
+      {data.insights.length > 0 && (
+        <div className="grid gap-2 md:grid-cols-2">
+          {data.insights.map((insight) => (
+            <div key={insight.text} className={cn("flex items-start gap-3 rounded-xl border p-3", INSIGHT_STYLE[insight.tone])}>
+              <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <p className="text-sm">{insight.text}</p>
             </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setLogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={logHealth.isPending}>
-                {logHealth.isPending ? "Saving..." : "Save"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+          ))}
+        </div>
+      )}
 
-      <Dialog open={habitOpen} onOpenChange={setHabitOpen}>
-        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5">
-          <DialogHeader>
-            <DialogTitle>Add a habit</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleHabitSubmit} className="space-y-4 pt-2">
-            <div className="space-y-1">
-              <Label htmlFor="habit-title">Habit name</Label>
-              <Input
-                id="habit-title"
-                placeholder="Morning walk"
-                value={habitForm.title}
-                onChange={(e) => setHabitForm((f) => ({ ...f, title: e.target.value }))}
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="habit-category">Category (optional)</Label>
-              <select
-                id="habit-category"
-                value={habitForm.category}
-                onChange={(e) => setHabitForm((f) => ({ ...f, category: e.target.value }))}
-                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
-              >
-                <option value="">None</option>
-                <option value="health">Health</option>
-                <option value="focus">Focus</option>
-                <option value="learning">Learning</option>
-                <option value="finance">Finance</option>
-              </select>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setHabitOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createHabit.isPending}>
-                {createHabit.isPending ? "Adding..." : "Add habit"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </motion.div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Trend title="Sleep" icon={Moon} days={week} pick={(day) => day.sleepHours} goal={goals.sleepHours} average={averages.sleepHours} format={(value) => `${value.toFixed(1)} h`} />
+        <Trend title="Steps" icon={Footprints} days={week} pick={(day) => day.steps} goal={goals.steps} average={averages.steps} format={(value) => Math.round(value).toLocaleString()} />
+        <Trend title="Water" icon={Droplets} days={week} pick={(day) => day.waterGlasses} goal={goals.waterGlasses} average={averages.waterGlasses} format={(value) => `${value.toFixed(1)} glasses`} />
+      </div>
+
+      <Section title="Habits" icon={CheckCircle2} action={<SectionLink href="/app/habits">Manage</SectionLink>}>
+        {data.habits.length === 0 ? (
+          <EmptyState icon={CheckCircle2} title="No habits yet" body="Habits you create show up here for a quick daily check-off." action={<Button size="sm" variant="outline" asChild><Link href="/app/habits">Create a habit</Link></Button>} />
+        ) : (
+          <div className="grid gap-2 md:grid-cols-2">
+            {data.habits.map((habit) => (
+              <label key={habit.id} className="flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 hover:border-primary/40">
+                <Checkbox checked={habit.completedToday} onCheckedChange={() => toggleHabit.mutate({ id: habit.id })} />
+                <span className="min-w-0 flex-1">
+                  <span className={cn("block truncate text-sm font-medium", habit.completedToday && "text-muted-foreground line-through")}>{habit.title}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {habit.streak} {habit.frequency === "weekly" ? "week" : "day"} streak{habit.atRisk ? " · at risk" : ""}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      {dialogId !== null && <LogDialog key={dialogId} data={data} onClose={() => setDialogId(null)} />}
+    </div>
   );
 }

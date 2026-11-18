@@ -40,21 +40,20 @@ exports.uploadImage = (0, errors_1.asyncHandler)(async (req, res) => {
     const file = req.file;
     if (!file)
         throw new errors_1.AppError("No file uploaded", 400);
-    const result = await aiImageService.uploadForProcessing(file.buffer, file.originalname);
-    return res.status(201).json(result);
+    return res.status(201).json(await aiImageService.uploadForProcessing(req.user.id, file.buffer));
 });
 exports.applyTool = (0, errors_1.asyncHandler)(async (req, res) => {
     const { publicId, tool, format } = req.body;
-    const url = aiImageService.buildTransformedUrl(publicId, tool, format);
-    return res.json({ url });
+    aiImageService.assertOwnImage(req.user.id, publicId);
+    return res.json({ url: aiImageService.buildTransformedUrl(publicId, tool, format) });
 });
 exports.convertFormat = (0, errors_1.asyncHandler)(async (req, res) => {
     const { publicId, format, quality } = req.body;
-    const url = aiImageService.buildFormatConvertedUrl(publicId, format, quality);
-    return res.json({ url });
+    aiImageService.assertOwnImage(req.user.id, publicId);
+    return res.json({ url: aiImageService.buildFormatConvertedUrl(publicId, format, quality) });
 });
 exports.generativeEdit = (0, errors_1.asyncHandler)(async (req, res) => {
     const { publicId, prompt, mode } = req.body;
-    const url = aiImageService.buildGenerativeEditUrl(publicId, prompt, mode);
-    return res.json({ url });
+    aiImageService.assertOwnImage(req.user.id, publicId);
+    return res.json({ url: aiImageService.buildGenerativeEditUrl(publicId, prompt, mode) });
 });

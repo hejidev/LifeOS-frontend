@@ -37,8 +37,8 @@ exports.remove = exports.update = exports.create = exports.list = void 0;
 const errors_1 = require("../lib/errors");
 const calendarService = __importStar(require("../services/calendar.service"));
 exports.list = (0, errors_1.asyncHandler)(async (req, res) => {
-    const range = req.query.range;
-    const events = await calendarService.listEvents(req.user.id, range);
+    const { range, from, to } = req.query;
+    const events = await calendarService.listEvents(req.user.id, { range, from, to });
     return res.json({ events });
 });
 exports.create = (0, errors_1.asyncHandler)(async (req, res) => {

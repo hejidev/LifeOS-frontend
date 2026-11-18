@@ -1,9 +1,17 @@
 import { cloudinary } from "../config/cloudinary";
+import { AppError } from "../lib/errors";
 
-export async function uploadForProcessing(buffer: Buffer, originalName: string) {
+const ROOT = "lifeos/image-tools";
+const folderOf = (userId: string) => `${ROOT}/${userId}`;
+
+export function assertOwnImage(userId: string, publicId: string) {
+  if (!publicId.startsWith(`${folderOf(userId)}/`) || publicId.includes("..")) throw new AppError("Image not found", 404);
+}
+
+export async function uploadForProcessing(userId: string, buffer: Buffer) {
   const uploaded = await new Promise<any>((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder: "lifeos/image-tools", resource_type: "image" },
+      { folder: folderOf(userId), resource_type: "image" },
       (err, result) => (err || !result ? reject(err) : resolve(result))
     );
     stream.end(buffer);
@@ -11,7 +19,7 @@ export async function uploadForProcessing(buffer: Buffer, originalName: string) 
   return { publicId: uploaded.public_id, url: uploaded.secure_url, width: uploaded.width, height: uploaded.height };
 }
 
-const TRANSFORM_PRESETS: Record<string, string> = {
+const PRESETS: Record<string, string> = {
   REMOVE_BACKGROUND: "e_background_removal",
   UPSCALE: "e_upscale",
   ENHANCE: "e_improve,e_auto_contrast,e_auto_brightness",
@@ -20,13 +28,9 @@ const TRANSFORM_PRESETS: Record<string, string> = {
 };
 
 export function buildTransformedUrl(publicId: string, tool: string, format?: string) {
-  const transformation = TRANSFORM_PRESETS[tool];
-  if (!transformation) throw new Error("Unknown image tool");
-  return cloudinary.url(publicId, {
-    transformation: [{ raw_transformation: transformation }],
-    ...(format && { format }),
-    secure: true,
-  });
+  const transformation = PRESETS[tool];
+  if (!transformation) throw new AppError("Unknown image tool", 400);
+  return cloudinary.url(publicId, { transformation: [{ raw_transformation: transformation }], ...(format && { format }), secure: true });
 }
 
 export function buildFormatConvertedUrl(publicId: string, format: string, quality?: string) {
@@ -34,6 +38,25 @@ export function buildFormatConvertedUrl(publicId: string, format: string, qualit
 }
 
 export function buildGenerativeEditUrl(publicId: string, prompt: string, mode: "remove" | "fill") {
-  const op = mode === "remove" ? `e_gen_remove:prompt_${encodeURIComponent(prompt)}` : "e_gen_fill,b_gen_fill";
-  return cloudinary.url(publicId, { transformation: [{ raw_transformation: op }], secure: true });
+  const text = encodeURIComponent(prompt.replace(/[\r\n]+/g, " ").trim());
+  const effect = mode === "remove" ? `e_gen_remove:prompt_${text}` : `e_gen_background_replace:prompt_${text}`;
+  return cloudinary.url(publicId, { transformation: [{ raw_transformation: effect }], secure: true });
+}
+
+export async function cleanupExpiredImageTools(maxAgeHours = 24) {
+  const cutoff = Date.now() - maxAgeHours * 3_600_000;
+  let cursor: string | undefined;
+  let removed = 0;
+
+  do {
+    const page: any = await cloudinary.api.resources({ type: "upload", prefix: `${ROOT}/`, max_results: 500, next_cursor: cursor });
+    const ids: string[] = page.resources.filter((item: any) => Date.parse(item.created_at) < cutoff).map((item: any) => item.public_id);
+    for (let index = 0; index < ids.length; index += 100) {
+      await cloudinary.api.delete_resources(ids.slice(index, index + 100), { invalidate: true });
+      removed += Math.min(100, ids.length - index);
+    }
+    cursor = page.next_cursor;
+  } while (cursor);
+
+  return removed;
 }

@@ -1,624 +1,355 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { format } from "date-fns";
+import { useQueryClient } from "@tanstack/react-query";
 import {
-  Cloud,
-  Sun,
-  CloudRain,
-  CloudSun,
-  Calendar,
-  Sparkles,
-  TrendingUp,
-  Quote,
-  RefreshCw,
-  ArrowRight,
-  FileText,
-  BookOpen,
-  ShieldCheck,
-  Lock,
-  Upload,
-  HeartPulse,
-  MapPin,
-  Users,
-  KeyRound,
-  Target,
+  AlertTriangle, BookOpen, Calendar, CheckSquare, FileText, HeartPulse, KeyRound, Plus,
+  ShieldCheck, Sparkles, Target, TrendingUp, Users,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useTodayOverview, useUpdateTaskStatus, useRandomQuote } from "@/lib/hooks/use-life-data";
-import { formatCurrency } from "@/lib/utils";
-import { useAuthStore } from "@/lib/stores/auth-store";
-import { PasswordVaultSummary } from "@/types/life";
+import { EmptyState, ModuleTile, ProgressBar, Section, SectionLink, StatCard, type Tone } from "@/components/app/kit";
+import { useCreateNote, useCreateTask, useTodayOverview, useUpdateTaskStatus, useUserProfile } from "@/lib/hooks/use-life-data";
+import { formatCurrency, dueNoon } from "@/lib/utils";
 import { BecomeMerchantCard } from "../merchant/become-merchant-card";
 
-const weatherIcons = {
-  sun: Sun,
-  cloud: Cloud,
-  rain: CloudRain,
-  "partly-cloudy": CloudSun,
+type Overview = {
+  user: { name: string };
+  events: { id: string; title: string; start: string; type: string }[];
+  priorityTasks: { id: string; title: string; status: "todo" | "in_progress" | "done"; priority: "P1" | "P2" | "P3" | "P4"; dueTime?: string }[];
+  overdueCount: number;
+  goals: { id: string; title: string; progress: number; target: number; unit?: string }[];
+  finance: { totalSpent: number; monthlyBudget: number; totalIncome: number };
+  recentNotes: { id: string; title: string; summary: string }[];
+  documents: { total: number; encrypted: number; expiringSoon: number };
+  study: { total: number; inProgress: number; completed: number; nextMaterialTitle?: string };
+  health: { sleepHours: number; steps: number };
+  passwordVault: { totalItems: number; weakCount: number };
+  family: { members: unknown[] };
+  suggestions: { id: string; title: string; reason: string }[];
 };
 
-const priorityColors = {
-  P1: "destructive",
-  P2: "warning",
-  P3: "secondary",
-  P4: "outline",
-} as const;
-
-const container = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.08 } },
+type TimelineItem = {
+  key: string;
+  kind: "event" | "task";
+  id: string;
+  title: string;
+  minutes: number | null;
+  label: string;
+  status?: "todo" | "in_progress" | "done";
+  priority?: string;
+  type?: string;
 };
 
-const item = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0 },
-};
+const PRIORITY_RANK: Record<string, number> = { P1: 0, P2: 1, P3: 2, P4: 3 };
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">{children}</p>;
+function buildTimeline(data: Overview): TimelineItem[] {
+  const events: TimelineItem[] = data.events.map((event) => {
+    const start = new Date(event.start);
+    return {
+      key: `e-${event.id}`,
+      kind: "event",
+      id: event.id,
+      title: event.title,
+      minutes: start.getHours() * 60 + start.getMinutes(),
+      label: format(start, "h:mm a"),
+      type: event.type,
+    };
+  });
+
+  const tasks: TimelineItem[] = data.priorityTasks.map((task) => {
+    const [hours, minutes] = (task.dueTime ?? "").split(":").map(Number);
+    const timed = Number.isFinite(hours) && Number.isFinite(minutes);
+    return {
+      key: `t-${task.id}`,
+      kind: "task",
+      id: task.id,
+      title: task.title,
+      minutes: timed ? hours * 60 + minutes : null,
+      label: timed ? format(new Date(2000, 0, 1, hours, minutes), "h:mm a") : "Anytime",
+      status: task.status,
+      priority: task.priority,
+    };
+  });
+
+  return [...events, ...tasks].sort((a, b) => {
+    if (a.minutes !== null && b.minutes !== null) return a.minutes - b.minutes;
+    if (a.minutes !== null) return -1;
+    if (b.minutes !== null) return 1;
+    return (PRIORITY_RANK[a.priority ?? "P4"] ?? 3) - (PRIORITY_RANK[b.priority ?? "P4"] ?? 3);
+  });
 }
 
-type DashboardOverview = {
-  family: any;
-  user: { name: string };
-  weather: {
-    icon: keyof typeof weatherIcons;
-    location: string;
-    temp: number;
-    condition: string;
-    high: number;
-    low: number;
-  } | null;
-  events: Array<{
-    id: string;
-    title: string;
-    start: string;
-    type: string;
-  }>;
-  quote: { text: string; author: string };
-  priorityTasks: Array<{
-    id: string;
-    title: string;
-    status: "todo" | "in_progress" | "done";
-    priority: "P1" | "P2" | "P3" | "P4";
-    suggestedSchedule?: string;
-  }>;
-  goals: Array<{
-    id: string;
-    title: string;
-    progress: number;
-    target: number;
-    unit?: string;
-  }>;
-  finance: {
-    totalIncome: number;
-    savings: number;
-    totalSpent: number;
-    monthlyBudget: number;
-    insight: string;
-  };
-  recentNotes: Array<{
-    id: string;
-    title: string;
-    summary: string;
-  }>;
-  documents: {
-    total: number;
-    encrypted: number;
-    expiringSoon: number;
-    recentlyOpened: number;
-    linkedTasks: number;
-    linkedNotes: number;
-    recent: Array<{
-      id: string;
-      title: string;
-      category: string;
-      encrypted: boolean;
-      expiresSoon?: boolean;
-    }>;
-  };
-  study: {
-    total: number;
-    inProgress: number;
-    completed: number;
-    nextMaterialTitle?: string;
-  };
-  health: {
-    sleepHours: number;
-    steps: number;
-  };
-  passwordVault: PasswordVaultSummary;
-  suggestions: Array<{
-    id: string;
-    title: string;
-    reason: string;
-  }>;
-};
+function QuickAdd() {
+  const queryClient = useQueryClient();
+  const createTask = useCreateTask();
+  const createNote = useCreateNote();
+  const [text, setText] = useState("");
+  const [kind, setKind] = useState<"task" | "note">("task");
+  const pending = createTask.isPending || createNote.isPending;
+  const failed = createTask.isError || createNote.isError;
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    const title = text.trim();
+    if (!title || pending) return;
+    const done = () => {
+      setText("");
+      void queryClient.invalidateQueries({ queryKey: ["todayOverview"] });
+    };
+    if (kind === "task") {
+      createTask.mutate({ title, priority: "P3", status: "todo", dueDate: dueNoon(0) }, { onSuccess: done });
+    } else {
+      createNote.mutate({ title, content: "", folder: "Personal" }, { onSuccess: done });
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-2">
+      <div className="flex gap-2">
+        <Input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={kind === "task" ? "Add a task for today..." : "Capture a quick note..."}
+          className="h-11 bg-background/80"
+          maxLength={200}
+        />
+        <Button type="submit" className="h-11 shrink-0" disabled={pending || !text.trim()}>
+          <Plus className="mr-1.5 h-4 w-4" /> Add
+        </Button>
+      </div>
+      <div className="flex items-center gap-1.5 text-xs">
+        {(["task", "note"] as const).map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => setKind(option)}
+            className={`rounded-full border px-3 py-1 font-medium capitalize transition-colors ${kind === option ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}
+          >
+            {option}
+          </button>
+        ))}
+        {failed && <span className="text-destructive">Couldn't save that. Try again.</span>}
+      </div>
+    </form>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      <Skeleton className="h-44 rounded-2xl" />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 rounded-xl" />)}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Skeleton className="h-80 rounded-xl lg:col-span-2" />
+        <Skeleton className="h-80 rounded-xl" />
+      </div>
+    </div>
+  );
+}
 
 export function DashboardContent() {
   const { data, isLoading, isError, error, refetch } = useTodayOverview() as {
-    data: DashboardOverview | undefined;
+    data: Overview | undefined;
     isLoading: boolean;
     isError: boolean;
     error: Error | null;
     refetch: () => void;
   };
+  const { data: profile } = useUserProfile();
   const updateTask = useUpdateTaskStatus();
-  const { data: quote, refetch: refreshQuote } = useRandomQuote();
-  const { user } = useAuthStore();
 
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
-        <p className="text-sm text-destructive">Failed to load dashboard: {error?.message ?? "Unknown error"}</p>
+      <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
+        <p className="text-sm text-destructive">Couldn't load your dashboard: {error?.message ?? "Unknown error"}</p>
         <Button size="sm" variant="outline" onClick={() => refetch()}>Try again</Button>
       </div>
     );
   }
 
-  if (isLoading || !data) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <Skeleton key={i} className="h-40 rounded-xl" />
-        ))}
-      </div>
-    );
-  }
+  if (isLoading || !data) return <DashboardSkeleton />;
 
+  const currency = profile?.currency ?? "NGN";
   const hour = new Date().getHours();
-  const greeting =
-    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const firstName = data.user.name?.split(" ")[0] ?? "there";
 
-  const quoteData = quote || data.quote;
+  const timeline = buildTimeline(data);
+  const openTasks = data.priorityTasks.filter((task) => task.status !== "done").length;
+  const doneTasks = data.priorityTasks.length - openTasks;
+
+  const spent = data.finance.totalSpent;
+  const budget = data.finance.monthlyBudget;
+  const budgetPercent = budget > 0 ? Math.round((spent / budget) * 100) : null;
+  const spendTone: Tone = budgetPercent === null ? "default" : budgetPercent >= 100 ? "danger" : budgetPercent >= 80 ? "warning" : "default";
+
+  const goalAverage = data.goals.length
+    ? Math.round(data.goals.reduce((sum, goal) => sum + (goal.target > 0 ? Math.min(100, (goal.progress / goal.target) * 100) : 0), 0) / data.goals.length)
+    : null;
+
+  const attention = data.overdueCount + data.documents.expiringSoon + data.passwordVault.weakCount;
+  const attentionParts = [
+    data.overdueCount > 0 && `${data.overdueCount}${data.overdueCount >= 10 ? "+" : ""} overdue`,
+    data.documents.expiringSoon > 0 && `${data.documents.expiringSoon} expiring`,
+    data.passwordVault.weakCount > 0 && `${data.passwordVault.weakCount} weak passwords`,
+  ].filter(Boolean);
+
+  const summary =
+    openTasks === 0 && data.events.length === 0
+      ? "Nothing is scheduled today. A good day for deep work."
+      : `${openTasks} ${openTasks === 1 ? "task" : "tasks"} to do and ${data.events.length} ${data.events.length === 1 ? "event" : "events"} today.`;
 
   return (
-    <motion.div
-      variants={container}
-      initial="hidden"
-      animate="show"
-      className="space-y-6 sm:space-y-10"
-    >
-      <motion.div variants={item}>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-          {greeting}, {user?.name ? ` ${user.name}` : ""}!
-        </h1>
-        <p className="text-muted-foreground text-xs sm:text-sm mt-1">
-          {format(new Date(), "EEEE, MMMM d, yyyy")} - Here&apos;s your day at a glance
-        </p>
-      </motion.div>
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/15 via-background to-violet-500/10 p-5 sm:p-7">
+        <p className="text-xs font-medium uppercase tracking-wide text-primary">{format(new Date(), "EEEE, d MMMM yyyy")}</p>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">{greeting}, {firstName}</h1>
+        <p className="mb-5 mt-1 text-sm text-muted-foreground">{summary}</p>
+        <QuickAdd />
+      </section>
 
-      {/* Today at a Glance */}
-      <div>
-        <SectionLabel>Today at a Glance</SectionLabel>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {data.weather && (
-            <motion.div variants={item}>
-              <Card className="h-full hover:border-primary/20 transition-colors">
-                <CardContent className="p-4 sm:p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs sm:text-sm text-muted-foreground">{data.weather.location}</p>
-                      <p className="text-2xl sm:text-3xl font-bold mt-1">{data.weather.temp}°C</p>
-                      <p className="text-xs sm:text-sm text-muted-foreground">{data.weather.condition}</p>
-                    </div>
-                    {(() => {
-                      const WeatherIcon = weatherIcons[data.weather.icon];
-                      return <WeatherIcon className="h-10 w-10 sm:h-12 sm:w-12 text-primary/60" />;
-                    })()}
-                  </div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-3">H: {data.weather.high}° L: {data.weather.low}°</p>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-
-          <motion.div variants={item} className={data.weather ? "sm:col-span-2 lg:col-span-2" : "sm:col-span-2 lg:col-span-3"}>
-            <Card className="h-full hover:border-primary/20 transition-colors">
-              <CardHeader className="pb-2 sm:pb-3 flex flex-row items-center justify-between">
-                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-                  <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Today&apos;s Schedule
-                </CardTitle>
-                <Button variant="ghost" size="sm" asChild className="text-xs sm:text-sm">
-                  <Link href="/app/calendar">Open <ArrowRight className="ml-1 h-3 w-3" /></Link>
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-2 sm:space-y-3">
-                {data.events.length === 0 ? (
-                  <p className="text-xs sm:text-sm text-muted-foreground">No events today - great day for deep work!</p>
-                ) : (
-                  data.events.map((event) => (
-                    <div key={event.id} className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm">
-                      <span className="text-muted-foreground w-14 sm:w-16 shrink-0">{format(new Date(event.start), "h:mm a")}</span>
-                      <div className="h-1.5 sm:h-2 w-1.5 sm:w-2 rounded-full bg-primary shrink-0" />
-                      <span className="flex-1 truncate">{event.title}</span>
-                      <Badge variant="outline" className="text-[9px] sm:text-[10px] capitalize">{event.type}</Badge>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div variants={item}>
-            <Card className="h-full hover:border-primary/20 transition-colors">
-              <CardContent className="p-4 sm:p-5 flex flex-col justify-center h-full">
-                <Quote className="h-4 w-4 sm:h-5 sm:w-5 text-primary/60 mb-2 sm:mb-3" />
-                <p className="text-xs sm:text-sm italic leading-relaxed">&ldquo;{quoteData.text}&rdquo;</p>
-                <div className="flex items-center justify-between mt-2 sm:mt-3">
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">- {quoteData.author}</p>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7" onClick={() => refreshQuote()}>
-                    <RefreshCw className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <StatCard
+          icon={CheckSquare}
+          label="Tasks today"
+          value={`${doneTasks}/${data.priorityTasks.length}`}
+          progress={data.priorityTasks.length ? (doneTasks / data.priorityTasks.length) * 100 : 0}
+          hint={data.overdueCount > 0 ? `${data.overdueCount}${data.overdueCount >= 10 ? "+" : ""} overdue` : "On track"}
+          tone={data.overdueCount > 0 ? "warning" : "default"}
+          href="/app/tasks"
+        />
+        <StatCard
+          icon={TrendingUp}
+          label="Spent this month"
+          value={formatCurrency(spent, currency)}
+          progress={budgetPercent ?? undefined}
+          hint={budget > 0 ? `${budgetPercent}% of ${formatCurrency(budget, currency)}` : "No budget set"}
+          tone={spendTone}
+          href="/app/finance"
+        />
+        <StatCard
+          icon={Target}
+          label="Goals"
+          value={goalAverage === null ? "None" : `${goalAverage}%`}
+          progress={goalAverage ?? undefined}
+          hint={data.goals.length ? `${data.goals.length} active` : "Set your first goal"}
+          href="/app/goals"
+        />
+        <StatCard
+          icon={AlertTriangle}
+          label="Needs attention"
+          value={attention}
+          hint={attentionParts.length ? attentionParts.join(" · ") : "All clear"}
+          tone={attention > 0 ? "warning" : "success"}
+        />
       </div>
 
-      <motion.div variants={item}>
-        <BecomeMerchantCard />
-      </motion.div>
-
-      <div>
-        <SectionLabel>Your Focus</SectionLabel>
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 sm:gap-4">
-          <motion.div variants={item} className="lg:col-span-2">
-            <Card className="h-full hover:border-primary/20 transition-colors">
-              <CardHeader className="pb-2 sm:pb-3 flex flex-row items-center justify-between">
-                <CardTitle className="text-sm sm:text-base">Priority Tasks</CardTitle>
-                <Button variant="ghost" size="sm" asChild className="text-xs sm:text-sm">
-                  <Link href="/app/tasks">View all <ArrowRight className="ml-1 h-3 w-3" /></Link>
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {data.priorityTasks.length === 0 ? (
-                  <p className="text-xs sm:text-sm text-muted-foreground">Nothing due today - you&apos;re clear.</p>
-                ) : (
-                  data.priorityTasks.map((task) => (
-                    <div key={task.id} className="flex items-center gap-2 sm:gap-3 rounded-lg p-2 hover:bg-accent/50 transition-colors">
-                      <Checkbox
-                        checked={task.status === "done"}
-                        onCheckedChange={(checked) => updateTask.mutate({ id: task.id, status: checked ? "done" : "todo" })}
-                        className="shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-xs sm:text-sm truncate ${task.status === "done" ? "line-through text-muted-foreground" : ""}`}>
-                          {task.title}
-                        </p>
-                        {task.suggestedSchedule && <p className="text-[10px] sm:text-xs text-primary">{task.suggestedSchedule}</p>}
-                      </div>
-                      <Badge variant={priorityColors[task.priority]} className="text-[9px] sm:text-[10px] shrink-0">{task.priority}</Badge>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div variants={item} className="lg:col-span-2">
-            <Card className="h-full hover:border-primary/20 transition-colors">
-              <CardHeader className="pb-2 sm:pb-3 flex flex-row items-center justify-between">
-                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-                  <Target className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" /> Goals
-                </CardTitle>
-                <Button variant="ghost" size="sm" asChild className="text-xs sm:text-sm">
-                  <Link href="/app/goals">Open <ArrowRight className="ml-1 h-3 w-3" /></Link>
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-3 sm:space-y-4">
-                {data.goals.length === 0 ? (
-                  <div className="text-center py-3 sm:py-4 space-y-2">
-                    <p className="text-xs sm:text-sm text-muted-foreground">No active goals yet.</p>
-                    <Button size="sm" variant="outline" asChild className="text-xs sm:text-sm"><Link href="/app/goals">Set a goal</Link></Button>
-                  </div>
-                ) : (
-                  data.goals.map((goal) => (
-                    <div key={goal.id}>
-                      <div className="flex justify-between text-xs sm:text-sm mb-1">
-                        <span className="truncate">{goal.title}</span>
-                        <span className="text-muted-foreground shrink-0 ml-2">
-                          {goal.progress}/{goal.target}{goal.unit ? ` ${goal.unit}` : ""}
-                        </span>
-                      </div>
-                      <div className="h-1.5 sm:h-2 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className="h-full rounded-full gradient-bg transition-all"
-                          style={{ width: `${Math.min((goal.progress / goal.target) * 100, 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-      </div>
-
-      <div>
-        <SectionLabel>Life & Growth</SectionLabel>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <motion.div variants={item}>
-            <Card className="h-full hover:border-primary/20 transition-colors">
-              <CardHeader className="pb-2 sm:pb-3 flex flex-row items-center justify-between">
-                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-                  <HeartPulse className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" /> Health
-                </CardTitle>
-                <Button variant="ghost" size="sm" asChild className="text-xs sm:text-sm">
-                  <Link href="/app/health">Open <ArrowRight className="ml-1 h-3 w-3" /></Link>
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-2 sm:space-y-3">
-                <div className="flex items-center justify-between text-xs sm:text-sm">
-                  <div>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">Last night sleep</p>
-                    <p className="text-xs sm:text-sm font-semibold">{data.health.sleepHours.toFixed(1)} h</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">Today steps</p>
-                    <p className="text-xs sm:text-sm font-semibold">{data.health.steps.toLocaleString()}</p>
-                  </div>
-                </div>
-                <p className="text-[10px] sm:text-[11px] text-muted-foreground">
-                  {data.health.sleepHours > 0 || data.health.steps > 0 ? "Based on your latest health log." : "No health logs yet - add one in the Health module."}
-                </p>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div variants={item}>
-            <Card className="h-full hover:border-primary/20 transition-colors">
-              <CardHeader className="pb-2 sm:pb-3 flex flex-row items-center justify-between">
-                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-                  <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" /> Family
-                </CardTitle>
-                <Button variant="ghost" size="sm" asChild className="text-xs sm:text-sm">
-                  <Link href="/app/family">Open <ArrowRight className="ml-1 h-3 w-3" /></Link>
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-2 sm:space-y-3">
-                <div className="flex items-center justify-between text-xs sm:text-sm">
-                  <div>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">Members</p>
-                    <p className="text-xs sm:text-sm font-semibold">{data.family.members.length}</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
-                    <div>
-                      <p className="text-[10px] sm:text-xs text-muted-foreground">Sharing location</p>
-                      <p className="text-xs sm:text-sm font-semibold">
-                        {data.family.members.filter((m: { locationSharing: any }) => m.locationSharing).length}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <p className="text-[10px] sm:text-[11px] text-muted-foreground">
-                  {data.family.members.length > 0 ? data.family.insight : "Add family members to start managing screen time and safety."}
-                </p>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div variants={item}>
-            <Card className="h-full hover:border-primary/20 transition-colors">
-              <CardHeader className="pb-2 sm:pb-3 flex flex-row items-center justify-between">
-                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-                  <BookOpen className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" /> Study
-                </CardTitle>
-                <Button variant="ghost" size="sm" asChild className="text-xs sm:text-sm">
-                  <Link href="/app/study">Open <ArrowRight className="ml-1 h-3 w-3" /></Link>
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-2 sm:space-y-3">
-                <div className="grid grid-cols-3 gap-1.5 sm:gap-2 text-center">
-                  <div className="rounded-lg bg-card/60 border border-border/60 p-1.5 sm:p-2">
-                    <p className="text-[10px] sm:text-[11px] text-muted-foreground">Total</p>
-                    <p className="text-xs sm:text-sm font-semibold">{data.study.total}</p>
-                  </div>
-                  <div className="rounded-lg bg-card/60 border border-border/60 p-1.5 sm:p-2">
-                    <p className="text-[10px] sm:text-[11px] text-muted-foreground">In progress</p>
-                    <p className="text-xs sm:text-sm font-semibold">{data.study.inProgress}</p>
-                  </div>
-                  <div className="rounded-lg bg-card/60 border border-border/60 p-1.5 sm:p-2">
-                    <p className="text-[10px] sm:text-[11px] text-muted-foreground">Completed</p>
-                    <p className="text-xs sm:text-sm font-semibold">{data.study.completed}</p>
-                  </div>
-                </div>
-                {data.study.nextMaterialTitle ? (
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">
-                    Next up: <span className="font-medium text-foreground">{data.study.nextMaterialTitle}</span>
-                  </p>
-                ) : (
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">No study session queued. Add material in the Study module.</p>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-      </div>
-
-      <div>
-        <SectionLabel>Notes & Documents</SectionLabel>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-          <motion.div variants={item}>
-            <Card className="h-full hover:border-primary/20 transition-colors">
-              <CardHeader className="pb-2 sm:pb-3 flex flex-row items-center justify-between">
-                <CardTitle className="text-sm sm:text-base">Recent Notes</CardTitle>
-                <Button variant="ghost" size="sm" asChild className="text-xs sm:text-sm">
-                  <Link href="/app/notes">View all <ArrowRight className="ml-1 h-3 w-3" /></Link>
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {data.recentNotes.length === 0 ? (
-                  <p className="text-xs sm:text-sm text-muted-foreground">No notes yet.</p>
-                ) : (
-                  data.recentNotes.map((note) => (
-                    <Link
-                      key={note.id}
-                      href={`/app/notes?id=${note.id}`}
-                      className="block rounded-lg p-2 sm:p-3 hover:bg-accent/50 transition-colors"
-                    >
-                      <p className="text-xs sm:text-sm font-medium truncate">{note.title}</p>
-                      <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 line-clamp-1">{note.summary}</p>
-                    </Link>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div variants={item}>
-            <Card className="h-full hover:border-primary/20 transition-colors">
-              <CardHeader className="pb-2 sm:pb-3 flex flex-row items-center justify-between">
-                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-                  <ShieldCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" /> Document Vault
-                </CardTitle>
-                <Button variant="ghost" size="sm" asChild className="text-xs sm:text-sm">
-                  <Link href="/app/documents">View vault <ArrowRight className="ml-1 h-3 w-3" /></Link>
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-3 sm:space-y-4">
-                <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                  <div className="rounded-lg border border-border/60 bg-card/60 p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">Total</p>
-                    <p className="text-base sm:text-lg font-semibold">{data.documents.total}</p>
-                  </div>
-                  <div className="rounded-lg border border-border/60 bg-card/60 p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">Private</p>
-                    <p className="text-base sm:text-lg font-semibold">{data.documents.encrypted}</p>
-                  </div>
-                  <div className="rounded-lg border border-border/60 bg-card/60 p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">Expiring soon</p>
-                    <p className="text-base sm:text-lg font-semibold">{data.documents.expiringSoon}</p>
-                  </div>
-                  <div className="rounded-lg border border-border/60 bg-card/60 p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">Recently opened</p>
-                    <p className="text-base sm:text-lg font-semibold">{data.documents.recentlyOpened}</p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  {data.documents.recent.map((doc) => (
-                    <div key={doc.id} className="flex items-center justify-between rounded-lg p-2 hover:bg-accent/50 transition-colors">
-                      <div className="min-w-0">
-                        <p className="text-xs sm:text-sm font-medium truncate">{doc.title}</p>
-                        <p className="text-[10px] sm:text-xs text-muted-foreground">
-                          {doc.category}{doc.expiresSoon ? " - expiring soon" : ""}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {doc.encrypted && <Lock className="h-3 w-3 text-primary" />}
-                        <Button variant="ghost" size="sm" asChild className="text-xs sm:text-sm">
-                          <Link href={`/app/documents?id=${doc.id}`}>Open</Link>
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <Button size="sm" asChild className="w-full text-xs sm:text-sm">
-                  <Link href="/app/documents"><Upload className="mr-2 h-3 w-3" /> Upload document</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-      </div>
-
-      {/* Finance & Security */}
-      <div>
-        <SectionLabel>Finance & Security</SectionLabel>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <motion.div variants={item}>
-            <Card className="h-full hover:border-primary/20 transition-colors">
-              <CardHeader className="pb-2 sm:pb-3 flex flex-row justify-between">
-                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-                  <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Finance
-                </CardTitle>
-                <Button variant="outline" asChild className="text-xs sm:text-sm">
-                  <Link href="/app/finance"><TrendingUp className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> Review budget</Link>
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1">
-                  Income {formatCurrency(data.finance.totalIncome)} - Savings {formatCurrency(data.finance.savings)}
-                </p>
-                <p className="text-xl sm:text-2xl font-bold">{formatCurrency(data.finance.totalSpent)}</p>
-                <p className="text-xs sm:text-sm text-muted-foreground">of {formatCurrency(data.finance.monthlyBudget)} budget</p>
-                {data.finance.insight && <Badge variant="warning" className="mt-2 sm:mt-3 text-[10px] sm:text-xs">{data.finance.insight}</Badge>}
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div variants={item}>
-            <Card className="h-full hover:border-primary/20 transition-colors">
-              <CardHeader className="pb-2 sm:pb-3 flex flex-row items-center justify-between">
-                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-                  <KeyRound className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" /> Password Vault
-                </CardTitle>
-                <Button variant="ghost" size="sm" asChild className="text-xs sm:text-sm">
-                  <Link href="/app/password-vault">Open <ArrowRight className="ml-1 h-3 w-3" /></Link>
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-2 sm:space-y-3">
-                <div className="flex items-center justify-between text-xs sm:text-sm">
-                  <div>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">Vault items</p>
-                    <p className="text-xs sm:text-sm font-semibold">{data.passwordVault.totalItems}</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <ShieldCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
-                    <div>
-                      <p className="text-[10px] sm:text-xs text-muted-foreground">Weak passwords</p>
-                      <p className="text-xs sm:text-sm font-semibold">{data.passwordVault.weakCount}</p>
-                    </div>
-                  </div>
-                </div>
-                <p className="text-[10px] sm:text-[11px] text-muted-foreground">
-                  {data.passwordVault.totalItems > 0 ? data.passwordVault.insight : "Add your first login to see your security score."}
-                </p>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-      </div>
-
-      {/* AI Insight */}
-      <motion.div variants={item}>
-        <Card className="border-primary/20 bg-primary/5 hover:border-primary/30 transition-colors">
-          <CardHeader className="pb-2 sm:pb-3">
-            <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-              <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" /> AI Insight
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 sm:space-y-3">
-            {data.suggestions.length === 0 ? (
-              <p className="text-xs sm:text-sm text-muted-foreground">You&apos;re all caught up - no urgent suggestions right now.</p>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
+          <Section title="Today" icon={Calendar} action={<SectionLink href="/app/calendar">Calendar</SectionLink>}>
+            {timeline.length === 0 ? (
+              <EmptyState icon={Calendar} title="A clear day" body="Add a task above or schedule an event to see your day take shape." />
             ) : (
-              data.suggestions.slice(0, 3).map((s, i) => (
-                <div key={s.id} className="flex gap-2 sm:gap-3 text-xs sm:text-sm">
-                  <span className="flex h-5 w-5 sm:h-6 sm:w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] sm:text-xs font-medium text-primary">
-                    {i + 1}
-                  </span>
-                  <div>
-                    <p className="font-medium">{s.title}</p>
-                    <p className="text-muted-foreground text-[10px] sm:text-xs mt-0.5">{s.reason}</p>
-                  </div>
-                </div>
-              ))
+              <ol className="relative space-y-1">
+                {timeline.map((item) => (
+                  <li key={item.key} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/40">
+                    <span className="w-16 shrink-0 text-xs tabular-nums text-muted-foreground">{item.label}</span>
+                    {item.kind === "task" ? (
+                      <Checkbox
+                        checked={item.status === "done"}
+                        onCheckedChange={(checked) => updateTask.mutate({ id: item.id, status: checked ? "done" : "todo" })}
+                      />
+                    ) : (
+                      <span className="mx-0.5 h-2.5 w-2.5 shrink-0 rounded-full bg-primary" />
+                    )}
+                    <span className={`min-w-0 flex-1 truncate text-sm ${item.status === "done" ? "text-muted-foreground line-through" : ""}`}>{item.title}</span>
+                    {item.kind === "event" ? (
+                      <span className="rounded-full border px-2 py-0.5 text-[11px] capitalize text-muted-foreground">{item.type}</span>
+                    ) : (
+                      <span className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">{item.priority}</span>
+                    )}
+                  </li>
+                ))}
+              </ol>
             )}
-            <Button size="sm" asChild className="text-xs sm:text-sm">
-              <Link href="/app/ai">Ask AI for more <ArrowRight className="ml-1 h-3 w-3" /></Link>
+          </Section>
+
+          <Section title="Recent notes" icon={FileText} action={<SectionLink href="/app/notes">All notes</SectionLink>}>
+            {data.recentNotes.length === 0 ? (
+              <EmptyState icon={FileText} title="No notes yet" body="Use the quick add above and choose Note." />
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {data.recentNotes.slice(0, 4).map((note) => (
+                  <Link key={note.id} href={`/app/notes?id=${note.id}`} className="rounded-lg border p-3 transition-colors hover:border-primary/40">
+                    <p className="truncate text-sm font-medium">{note.title}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{note.summary || "Empty note"}</p>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </Section>
+        </div>
+
+        <div className="space-y-4">
+          <Section title="Focus" icon={Sparkles} className="border-primary/20 bg-primary/5">
+            {data.suggestions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">You're all caught up. No urgent suggestions right now.</p>
+            ) : (
+              <div className="space-y-3">
+                {data.suggestions.slice(0, 3).map((suggestion, index) => (
+                  <div key={suggestion.id} className="flex gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">{index + 1}</span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{suggestion.title}</p>
+                      <p className="text-xs text-muted-foreground">{suggestion.reason}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Button size="sm" variant="outline" asChild className="w-full">
+              <Link href="/app/ai">Ask the AI assistant</Link>
             </Button>
-          </CardContent>
-        </Card>
-      </motion.div>
-    </motion.div>
+          </Section>
+
+          <Section title="Goals" icon={Target} action={<SectionLink href="/app/goals">Manage</SectionLink>}>
+            {data.goals.length === 0 ? (
+              <EmptyState icon={Target} title="No goals yet" action={<Button size="sm" variant="outline" asChild><Link href="/app/goals">Set a goal</Link></Button>} />
+            ) : (
+              <div className="space-y-4">
+                {data.goals.map((goal) => (
+                  <div key={goal.id} className="space-y-1.5">
+                    <div className="flex justify-between gap-2 text-sm">
+                      <span className="truncate">{goal.title}</span>
+                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                        {goal.progress}/{goal.target}{goal.unit ? ` ${goal.unit}` : ""}
+                      </span>
+                    </div>
+                    <ProgressBar value={goal.target > 0 ? (goal.progress / goal.target) * 100 : 0} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </Section>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-5">
+        <ModuleTile href="/app/study" icon={BookOpen} title="Study" metric={`${data.study.inProgress} active`} caption={data.study.nextMaterialTitle ? `Next: ${data.study.nextMaterialTitle}` : `${data.study.total} materials`} />
+        <ModuleTile href="/app/health" icon={HeartPulse} title="Health today" metric={`${data.health.steps.toLocaleString()} steps`} caption={`${data.health.sleepHours.toFixed(1)} h sleep logged`} />
+        <ModuleTile href="/app/documents" icon={ShieldCheck} title="Documents" metric={`${data.documents.total} files`} caption={`${data.documents.encrypted} private · ${data.documents.expiringSoon} expiring`} />
+        <ModuleTile href="/app/password-vault" icon={KeyRound} title="Password vault" metric={`${data.passwordVault.totalItems} logins`} caption={data.passwordVault.weakCount > 0 ? `${data.passwordVault.weakCount} weak` : "No weak passwords"} />
+        <ModuleTile href="/app/family" icon={Users} title="Family" metric={`${data.family.members.length} members`} caption="Chat and bedtime" />
+      </div>
+
+      <BecomeMerchantCard />
+    </div>
   );
 }

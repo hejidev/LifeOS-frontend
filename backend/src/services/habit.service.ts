@@ -1,134 +1,168 @@
 import { prisma } from "../config/prisma";
 import { AppError } from "../lib/errors";
+import { dateToKey, dayBounds, dayNumber, keyToDate, localDateKey, shiftDateKey } from "../lib/time";
+import { getUserClock, type UserClock } from "../lib/user-clock";
 
-function toDateOnly(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const MAX_HABITS = 50;
+const HISTORY_DAYS = 400;
+const BACKFILL_DAYS = 14;
+
+interface HabitRow {
+  id: string;
+  title: string;
+  description: string | null;
+  frequency: string;
+  category: string | null;
+  colorHex: string | null;
+  archived: boolean;
+  createdAt: Date;
+  completions: { date: Date }[];
 }
 
-function isoDate(d: Date) {
-  return toDateOnly(d).toISOString().split("T")[0];
+const weekdayOf = (key: string) => (dayNumber(key) + 4) % 7;
+
+function weekStartKey(key: string, weekStartsOn: number) {
+  return shiftDateKey(key, -((weekdayOf(key) - weekStartsOn + 7) % 7));
 }
 
-function daysBetween(a: Date, b: Date) {
-  return Math.round((toDateOnly(a).getTime() - toDateOnly(b).getTime()) / 86_400_000);
+function weekIndex(key: string, weekStartsOn: number) {
+  const base = (((weekStartsOn - 4) % 7) + 7) % 7;
+  return (dayNumber(weekStartKey(key, weekStartsOn)) - base) / 7;
 }
 
-// Computes current + longest streak from a list of completion dates (desc order).
-function computeStreaks(completionDates: Date[], frequency: string, today: Date) {
-  if (completionDates.length === 0) return { current: 0, longest: 0, completedToday: false };
-
-  const days = [...new Set(completionDates.map((d) => isoDate(d)))]
-    .map((s) => new Date(s))
-    .sort((a, b) => b.getTime() - a.getTime());
-
-  const step = frequency === "weekly" ? 7 : 1;
-  const completedToday = isoDate(days[0]) === isoDate(today);
-
-  let current = 0;
-  let cursor = completedToday ? today : new Date(today.getTime() - step * 86_400_000);
-  for (const d of days) {
-    const diff = daysBetween(cursor, d);
-    if (diff === 0) {
-      current += 1;
-      cursor = new Date(cursor.getTime() - step * 86_400_000);
-    } else if (diff < 0) {
-      continue;
-    } else {
-      break;
-    }
-  }
-  if (!completedToday && current > 0 && daysBetween(today, days[0]) > step) {
-    current = 0; // streak broken — most recent completion is too old
-  }
-
-  // Longest streak: walk the sorted unique days and count consecutive runs.
+function longestRun(units: number[]) {
   let longest = 0;
   let run = 0;
-  for (let i = 0; i < days.length; i++) {
-    if (i === 0) {
-      run = 1;
-    } else {
-      const diff = daysBetween(days[i - 1], days[i]);
-      run = diff === step ? run + 1 : 1;
-    }
+  units.forEach((unit, index) => {
+    run = index > 0 && unit - units[index - 1] === 1 ? run + 1 : 1;
     longest = Math.max(longest, run);
-  }
-
-  return { current, longest, completedToday };
+  });
+  return longest;
 }
 
-function serializeHabit(h: any, today: Date) {
-  const dates = h.completions.map((c: any) => c.date as Date);
-  const { current, longest, completedToday } = computeStreaks(dates, h.frequency, today);
-  const last30 = [...Array(30)].map((_, i) => {
-    const d = new Date(today.getTime() - (29 - i) * 86_400_000);
-    const key = isoDate(d);
-    return { date: key, completed: dates.some((c: Date) => isoDate(c) === key) };
+function currentRun(units: Set<number>, now: number) {
+  let cursor = units.has(now) ? now : now - 1;
+  let count = 0;
+  while (units.has(cursor)) {
+    count += 1;
+    cursor -= 1;
+  }
+  return count;
+}
+
+function serialize(habit: HabitRow, todayKey: string, clock: UserClock) {
+  const weekly = habit.frequency === "weekly";
+  const keys = new Set(habit.completions.map((completion) => dateToKey(completion.date)));
+  const unitOf = (key: string) => (weekly ? weekIndex(key, clock.weekStartsOn) : dayNumber(key));
+  const units = [...new Set([...keys].map(unitOf))].sort((a, b) => a - b);
+  const unitSet = new Set(units);
+  const now = unitOf(todayKey);
+  const completedToday = unitSet.has(now);
+
+  const last30Days = Array.from({ length: 30 }, (_, index) => {
+    const date = shiftDateKey(todayKey, index - 29);
+    return { date, completed: keys.has(date) };
   });
 
+  let consistency: number;
+  if (weekly) {
+    const high = completedToday ? now : now - 1;
+    const low = now - 7;
+    let done = 0;
+    for (let unit = low; unit <= high; unit += 1) if (unitSet.has(unit)) done += 1;
+    consistency = Math.round((done / (high - low + 1)) * 100);
+  } else {
+    const created = localDateKey(clock.zone, habit.createdAt);
+    const windowStart = shiftDateKey(todayKey, -29);
+    const firstKey = created > windowStart ? created : windowStart;
+    const span = last30Days.filter((day) => day.date >= firstKey);
+    consistency = span.length ? Math.round((span.filter((day) => day.completed).length / span.length) * 100) : 0;
+  }
+
   return {
-    id: h.id,
-    title: h.title,
-    description: h.description ?? undefined,
-    frequency: h.frequency,
-    category: h.category?.toLowerCase() ?? "other",
-    colorHex: h.colorHex ?? undefined,
-    streak: current,
-    longestStreak: longest,
+    id: habit.id,
+    title: habit.title,
+    description: habit.description ?? undefined,
+    frequency: weekly ? "weekly" : "daily",
+    category: habit.category?.toLowerCase() ?? "other",
+    colorHex: habit.colorHex ?? undefined,
+    streak: currentRun(unitSet, now),
+    longestStreak: longestRun(units),
     completedToday,
-    archived: h.archived,
-    last30Days: last30,
-    createdAt: h.createdAt.toISOString(),
+    archived: habit.archived,
+    consistency,
+    last30Days,
+    createdAt: habit.createdAt.toISOString(),
   };
 }
 
-export async function listHabits(userId: string, includeArchived = false) {
-  const habits = await prisma.habit.findMany({
+const withCompletions = (todayKey: string) => ({
+  completions: { where: { date: { gte: keyToDate(shiftDateKey(todayKey, -HISTORY_DAYS)) } }, select: { date: true } },
+});
+
+async function snapshot(userId: string, includeArchived: boolean) {
+  const clock = await getUserClock(userId);
+  const { dateKey: todayKey } = dayBounds(clock.zone);
+  const rows = await prisma.habit.findMany({
     where: { userId, ...(includeArchived ? {} : { archived: false }) },
-    include: { completions: { orderBy: { date: "desc" }, take: 90 } },
+    include: withCompletions(todayKey),
     orderBy: { createdAt: "asc" },
   });
-  const today = new Date();
-  return habits.map((h) => serializeHabit(h, today));
+  return { clock, todayKey, habits: rows.map((row) => serialize(row, todayKey, clock)) };
 }
 
-export async function createHabit(userId: string, data: {
-  title: string;
-  description?: string;
-  frequency?: string;
-  category?: string;
-  colorHex?: string;
-}) {
+async function viewOf(userId: string, id: string) {
+  const clock = await getUserClock(userId);
+  const { dateKey: todayKey } = dayBounds(clock.zone);
+  const row = await prisma.habit.findFirst({ where: { id, userId }, include: withCompletions(todayKey) });
+  if (!row) throw new AppError("Habit not found", 404);
+  return serialize(row, todayKey, clock);
+}
+
+export async function listHabits(userId: string, includeArchived = false) {
+  return (await snapshot(userId, includeArchived)).habits;
+}
+
+export async function createHabit(
+  userId: string,
+  data: { title: string; description?: string; frequency?: string; category?: string; colorHex?: string }
+) {
+  const count = await prisma.habit.count({ where: { userId, archived: false } });
+  if (count >= MAX_HABITS) throw new AppError(`You can track up to ${MAX_HABITS} habits`, 400);
+
   const habit = await prisma.habit.create({
     data: {
       userId,
       title: data.title,
       description: data.description,
       frequency: data.frequency ?? "daily",
-      category: (data.category?.toUpperCase() as any) ?? "OTHER",
+      category: (data.category ?? "other").toUpperCase() as any,
       colorHex: data.colorHex,
     },
-    include: { completions: true },
   });
-  return serializeHabit(habit, new Date());
+  return viewOf(userId, habit.id);
 }
 
-export async function updateHabit(userId: string, id: string, data: {
-  title?: string;
-  description?: string;
-  frequency?: string;
-  category?: string;
-  colorHex?: string;
-  archived?: boolean;
-}) {
+export async function updateHabit(
+  userId: string,
+  id: string,
+  data: { title?: string; description?: string; frequency?: string; category?: string; colorHex?: string; archived?: boolean }
+) {
   const existing = await prisma.habit.findFirst({ where: { id, userId } });
   if (!existing) throw new AppError("Habit not found", 404);
-  const habit = await prisma.habit.update({
+
+  await prisma.habit.update({
     where: { id },
-    data: { ...data, ...(data.category && { category: data.category.toUpperCase() as any }) },
-    include: { completions: { orderBy: { date: "desc" }, take: 90 } },
+    data: {
+      ...(data.title !== undefined && { title: data.title }),
+      ...(data.description !== undefined && { description: data.description }),
+      ...(data.frequency !== undefined && { frequency: data.frequency }),
+      ...(data.category !== undefined && { category: data.category.toUpperCase() as any }),
+      ...(data.colorHex !== undefined && { colorHex: data.colorHex }),
+      ...(data.archived !== undefined && { archived: data.archived }),
+    },
   });
-  return serializeHabit(habit, new Date());
+  return viewOf(userId, id);
 }
 
 export async function deleteHabit(userId: string, id: string) {
@@ -137,49 +171,71 @@ export async function deleteHabit(userId: string, id: string) {
   await prisma.habit.delete({ where: { id } });
 }
 
-// Toggles today's completion on/off and returns the updated habit.
-export async function toggleCompletion(userId: string, habitId: string) {
-  const habit = await prisma.habit.findFirst({ where: { id: habitId, userId } });
+export async function toggleCompletion(userId: string, habitId: string, date?: string) {
+  const habit = await prisma.habit.findFirst({ where: { id: habitId, userId }, select: { id: true, frequency: true } });
   if (!habit) throw new AppError("Habit not found", 404);
 
-  const today = toDateOnly(new Date());
-  const existing = await prisma.habitCompletion.findUnique({
-    where: { habitId_date: { habitId, date: today } },
-  });
+  const clock = await getUserClock(userId);
+  const { dateKey: todayKey } = dayBounds(clock.zone);
+  const targetKey = date ?? todayKey;
 
-  if (existing) {
-    await prisma.habitCompletion.delete({ where: { id: existing.id } });
-  } else {
-    await prisma.habitCompletion.create({ data: { habitId, date: today } });
+  if (targetKey > todayKey) throw new AppError("You can't complete a habit in the future", 400);
+  if (dayNumber(todayKey) - dayNumber(targetKey) > BACKFILL_DAYS) {
+    throw new AppError(`You can only change the last ${BACKFILL_DAYS} days`, 400);
   }
 
-  const updated = await prisma.habit.findUnique({
-    where: { id: habitId },
-    include: { completions: { orderBy: { date: "desc" }, take: 90 } },
-  });
-  return serializeHabit(updated, new Date());
+  const weekly = habit.frequency === "weekly";
+  const start = weekly ? weekStartKey(targetKey, clock.weekStartsOn) : targetKey;
+  const where = weekly
+    ? { habitId, date: { gte: keyToDate(start), lte: keyToDate(shiftDateKey(start, 6)) } }
+    : { habitId, date: keyToDate(targetKey) };
+
+  const removed = await prisma.habitCompletion.deleteMany({ where });
+  if (removed.count === 0) {
+    await prisma.habitCompletion.upsert({
+      where: { habitId_date: { habitId, date: keyToDate(targetKey) } },
+      update: {},
+      create: { habitId, date: keyToDate(targetKey) },
+    });
+  }
+
+  return viewOf(userId, habitId);
 }
 
 export async function getHabitSummary(userId: string) {
-  const habits = await listHabits(userId);
-  const completionRateToday =
-    habits.length === 0
-      ? 0
-      : Math.round((habits.filter((h) => h.completedToday).length / habits.length) * 100);
+  const { todayKey, habits } = await snapshot(userId, false);
 
-  const bestStreak = habits.reduce((max, h) => Math.max(max, h.streak), 0);
-  const atRisk = habits.filter((h) => !h.completedToday && h.streak > 0);
+  const done = habits.filter((habit) => habit.completedToday).length;
+  const completionRateToday = habits.length === 0 ? 0 : Math.round((done / habits.length) * 100);
+  const bestStreak = habits.reduce((max, habit) => Math.max(max, habit.streak), 0);
+  const bestEver = habits.reduce((max, habit) => Math.max(max, habit.longestStreak), 0);
+  const atRisk = habits.filter((habit) => !habit.completedToday && habit.streak > 0).sort((a, b) => b.streak - a.streak);
+
+  const daily = habits.filter((habit) => habit.frequency === "daily");
+  const week = Array.from({ length: 7 }, (_, index) => {
+    const date = shiftDateKey(todayKey, index - 6);
+    return {
+      date,
+      label: new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" }),
+      done: daily.filter((habit) => habit.last30Days.some((day) => day.date === date && day.completed)).length,
+      total: daily.length,
+    };
+  });
 
   let insight = "Add a habit to start building streaks.";
   if (habits.length > 0) {
     if (completionRateToday === 100) {
-      insight = "Perfect day — every habit is checked off. Keep the momentum going.";
+      insight = "Every habit is checked off. Keep the momentum going.";
     } else if (atRisk.length > 0) {
-      insight = `${atRisk[0].title} has a ${atRisk[0].streak}-day streak on the line — complete it today to keep it alive.`;
+      const top = atRisk[0];
+      const unit = top.frequency === "weekly" ? "week" : "day";
+      insight = `${top.title} has a ${top.streak}-${unit} streak on the line. Complete it ${unit === "week" ? "this week" : "today"} to keep it alive.`;
     } else if (bestStreak >= 7) {
-      insight = `Your longest active streak is ${bestStreak} days. Consistency is compounding.`;
+      insight = `Your longest active streak is ${bestStreak}. Consistency is compounding.`;
+    } else {
+      insight = `${done} of ${habits.length} done. Small repeats beat big pushes.`;
     }
   }
 
-  return { habits, completionRateToday, bestStreak, insight };
+  return { habits, completionRateToday, bestStreak, bestEver, week, insight };
 }

@@ -10,11 +10,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            throwOnError: (error: any) => error?.status !== 401 && error?.status !== 403,
+            throwOnError: false,
+            retry: (failureCount, error) => {
+              const status = (error as { status?: number }).status;
+              return (status === undefined || status >= 500) && failureCount < 2;
+            },
           },
         },
       })
   );
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthHydrator />

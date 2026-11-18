@@ -307,14 +307,17 @@ export interface Habit {
   longestStreak: number;
   completedToday: boolean;
   archived: boolean;
+  consistency: number;
   last30Days: HabitDay[];
   createdAt: string;
 }
 
 export interface HabitSummary {
   habits: Habit[];
-  completionRateToday: number; // 0–100
+  completionRateToday: number;
   bestStreak: number;
+  bestEver: number;
+  week: { date: string; label: string; done: number; total: number }[];
   insight: string;
 }
 

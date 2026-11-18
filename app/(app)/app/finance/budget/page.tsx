@@ -1,401 +1,301 @@
 "use client";
 
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { TrendingUp, Wallet, Plus } from "lucide-react";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { ArrowLeft, Pencil, Plus, Tags, Trash2, TrendingUp, Wallet, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useFinanceSummary, useFinanceCategories, useFinanceAccounts } from "@/lib/hooks/use-life-data";
-import { api } from "@/lib/api/client";
-import { formatCurrency } from "@/lib/utils";
+import { EmptyState, PageHeader, ProgressBar, Section } from "@/components/app/kit";
+import {
+  useCreateFinanceAccount, useCreateFinanceCategory, useDeleteFinanceAccount, useDeleteFinanceCategory,
+  useFinanceCategories, useFinanceSummary, useSaveBudget, useUpdateFinanceAccount,
+} from "@/lib/hooks/use-finance";
+import { useMoney } from "@/lib/hooks/use-currency";
+import { cn } from "@/lib/utils";
+import type { FinanceAccount } from "@/types/finance";
 
-const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
-const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const ACCOUNT_TYPES = ["CASH", "BANK", "MOBILE_MONEY", "CARD", "SAVINGS", "INVESTMENT"];
+const pad = (value: number) => String(value).padStart(2, "0");
+
+function AccountDialog({ editing, defaultCurrency, onClose }: { editing: FinanceAccount | null; defaultCurrency: string; onClose: () => void }) {
+  const create = useCreateFinanceAccount();
+  const update = useUpdateFinanceAccount();
+  const [form, setForm] = useState({
+    name: editing?.name ?? "",
+    type: editing?.type ?? "BANK",
+    currency: editing?.currency ?? defaultCurrency,
+    balance: editing ? String(editing.balance) : "",
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    const outcome = { onSuccess: onClose, onError: (err: Error) => setError(err.message) };
+    const amount = form.balance.trim() === "" ? undefined : Number(form.balance);
+    if (amount !== undefined && !Number.isFinite(amount)) return setError("Enter a valid balance.");
+
+    if (editing) update.mutate({ id: editing.id, data: { name: form.name.trim(), type: form.type, currency: form.currency, balance: amount } }, outcome);
+    else create.mutate({ name: form.name.trim(), type: form.type, currency: form.currency, initialBalance: amount }, outcome);
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>{editing ? "Edit account" : "Add account"}</DialogTitle></DialogHeader>
+        <form onSubmit={submit} className="space-y-3 pt-1">
+          <div className="space-y-1">
+            <Label>Name</Label>
+            <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. GTBank, Cash, Opay" maxLength={100} required autoFocus />
+          </div>
+          <div className="space-y-1">
+            <Label>Type</Label>
+            <select className="flex h-10 w-full rounded-lg border bg-background px-3 text-sm" value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}>
+              {ACCOUNT_TYPES.map((type) => <option key={type} value={type}>{type.replace("_", " ")}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Currency</Label>
+              <Input value={form.currency} onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value.toUpperCase().slice(0, 3) }))} maxLength={3} required />
+            </div>
+            <div className="space-y-1">
+              <Label>{editing ? "Current balance" : "Opening balance"}</Label>
+              <Input type="number" inputMode="decimal" step="0.01" value={form.balance} onChange={(e) => setForm((f) => ({ ...f, balance: e.target.value }))} placeholder="0" />
+            </div>
+          </div>
+          {editing && <p className="text-xs text-muted-foreground">Set the balance to what the account really holds today. New transactions adjust it from there.</p>}
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={create.isPending || update.isPending || form.currency.length !== 3}>Save</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CategoryDialog({ onClose }: { onClose: () => void }) {
+  const create = useCreateFinanceCategory();
+  const [form, setForm] = useState({ name: "", type: "EXPENSE" as "EXPENSE" | "INCOME" });
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Add category</DialogTitle></DialogHeader>
+        <form
+          className="space-y-3 pt-1"
+          onSubmit={(event) => {
+            event.preventDefault();
+            create.mutate({ name: form.name.trim(), type: form.type }, { onSuccess: onClose, onError: (err: Error) => setError(err.message) });
+          }}
+        >
+          <div className="space-y-1">
+            <Label>Name</Label>
+            <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} maxLength={64} required autoFocus />
+          </div>
+          <div className="flex gap-2">
+            {(["EXPENSE", "INCOME"] as const).map((type) => (
+              <Button key={type} type="button" size="sm" variant={form.type === type ? "default" : "outline"} className="flex-1 capitalize" onClick={() => setForm((f) => ({ ...f, type }))}>{type.toLowerCase()}</Button>
+            ))}
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={create.isPending}>Save</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function BudgetPage() {
-  const { data, isLoading } = useFinanceSummary();
+  const { money, currency } = useMoney();
+  const now = new Date();
+  const [period, setPeriod] = useState({ month: now.getMonth() + 1, year: now.getFullYear() });
+  const { data, isLoading, isError, refetch } = useFinanceSummary(period.month, period.year);
   const { data: categories = [] } = useFinanceCategories();
-  const { data: accounts = [] } = useFinanceAccounts();
-  const qc = useQueryClient();
+  const saveBudget = useSaveBudget();
+  const removeAccount = useDeleteFinanceAccount();
+  const removeCategory = useDeleteFinanceCategory();
 
-  const createCategory = useMutation({
-    mutationFn: (d: { name: string; type: string; color?: string }) => api.post("/finance/categories", d),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["financeCategories"] }),
-  });
-
-  const createBudget = useMutation({
-    mutationFn: (d: any) => api.post("/finance/budgets", d),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["finance"] }),
-  });
-
-  const createAccount = useMutation({
-    mutationFn: (d: { name: string; type: string; currency: string; initialBalance?: number }) =>
-      api.post("/finance/accounts", d),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["financeAccounts"] }),
-  });
+  const [limits, setLimits] = useState<Record<string, string>>({});
+  const [total, setTotal] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [accountDialog, setAccountDialog] = useState<{ id: number; editing: FinanceAccount | null } | null>(null);
+  const [categoryDialog, setCategoryDialog] = useState(false);
 
   const summary = data?.summary;
-  const categoryBreakdown = summary?.categoryBreakdown ?? [];
-  const totalCategoryBudget = categoryBreakdown.reduce((acc, c) => acc + c.budget, 0);
+  const seed = JSON.stringify([summary?.monthlyBudget, summary?.categoryBreakdown.map((row) => [row.categoryId, row.budget])]);
 
-  const [catOpen, setCatOpen] = useState(false);
-  const [budgetOpen, setBudgetOpen] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
+  useEffect(() => {
+    if (!summary) return;
+    setLimits(Object.fromEntries(summary.categoryBreakdown.map((row) => [row.categoryId, String(row.budget)])));
+    setTotal(summary.monthlyBudget > 0 ? String(summary.monthlyBudget) : "");
+    setSaved(false);
+    setError(null);
+  }, [seed, period.month, period.year]);
 
-  const [catForm, setCatForm] = useState({ name: "", type: "EXPENSE" as "INCOME" | "EXPENSE", color: "" });
-  const [accountForm, setAccountForm] = useState({ name: "", type: "BANK", currency: "USD", initialBalance: "" });
+  const expenseCategories = categories.filter((category) => category.type === "EXPENSE");
+  const incomeCategories = categories.filter((category) => category.type === "INCOME");
+  const spentBy = useMemo(() => new Map((summary?.spendingByCategory ?? []).map((row) => [row.categoryId, row.spent])), [summary]);
+  const allocated = expenseCategories.reduce((sum, category) => sum + (Number(limits[category.id]) || 0), 0);
+  const totalNumber = Number(total) || 0;
 
-  const [budgetForm, setBudgetForm] = useState({
-    name: "Monthly Budget",
-    period: "MONTHLY",
-    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0],
-    endDate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split("T")[0],
-    totalLimit: "",
-    items: [] as { categoryId: string; limitAmount: string }[],
-  });
-
-  function addBudgetItem() {
-    setBudgetForm((f) => ({ ...f, items: [...f.items, { categoryId: "", limitAmount: "" }] }));
+  function shiftMonth(delta: number) {
+    setPeriod((current) => {
+      const index = current.year * 12 + (current.month - 1) + delta;
+      return { year: Math.floor(index / 12), month: (index % 12) + 1 };
+    });
   }
 
-  function removeBudgetItem(idx: number) {
-    setBudgetForm((f) => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
-  }
+  function submit() {
+    setError(null);
+    setSaved(false);
+    const days = new Date(period.year, period.month, 0).getDate();
+    const items = expenseCategories
+      .map((category) => ({ categoryId: category.id, limitAmount: Number(limits[category.id]) || 0 }))
+      .filter((item) => item.limitAmount > 0);
 
-  function updateBudgetItem(idx: number, field: "categoryId" | "limitAmount", value: string) {
-    setBudgetForm((f) => ({
-      ...f,
-      items: f.items.map((item, i) => (i === idx ? { ...item, [field]: value } : item)),
-    }));
-  }
-
-  function handleBudgetSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    createBudget.mutate(
+    saveBudget.mutate(
       {
-        name: budgetForm.name,
-        period: budgetForm.period,
-        startDate: new Date(budgetForm.startDate).toISOString(),
-        endDate: new Date(budgetForm.endDate).toISOString(),
-        totalLimit: parseFloat(budgetForm.totalLimit) || 0,
-        items: budgetForm.items
-          .filter((i) => i.categoryId && i.limitAmount)
-          .map((i) => ({ categoryId: i.categoryId, limitAmount: parseFloat(i.limitAmount) })),
+        name: `${MONTHS[period.month - 1]} ${period.year} budget`,
+        period: "MONTHLY",
+        startDate: `${period.year}-${pad(period.month)}-01`,
+        endDate: `${period.year}-${pad(period.month)}-${pad(days)}`,
+        totalLimit: totalNumber > 0 ? totalNumber : allocated,
+        items,
       },
-      {
-        onSuccess: () => {
-          setBudgetOpen(false);
-          setBudgetForm({
-            name: "Monthly Budget",
-            period: "MONTHLY",
-            startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0],
-            endDate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split("T")[0],
-            totalLimit: "",
-            items: [],
-          });
-        },
-      }
+      { onSuccess: () => setSaved(true), onError: (err: Error) => setError(err.message) }
     );
   }
 
-  if (isLoading) return <Skeleton className="h-[calc(100vh-8rem)] rounded-xl" />;
+  if (isError && !data) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-20 text-center">
+        <p className="text-sm text-destructive">Couldn't load your budget.</p>
+        <Button size="sm" variant="outline" onClick={() => refetch()}>Try again</Button>
+      </div>
+    );
+  }
+
+  if (isLoading || !data || !summary) return <Skeleton className="h-[calc(100vh-8rem)] rounded-xl" />;
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={item} className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
-            <TrendingUp className="h-6 w-6 text-primary" /> Budget Planner
-          </h1>
-          <p className="text-muted-foreground mt-1 text-[10px] sm:text-xl">Manage categories, accounts, and monthly budget limits.</p>
-        </div>
-        <div className="flex gap-2 flex-col sm:flex-row">
-          <Button variant="outline" onClick={() => setAccountOpen(true)} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl">
-            <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Account
-          </Button>
-          <Button variant="outline" onClick={() => setCatOpen(true)} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl">
-            <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Category
-          </Button>
-          <Button onClick={() => setBudgetOpen(true)} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl">
-            <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Budget
-          </Button>
-        </div>
-      </motion.div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={TrendingUp}
+        title="Budget & accounts"
+        subtitle="Plan each month, and manage where your money lives."
+        actions={<Button variant="outline" asChild><Link href="/app/finance"><ArrowLeft className="mr-1.5 h-4 w-4" /> Finance</Link></Button>}
+      />
 
-      <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          { label: "Monthly budget", value: formatCurrency(summary?.monthlyBudget ?? 0) },
-          { label: "Category total", value: formatCurrency(totalCategoryBudget) },
-          { label: "Difference", value: formatCurrency((summary?.monthlyBudget ?? 0) - totalCategoryBudget) },
-        ].map((s) => (
-          <Card key={s.label} className="hover:border-primary/20 transition-colors">
-            <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">{s.label}</CardTitle></CardHeader>
-            <CardContent><p className="text-xl font-semibold">{s.value}</p></CardContent>
-          </Card>
-        ))}
-      </motion.div>
+      <div className="grid gap-4 lg:grid-cols-5">
+        <Section
+          title="Monthly budget"
+          icon={TrendingUp}
+          className="lg:col-span-3"
+          action={
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => shiftMonth(-1)}>‹</Button>
+              <span className="min-w-[7.5rem] text-center text-xs font-semibold">{MONTHS[period.month - 1]} {period.year}</span>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => shiftMonth(1)}>›</Button>
+            </div>
+          }
+        >
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <Label>Total for the month ({currency})</Label>
+              <Input type="number" inputMode="decimal" min="0" value={total} onChange={(e) => { setTotal(e.target.value); setSaved(false); }} placeholder={allocated > 0 ? String(allocated) : "e.g. 150000"} className="w-48" />
+            </div>
+            <p className="pb-2 text-xs text-muted-foreground">
+              Allocated to categories: <strong className="text-foreground">{money(allocated)}</strong>
+              {totalNumber > 0 && ` · ${totalNumber >= allocated ? `${money(totalNumber - allocated)} unallocated` : `${money(allocated - totalNumber)} over the total`}`}
+            </p>
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <motion.div variants={item}>
-          <Card className="hover:border-primary/20 transition-colors">
-            <CardHeader className="pb-3 flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" /> Category Budgets
-              </CardTitle>
-              <Badge variant="secondary">{categoryBreakdown.length} categories</Badge>
-            </CardHeader>
-            <CardContent>
-              {categoryBreakdown.length === 0 ? (
-                <div className="text-center py-6 space-y-3">
-                  <p className="text-sm text-muted-foreground">No budget yet.</p>
-                  <div className="flex gap-2 justify-center">
-                    <Button size="sm" variant="outline" onClick={() => setCatOpen(true)} className="text-[10px] sm:text-sm">
-                      <Plus className="mr-1 h-3 w-3" /> Category first
-                    </Button>
-                    <Button size="sm" onClick={() => setBudgetOpen(true)} className="text-[10px] sm:text-sm">
-                      <Plus className="mr-1 h-3 w-3" /> Then budget
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <ScrollArea className="max-h-90">
-                  <div className="space-y-3 pt-1">
-                    {categoryBreakdown.map((cat) => {
-                      const pct = cat.budget > 0 ? Math.min((cat.spent / cat.budget) * 100, 100) : 0;
-                      const over = cat.spent > cat.budget;
-                      return (
-                        <div key={cat.category} className="space-y-1 rounded-lg border border-border/60 bg-card/60 p-3">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium">{cat.category}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {formatCurrency(cat.spent)} / {formatCurrency(cat.budget)}
-                            </p>
-                          </div>
-                          <div className="h-2 rounded-full bg-muted overflow-hidden">
-                            <div className={`h-full rounded-full transition-all ${over ? "bg-destructive" : "bg-primary"}`} style={{ width: `${pct}%` }} />
-                          </div>
-                          {over && <p className="text-[11px] text-destructive">Over by {formatCurrency(cat.spent - cat.budget)}</p>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div variants={item}>
-          <Card className="hover:border-primary/20 transition-colors">
-            <CardHeader className="pb-3 flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Wallet className="h-4 w-4" /> Accounts
-              </CardTitle>
-              <Button size="sm" variant="ghost" onClick={() => setAccountOpen(true)}>
-                <Plus className="h-3 w-3" />
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {(accounts as any[]).length === 0 ? (
-                <div className="text-center py-6 space-y-3">
-                  <p className="text-sm text-muted-foreground">No accounts yet.</p>
-                  <Button size="sm" variant="outline" onClick={() => setAccountOpen(true)}>
-                    <Plus className="mr-1 h-3 w-3" /> Add account
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {(accounts as any[]).map((acc) => (
-                    <div key={acc.id} className="flex items-center justify-between rounded-lg border border-border/60 bg-card/60 p-3">
-                      <div>
-                        <p className="text-sm font-medium">{acc.name}</p>
-                        <p className="text-xs text-muted-foreground">{acc.type} · {acc.currency}</p>
+          {expenseCategories.length === 0 ? (
+            <EmptyState icon={Tags} title="No expense categories" body="Add a category first, then give it a limit." />
+          ) : (
+            <div className="space-y-2">
+              {expenseCategories.map((category) => {
+                const spent = spentBy.get(category.id) ?? 0;
+                const cap = Number(limits[category.id]) || 0;
+                return (
+                  <div key={category.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5">
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <div className="flex justify-between gap-2 text-sm">
+                        <span className="truncate font-medium">{category.name}</span>
+                        <span className={cn("shrink-0 text-xs tabular-nums", cap > 0 && spent > cap ? "text-destructive" : "text-muted-foreground")}>{money(spent)} spent</span>
                       </div>
-                      <p className="text-sm font-semibold">{formatCurrency(acc.balance)}</p>
+                      {cap > 0 && <ProgressBar value={(spent / cap) * 100} tone={spent > cap ? "danger" : "default"} />}
                     </div>
+                    <Input type="number" inputMode="decimal" min="0" placeholder="No limit" value={limits[category.id] ?? ""} onChange={(e) => { setLimits((current) => ({ ...current, [category.id]: e.target.value })); setSaved(false); }} className="h-9 w-28" />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={submit} disabled={saveBudget.isPending}>{saveBudget.isPending ? "Saving..." : "Save budget"}</Button>
+            {saved && <span className="text-xs text-emerald-600">Budget saved</span>}
+            {error && <span className="text-xs text-destructive">{error}</span>}
+          </div>
+        </Section>
+
+        <div className="space-y-4 lg:col-span-2">
+          <Section title="Accounts" icon={Wallet} action={<Button size="sm" variant="outline" onClick={() => setAccountDialog({ id: Date.now(), editing: null })}><Plus className="mr-1 h-3.5 w-3.5" /> Add</Button>}>
+            {data.accounts.length === 0 ? (
+              <EmptyState icon={Wallet} title="No accounts yet" body="Add the places your money sits: bank, cash, mobile money." />
+            ) : (
+              <div className="space-y-2">
+                {data.accounts.map((account) => (
+                  <div key={account.id} className="flex items-center gap-2 rounded-lg border px-3 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{account.name}</p>
+                      <p className="text-xs text-muted-foreground">{account.type.replace("_", " ").toLowerCase()} · {account.currency}</p>
+                    </div>
+                    <p className="shrink-0 text-sm font-semibold tabular-nums">{money(account.balance, account.currency)}</p>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Edit account" onClick={() => setAccountDialog({ id: Date.now(), editing: account })}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" aria-label="Delete account" onClick={() => window.confirm(`Delete ${account.name}? Its transactions stay, but won't be linked to an account.`) && removeAccount.mutate(account.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Section>
+
+          <Section title="Categories" icon={Tags} action={<Button size="sm" variant="outline" onClick={() => setCategoryDialog(true)}><Plus className="mr-1 h-3.5 w-3.5" /> Add</Button>}>
+            {[{ label: "Expense", items: expenseCategories }, { label: "Income", items: incomeCategories }].map((group) => (
+              <div key={group.label} className="space-y-1.5">
+                <p className="text-xs font-semibold text-muted-foreground">{group.label}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {group.items.map((category) => (
+                    <span key={category.id} className="flex items-center gap-1 rounded-full border bg-card px-2.5 py-1 text-xs">
+                      {category.name}
+                      <button type="button" aria-label={`Delete ${category.name}`} className="text-muted-foreground hover:text-destructive" onClick={() => window.confirm(`Delete "${category.name}"? Past transactions become uncategorized.`) && removeCategory.mutate(category.id)}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
                   ))}
+                  {group.items.length === 0 && <span className="text-xs text-muted-foreground">None yet</span>}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
+              </div>
+            ))}
+          </Section>
+        </div>
       </div>
 
-      <Dialog open={catOpen} onOpenChange={setCatOpen}>
-        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5">
-          <DialogHeader><DialogTitle className="text-start">Add category</DialogTitle></DialogHeader>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              createCategory.mutate(
-                { name: catForm.name, type: catForm.type, color: catForm.color || undefined },
-                { onSuccess: () => { setCatOpen(false); setCatForm({ name: "", type: "EXPENSE", color: "" }); } }
-              );
-            }}
-            className="space-y-4 pt-2"
-          >
-            <div className="space-y-1">
-              <Label>Name</Label>
-              <Input placeholder="e.g. Groceries" value={catForm.name}
-                onChange={(e) => setCatForm((f) => ({ ...f, name: e.target.value }))} required />
-            </div>
-            <div className="space-y-1">
-              <Label>Type</Label>
-              <div className="flex gap-2">
-                {(["EXPENSE", "INCOME"] as const).map((t) => (
-                  <Button key={t} type="button" variant={catForm.type === t ? "default" : "outline"} size="sm" className="flex-1"
-                    onClick={() => setCatForm((f) => ({ ...f, type: t }))}>
-                    {t === "INCOME" ? "Income" : "Expense"}
-                  </Button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label>Color (optional)</Label>
-              <Input type="color" value={catForm.color || "#6366f1"}
-                onChange={(e) => setCatForm((f) => ({ ...f, color: e.target.value }))} className="h-10" />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setCatOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createCategory.isPending}>
-                {createCategory.isPending ? "Saving..." : "Save"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={accountOpen} onOpenChange={setAccountOpen}>
-        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5">
-          <DialogHeader><DialogTitle className="text-start">Add account</DialogTitle></DialogHeader>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              createAccount.mutate(
-                {
-                  name: accountForm.name,
-                  type: accountForm.type,
-                  currency: accountForm.currency,
-                  initialBalance: accountForm.initialBalance ? parseFloat(accountForm.initialBalance) : undefined,
-                },
-                { onSuccess: () => { setAccountOpen(false); setAccountForm({ name: "", type: "BANK", currency: "USD", initialBalance: "" }); } }
-              );
-            }}
-            className="space-y-4 pt-2"
-          >
-            <div className="space-y-1">
-              <Label>Account name</Label>
-              <Input placeholder="e.g. Main checking" value={accountForm.name}
-                onChange={(e) => setAccountForm((f) => ({ ...f, name: e.target.value }))} required />
-            </div>
-            <div className="space-y-1">
-              <Label>Type</Label>
-              <select className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
-                value={accountForm.type} onChange={(e) => setAccountForm((f) => ({ ...f, type: e.target.value }))}>
-                {["CASH", "BANK", "MOBILE_MONEY", "CARD", "SAVINGS", "INVESTMENT"].map((t) => (
-                  <option key={t} value={t}>{t.replace("_", " ")}</option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Currency</Label>
-                <Input placeholder="USD" value={accountForm.currency}
-                  onChange={(e) => setAccountForm((f) => ({ ...f, currency: e.target.value.toUpperCase() }))} maxLength={10} />
-              </div>
-              <div className="space-y-1">
-                <Label>Opening balance</Label>
-                <Input type="number" step="0.01" placeholder="0.00" value={accountForm.initialBalance}
-                  onChange={(e) => setAccountForm((f) => ({ ...f, initialBalance: e.target.value }))} />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setAccountOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createAccount.isPending}>
-                {createAccount.isPending ? "Saving..." : "Save"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={budgetOpen} onOpenChange={setBudgetOpen}>
-        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5">
-          <DialogHeader><DialogTitle className="text-start">Create budget</DialogTitle></DialogHeader>
-          <form onSubmit={handleBudgetSubmit} className="space-y-4 pt-2">
-            <div className="space-y-1">
-              <Label>Budget name</Label>
-              <Input value={budgetForm.name} onChange={(e) => setBudgetForm((f) => ({ ...f, name: e.target.value }))} required className="text-sm" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Start date</Label>
-                <Input type="date" value={budgetForm.startDate}
-                  onChange={(e) => setBudgetForm((f) => ({ ...f, startDate: e.target.value }))} required className="text-[10px] sm:text-sm"/>
-              </div>
-              <div className="space-y-1">
-                <Label>End date</Label>
-                <Input type="date" value={budgetForm.endDate}
-                  onChange={(e) => setBudgetForm((f) => ({ ...f, endDate: e.target.value }))} required className="text-[10px] sm:text-sm"/>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label>Total limit</Label>
-              <Input type="number" step="0.01" min="0" placeholder="0.00" value={budgetForm.totalLimit}
-                onChange={(e) => setBudgetForm((f) => ({ ...f, totalLimit: e.target.value }))} required />
-            </div>
-            <div className="space-y-1 sm:space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Category limits</Label>
-                <Button type="button" size="sm" variant="ghost" onClick={addBudgetItem} className="text-xs">
-                  <Plus className="h-1 w-1 sm:h-3 sm:w-3 mr-1" /> Add
-                </Button>
-              </div>
-              {budgetForm.items.length === 0 && (
-                <p className="text-xs text-muted-foreground">Add category limits to track spending by category.</p>
-              )}
-              {budgetForm.items.map((item, idx) => (
-                <div key={idx} className="flex gap-2 items-center">
-                  <select
-                    className="flex h-8 sm:h-9 flex-1 rounded-lg border border-input bg-background px-2 sm:px-3 text-[10px] sm:text-sm"
-                    value={item.categoryId}
-                    onChange={(e) => updateBudgetItem(idx, "categoryId", e.target.value)}
-                  >
-                    <option value="">Select category</option>
-                    {(categories as any[]).filter((c) => c.type === "EXPENSE").map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Limit"
-                    className="w-23 sm:w-28 h-8 sm:h-9 text-[13px] sm:text-sm"
-                    value={item.limitAmount}
-                    onChange={(e) => updateBudgetItem(idx, "limitAmount", e.target.value)}
-                  />
-                  <button type="button" className="text-muted-foreground hover:text-destructive text-sm"
-                    onClick={() => removeBudgetItem(idx)}>×</button>
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setBudgetOpen(false)} className="text-[10px] sm:text-sm">Cancel</Button>
-              <Button type="submit" disabled={createBudget.isPending} className="text-[10px] sm:text-sm">
-                {createBudget.isPending ? "Saving..." : "Create budget"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </motion.div>
+      {accountDialog && <AccountDialog key={accountDialog.id} editing={accountDialog.editing} defaultCurrency={currency} onClose={() => setAccountDialog(null)} />}
+      {categoryDialog && <CategoryDialog onClose={() => setCategoryDialog(false)} />}
+    </div>
   );
 }

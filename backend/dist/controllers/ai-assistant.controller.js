@@ -1,9 +1,4 @@
 "use strict";
-// import type { Response } from "express";
-// import { asyncHandler } from "../lib/errors";
-// import type { AuthenticatedRequest } from "../middlewares/auth.middleware";
-// import * as aiContextService from "../services/ai-context.service";
-// import * as aiAssistantService from "../services/ai-assistant.service";
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -38,68 +33,48 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.streamReply = exports.getFocusSuggestions = exports.getContext = void 0;
+exports.streamReply = exports.deleteConversation = exports.getConversation = exports.listConversations = exports.getFocusSuggestions = exports.getContext = void 0;
 const errors_1 = require("../lib/errors");
 const aiContextService = __importStar(require("../services/ai-context.service"));
-const aiAssistantService = __importStar(require("../services/ai-assistant.service"));
-function extractGeminiErrorMessage(err) {
-    if (!err) {
-        return "Failed to generate a reply";
-    }
-    const message = err?.message ||
-        err?.error?.message ||
-        err?.response?.data?.error?.message ||
-        "";
-    if (typeof message === "string" && message.trim()) {
-        return message;
-    }
-    return "Failed to generate a reply";
-}
-/**
- * GET /api/ai-assistant/context
- */
-exports.getContext = (0, errors_1.asyncHandler)(async (req, res) => {
-    const context = await aiContextService.getAIContext(req.user.id);
-    return res.json(context);
+const assistantContext = __importStar(require("../services/assistant-context.service"));
+const assistant = __importStar(require("../services/ai-assistant.service"));
+exports.getContext = (0, errors_1.asyncHandler)(async (req, res) => res.json(await assistantContext.getAssistantContext(req.user.id)));
+exports.getFocusSuggestions = (0, errors_1.asyncHandler)(async (req, res) => res.json({ suggestions: await aiContextService.getFocusSuggestions(req.user.id) }));
+exports.listConversations = (0, errors_1.asyncHandler)(async (req, res) => res.json({ conversations: await assistant.listConversations(req.user.id) }));
+exports.getConversation = (0, errors_1.asyncHandler)(async (req, res) => res.json({ conversation: await assistant.getConversation(req.user.id, req.params.id) }));
+exports.deleteConversation = (0, errors_1.asyncHandler)(async (req, res) => {
+    await assistant.deleteConversation(req.user.id, req.params.id);
+    return res.status(204).send();
 });
-/**
- * GET /api/ai-assistant/focus-suggestions
- */
-exports.getFocusSuggestions = (0, errors_1.asyncHandler)(async (req, res) => {
-    const suggestions = await aiContextService.getFocusSuggestions(req.user.id);
-    return res.json({ suggestions });
-});
-/**
- * POST /api/ai-assistant/chat
- */
 exports.streamReply = (0, errors_1.asyncHandler)(async (req, res) => {
-    const { message } = req.body;
-    if (!message || typeof message !== "string" || !message.trim()) {
-        return res.status(400).json({
-            error: "Message is required",
-        });
-    }
-    let wroteAnything = false;
+    const { message, conversationId } = req.body;
+    let aborted = false;
+    let started = false;
+    res.on("close", () => {
+        if (!res.writableEnded)
+            aborted = true;
+    });
     try {
-        res.setHeader("Content-Type", "text/plain; charset=utf-8");
-        res.setHeader("Cache-Control", "no-cache, no-transform");
-        res.setHeader("X-Accel-Buffering", "no");
-        await aiAssistantService.streamAssistantReply(req.user.id, req.user.name ?? "there", message.trim(), (chunk) => {
-            wroteAnything = true;
-            res.write(chunk);
+        await assistant.streamAssistantReply({
+            userId: req.user.id,
+            message,
+            conversationId,
+            isAborted: () => aborted,
+            onStart: (id) => {
+                started = true;
+                res.status(200);
+                res.setHeader("Content-Type", "text/plain; charset=utf-8");
+                res.setHeader("Cache-Control", "no-cache, no-transform");
+                res.setHeader("X-Accel-Buffering", "no");
+                res.setHeader("X-Conversation-Id", id);
+            },
+            onDelta: (text) => res.write(text),
         });
         res.end();
     }
-    catch (err) {
-        const cleanMessage = extractGeminiErrorMessage(err);
-        console.error("[ai-assistant] stream failed:", cleanMessage);
-        if (!wroteAnything && !res.headersSent) {
-            return res.status(typeof err?.status === "number"
-                ? err.status
-                : 502).json({
-                error: cleanMessage,
-            });
-        }
+    catch (error) {
+        if (!started)
+            throw error;
         res.end();
     }
 });

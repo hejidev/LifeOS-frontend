@@ -88,6 +88,10 @@ async function checkAndConsumeUsage(userId, tool) {
     await prisma_1.prisma.toolUsage.update({ where: { id: usage.id }, data: { count: { increment: 1 } } });
 }
 async function createCheckoutSession(userId, email, planKey, interval = "month") {
+    const current = await getOrCreateSubscription(userId);
+    if (current.tier !== "FREE" && current.status === "ACTIVE") {
+        throw new errors_1.AppError("You already have an active subscription. Use Manage subscription to change or cancel it.", 409);
+    }
     const plan = plan_1.PLANS[planKey];
     if (!plan)
         throw new errors_1.AppError("Invalid plan", 400);

@@ -124,11 +124,12 @@ export const api = {
     request(path, { method: "PUT", body: body ? JSON.stringify(body) : undefined }),
 };
 
-export async function streamPost(path: string, body: unknown): Promise<ReadableStreamDefaultReader<Uint8Array>> {
+export async function streamRequest(path: string, body: unknown, signal?: AbortSignal) {
   const doFetch = () =>
     fetch(`${API_URL}${path}`, {
       method: "POST",
       credentials: "include",
+      signal,
       headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
       body: JSON.stringify(body),
     });
@@ -142,7 +143,11 @@ export async function streamPost(path: string, body: unknown): Promise<ReadableS
     const data = await res.json().catch(() => ({}));
     throw makeError((data as any).error ?? "Request failed", res.status);
   }
-  return res.body.getReader();
+  return { reader: res.body.getReader(), headers: res.headers };
+}
+
+export async function streamPost(path: string, body: unknown, signal?: AbortSignal) {
+  return (await streamRequest(path, body, signal)).reader;
 }
 
 export async function downloadFile(path: string, filenameFallback: string) {

@@ -57,6 +57,7 @@ exports.deleteHabit = (0, errors_1.asyncHandler)(async (req, res) => {
     return res.status(204).send();
 });
 exports.toggleCompletion = (0, errors_1.asyncHandler)(async (req, res) => {
-    const habit = await habitService.toggleCompletion(req.user.id, req.params.id);
+    const date = typeof req.body?.date === "string" ? req.body.date : undefined;
+    const habit = await habitService.toggleCompletion(req.user.id, req.params.id, date);
     return res.json({ habit });
 });
