@@ -41,7 +41,7 @@ exports.getDashboard = (0, errors_1.asyncHandler)(async (req, res) => {
     return res.json(data);
 });
 exports.revealItem = (0, errors_1.asyncHandler)(async (req, res) => {
-    const item = await vaultService.getVaultItemWithPassword(req.user.id, req.params.id);
+    const item = await vaultService.revealVaultItem(req.user.id, req.params.id);
     return res.json({ item });
 });
 exports.createItem = (0, errors_1.asyncHandler)(async (req, res) => {

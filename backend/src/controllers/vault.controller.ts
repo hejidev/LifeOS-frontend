@@ -9,7 +9,7 @@ export const getDashboard = asyncHandler(async (req: AuthenticatedRequest, res: 
 });
 
 export const revealItem = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const item = await vaultService.getVaultItemWithPassword(req.user!.id, req.params.id);
+  const item = await vaultService.revealVaultItem(req.user!.id, req.params.id);
   return res.json({ item });
 });
 

@@ -248,3 +248,14 @@ export async function getStudyDashboard(userId: string, range: "today" | "week" 
     insight,
   };
 }
+
+export async function deleteSubject(userId: string, id: string) {
+  const existing = await prisma.studySubject.findFirst({ where: { id, userId } });
+  if (!existing) throw new AppError("Subject not found", 404);
+
+  await prisma.$transaction([
+    prisma.studyMaterial.updateMany({ where: { userId, subjectId: id }, data: { subjectId: null } }),
+    prisma.studySession.updateMany({ where: { userId, subjectId: id }, data: { subjectId: null } }),
+    prisma.studySubject.delete({ where: { id } }),
+  ]);
+}

@@ -64,3 +64,8 @@ export const deleteMaterial = asyncHandler(async (req: AuthenticatedRequest, res
 export const getMaterialFile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   await studyService.streamMaterialFile(req.user!.id, req.params.id, res);
 });
+
+export const deleteSubject = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  await studyService.deleteSubject(req.user!.id, req.params.id);
+  return res.status(204).send();
+});

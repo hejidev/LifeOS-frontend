@@ -5,7 +5,6 @@ import { api, downloadFile } from "@/lib/api/client";
 import type {
   Task, TaskStatus, Note,
   StudyMaterial,
-  VaultDocument,
   BizProduct,
   BizCustomer,
   BizSale,
@@ -24,6 +23,7 @@ export * from "./use-habits";
 export * from "./use-ai";
 export * from "./use-billing";
 export * from "./use-documents";
+export * from "./use-vault";
 
 
 function refreshBusinessData(qc: QueryClient) {
@@ -763,37 +763,37 @@ export function useDeleteAchievement() {
 
 // ─── Password Vault ───────────────────────────────────────────────────────────
 
-export function useVaultDashboard() {
-  return useQuery({ queryKey: ["vaultDashboard"], queryFn: () => api.get("/vault/dashboard"), staleTime: 1000 * 60 });
-}
+// export function useVaultDashboard() {
+//   return useQuery({ queryKey: ["vaultDashboard"], queryFn: () => api.get("/vault/dashboard"), staleTime: 1000 * 60 });
+// }
 
-export function useRevealVaultItem() {
-  return useMutation({ mutationFn: (id: string) => api.get(`/vault/items/${id}/reveal`).then((d) => d.item) });
-}
+// export function useRevealVaultItem() {
+//   return useMutation({ mutationFn: (id: string) => api.get(`/vault/items/${id}/reveal`).then((d) => d.item) });
+// }
 
-export function useCreateVaultItem() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (data: any) => api.post("/vault/items", data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["vaultDashboard"] }),
-  });
-}
+// export function useCreateVaultItem() {
+//   const qc = useQueryClient();
+//   return useMutation({
+//     mutationFn: (data: any) => api.post("/vault/items", data),
+//     onSuccess: () => qc.invalidateQueries({ queryKey: ["vaultDashboard"] }),
+//   });
+// }
 
-export function useUpdateVaultItem() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => api.patch(`/vault/items/${id}`, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["vaultDashboard"] }),
-  });
-}
+// export function useUpdateVaultItem() {
+//   const qc = useQueryClient();
+//   return useMutation({
+//     mutationFn: ({ id, data }: { id: string; data: any }) => api.patch(`/vault/items/${id}`, data),
+//     onSuccess: () => qc.invalidateQueries({ queryKey: ["vaultDashboard"] }),
+//   });
+// }
 
-export function useDeleteVaultItem() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => api.delete(`/vault/items/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["vaultDashboard"] }),
-  });
-}
+// export function useDeleteVaultItem() {
+//   const qc = useQueryClient();
+//   return useMutation({
+//     mutationFn: (id: string) => api.delete(`/vault/items/${id}`),
+//     onSuccess: () => qc.invalidateQueries({ queryKey: ["vaultDashboard"] }),
+//   });
+// }
 
 // ─── Family ───────────────────────────────────────────────────────────────────
 

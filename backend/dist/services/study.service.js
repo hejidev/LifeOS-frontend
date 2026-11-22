@@ -12,6 +12,7 @@ exports.deleteMaterial = deleteMaterial;
 exports.createSession = createSession;
 exports.endSession = endSession;
 exports.getStudyDashboard = getStudyDashboard;
+exports.deleteSubject = deleteSubject;
 const prisma_1 = require("../config/prisma");
 const errors_1 = require("../lib/errors");
 const private_files_1 = require("../lib/private-files");
@@ -208,4 +209,14 @@ async function getStudyDashboard(userId, range = "month") {
         activeSession: active ? { id: active.id, title: active.title, materialId: active.materialId, startedAt: active.startedAt.toISOString() } : null,
         insight,
     };
+}
+async function deleteSubject(userId, id) {
+    const existing = await prisma_1.prisma.studySubject.findFirst({ where: { id, userId } });
+    if (!existing)
+        throw new errors_1.AppError("Subject not found", 404);
+    await prisma_1.prisma.$transaction([
+        prisma_1.prisma.studyMaterial.updateMany({ where: { userId, subjectId: id }, data: { subjectId: null } }),
+        prisma_1.prisma.studySession.updateMany({ where: { userId, subjectId: id }, data: { subjectId: null } }),
+        prisma_1.prisma.studySubject.delete({ where: { id } }),
+    ]);
 }
