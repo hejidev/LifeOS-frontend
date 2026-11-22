@@ -2,6 +2,7 @@ import type { Response } from "express";
 import { asyncHandler } from "../lib/errors";
 import type { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import * as settingsService from "../services/settings.service";
+import { exportUserData } from "../services/data-export.service";
 
 export const getProfile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const profile = await settingsService.getProfile(req.user!.id);
@@ -36,4 +37,13 @@ export const getAccountOverview = asyncHandler(async (req: AuthenticatedRequest,
 export const deactivateAccount = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   await settingsService.deactivateAccount(req.user!.id, req.body ?? {});
   return res.status(204).send();
+});
+
+export const exportData = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const data = await exportUserData(req.user!.id);
+  const stamp = new Date().toISOString().slice(0, 10);
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="lifeos-data-${stamp}.json"`);
+  res.setHeader("Cache-Control", "no-store");
+  return res.send(JSON.stringify(data, null, 2));
 });

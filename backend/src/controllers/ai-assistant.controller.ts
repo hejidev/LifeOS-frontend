@@ -4,6 +4,7 @@ import type { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import * as aiContextService from "../services/ai-context.service";
 import * as assistantContext from "../services/assistant-context.service";
 import * as assistant from "../services/ai-assistant.service";
+import * as dailyBrief from "../services/daily-brief.service";
 
 export const getContext = asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
   res.json(await assistantContext.getAssistantContext(req.user!.id))
@@ -56,3 +57,7 @@ export const streamReply = asyncHandler(async (req: AuthenticatedRequest, res: R
     res.end();
   }
 });
+
+export const getBrief = asyncHandler(async (req: AuthenticatedRequest, res: Response) => res.json(await dailyBrief.getBrief(req.user!.id)));
+
+export const createBrief = asyncHandler(async (req: AuthenticatedRequest, res: Response) => res.json(await dailyBrief.generateBrief(req.user!.id)));

@@ -47,7 +47,7 @@ router.use("/vault", (_req, res, next) => {
 const revealLimit = (0, rate_limit_1.rateLimitUser)("vault-reveal", 30, 60, "You're revealing passwords too quickly.");
 router.get("/vault/dashboard", auth_middleware_1.requireAuth, vaultController.getDashboard);
 router.post("/vault/items/:id/reveal", auth_middleware_1.requireAuth, revealLimit, vaultController.revealItem);
-router.get("/vault/items/:id/reveal", auth_middleware_1.requireAuth, revealLimit, vaultController.revealItem);
+// router.get("/vault/items/:id/reveal", requireAuth, revealLimit, vaultController.revealItem);
 router.post("/vault/items", auth_middleware_1.requireAuth, (0, validate_middleware_1.validate)(vault_validator_1.createVaultItemSchema), vaultController.createItem);
 router.patch("/vault/items/:id", auth_middleware_1.requireAuth, (0, validate_middleware_1.validate)(vault_validator_1.updateVaultItemSchema), vaultController.updateItem);
 router.delete("/vault/items/:id", auth_middleware_1.requireAuth, vaultController.deleteItem);

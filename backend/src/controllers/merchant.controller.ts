@@ -83,10 +83,10 @@ export const forceStaffLogout = asyncHandler(async (req: AuthenticatedRequest, r
 
 export const updateNotificationSettings = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const profile = await merchantService.updateNotificationSettings(req.user!.id, req.body);
-  return res.json({ profile });
+  return res.json({ profile: merchantService.ownerProfile(profile) });
 });
 
 export const setPaused = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const profile = await merchantService.setPaused(req.user!.id, req.body.paused);
-  return res.json({ profile });
+  return res.json({ profile: merchantService.ownerProfile(profile) });
 });

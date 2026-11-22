@@ -46,4 +46,6 @@ router.get("/conversations", controller.listConversations);
 router.get("/conversations/:id", (0, validate_middleware_1.validate)(ai_assistant_validator_1.conversationParamsSchema), controller.getConversation);
 router.delete("/conversations/:id", (0, validate_middleware_1.validate)(ai_assistant_validator_1.conversationParamsSchema), controller.deleteConversation);
 router.post("/chat", (0, validate_middleware_1.validate)(ai_assistant_validator_1.chatMessageSchema), controller.streamReply);
+router.get("/brief", controller.getBrief);
+router.post("/brief", controller.createBrief);
 exports.default = router;

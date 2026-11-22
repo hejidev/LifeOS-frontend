@@ -5,6 +5,6 @@ const zod_1 = require("zod");
 exports.translateSchema = zod_1.z.object({
     body: zod_1.z.object({
         text: zod_1.z.string().trim().min(1).max(1000),
-        targetLanguage: zod_1.z.string().trim().min(1).max(60).regex(/^[\p{L}\p{N} \-()']+$/u, "Invalid language"),
+        targetLanguage: zod_1.z.string().trim().min(1).max(60).regex(/^[\p{L}\p{N} \-()'.,/]+$/u, "Invalid language"),
     }),
 });

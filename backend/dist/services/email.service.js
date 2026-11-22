@@ -108,18 +108,20 @@ async function sendPasswordResetEmail(to, resetLink) {
        <p style="margin:16px 0 0;color:#444;font-size:11px;">Or copy this link into your browser:<br/><span style="color:#6366f1;word-break:break-all;">${resetLink}</span></p>`);
     await send(to, "Reset your LifeOS password", html, { critical: true });
 }
+const plainName = (value, max = 60) => value.replace(/[^\p{L}\p{N} .'\-]/gu, "").replace(/\s+/g, " ").trim().slice(0, max);
 async function sendFamilyInviteEmail(to, inviterName, joinLink) {
-    const html = renderLayout("You're invited to a Family Space", paragraph(`${inviterName} invited you to join their family on LifeOS. This link expires in 7 days.`) +
-        button("Join Family Space", joinLink));
-    await send(to, `${inviterName} invited you to join their Family Space on LifeOS`, html, { critical: true });
+    const name = plainName(inviterName) || "A LifeOS user";
+    const html = renderLayout("You're invited to a Family Space", paragraph(`${escapeHtml(name)} invited you to join their family on LifeOS. Only accept if you know them. This link expires in 7 days.`) + button("Join Family Space", joinLink));
+    await send(to, `${name} invited you to a Family Space on LifeOS`, html, { critical: true });
 }
 async function sendContactNotificationEmail(to, data) {
     const html = renderLayout("New contact message", `<p style="margin:0 0 8px;color:#888;font-size:12px;">From</p>
-     <p style="margin:0 0 20px;color:#fff;font-size:14px;">${data.name} · ${data.email}</p>
-     ${data.subject ? `<p style="margin:0 0 8px;color:#888;font-size:12px;">Subject</p><p style="margin:0 0 20px;color:#fff;font-size:14px;">${data.subject}</p>` : ""}
+     <p style="margin:0 0 20px;color:#fff;font-size:14px;">${escapeHtml(data.name)} · ${escapeHtml(data.email)}</p>
+     ${data.subject ? `<p style="margin:0 0 8px;color:#888;font-size:12px;">Subject</p><p style="margin:0 0 20px;color:#fff;font-size:14px;">${escapeHtml(data.subject)}</p>` : ""}
      <p style="margin:0 0 8px;color:#888;font-size:12px;">Message</p>
-     <p style="margin:0;color:#ccc;font-size:14px;line-height:1.6;white-space:pre-wrap;">${data.message}</p>`);
-    await send(to, `New contact form submission${data.subject ? `: ${data.subject}` : ""}`, html, { critical: true });
+     <p style="margin:0;color:#ccc;font-size:14px;line-height:1.6;white-space:pre-wrap;">${escapeHtml(data.message)}</p>`);
+    const subject = data.subject ? `: ${data.subject.replace(/[\r\n]+/g, " ").slice(0, 120)}` : "";
+    await send(to, `New contact form submission${subject}`, html, { critical: true });
 }
 async function sendSubscriptionConfirmationEmail(to, data) {
     const html = renderLayout("You're all set", paragraph(`Your <strong style="color:#fff;">${data.planName}</strong> subscription is now active, billed ${data.interval === "year" ? "yearly" : "monthly"}.`) +

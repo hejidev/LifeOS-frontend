@@ -38,6 +38,7 @@ const auth_middleware_1 = require("../middlewares/auth.middleware");
 const validate_middleware_1 = require("../middlewares/validate.middleware");
 const settingsController = __importStar(require("../controllers/settings.controller"));
 const settings_validator_1 = require("../validators/settings.validator");
+const rate_limit_1 = require("../lib/rate-limit");
 const router = (0, express_1.Router)();
 router.use(auth_middleware_1.requireAuth);
 router.get("/profile", settingsController.getProfile);
@@ -47,4 +48,5 @@ router.patch("/notifications", (0, validate_middleware_1.validate)(settings_vali
 router.post("/change-password", (0, validate_middleware_1.validate)(settings_validator_1.changePasswordSchema), settingsController.changePassword);
 router.get("/overview", settingsController.getAccountOverview);
 router.post("/deactivate", (0, validate_middleware_1.validate)(settings_validator_1.deactivateAccountSchema), settingsController.deactivateAccount);
+router.get("/export", (0, rate_limit_1.rateLimitUser)("data-export", 3, 86400, "You can export your data three times a day."), settingsController.exportData);
 exports.default = router;

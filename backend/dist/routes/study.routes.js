@@ -68,4 +68,5 @@ router.post("/study/materials/upload", (0, rate_limit_1.rateLimitUser)("study-up
 router.delete("/study/materials/:id", studyController.deleteMaterial);
 router.post("/study/sessions", (0, validate_middleware_1.validate)(study_validator_1.createStudySessionSchema), studyController.createSession);
 router.patch("/study/sessions/:id/end", (0, validate_middleware_1.validate)(study_validator_1.endStudySessionSchema), studyController.endSession);
+router.delete("/study/subjects/:id", studyController.deleteSubject);
 exports.default = router;

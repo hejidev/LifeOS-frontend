@@ -36,6 +36,20 @@ export function safeProfile<T extends { idFrontUrl?: string | null; idBackUrl?: 
   return result;
 }
 
+export function ownerProfile(profile: Record<string, any>) {
+  const {
+    idFrontUrl: _front,
+    idBackUrl: _back,
+    idDocumentNumber: _number,
+    paystackCustomerCode: _customer,
+    paystackSubscriptionCode: _subscription,
+    staffLoginCode: _code,
+    reviewedBy: _reviewer,
+    ...rest
+  } = profile;
+  return rest;
+}
+
 export async function getApplicationStatus(userId: string) {
   const profile = await prisma.bizProfile.findUnique({ where: { userId } });
   if (!profile) return { status: "NONE" as const };
@@ -240,7 +254,7 @@ export async function changeMerchantStatus(
     if (profile.status !== "APPROVED") throw new AppError("Only approved merchants can be suspended", 409);
     const updated = await prisma.bizProfile.update({
       where: { id: bizProfileId },
-      data: { status: "SUSPENDED", reviewedAt: new Date(), reviewedBy: reviewerId, rejectionReason: reason ?? "Suspended by admin" },
+      data: { status: "SUSPENDED", reviewedAt: new Date(), reviewedBy: reviewerId, rejectionReason: reason ?? "Suspended by admin", staffTokenVersion: { increment: 1 } },
     });
     await logAdminAction(reviewerId, "MERCHANT_SUSPENDED", "BizProfile", bizProfileId, `Suspended ${updated.businessName}`);  
     await createNotification(updated.userId, { type: "ALERT", title: "Merchant account suspended", message: reason ?? "Your merchant account has been suspended." });

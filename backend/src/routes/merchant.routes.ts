@@ -1,21 +1,28 @@
 import { Router } from "express";
-import multer from "multer";
 import { requireAuth } from "../middlewares/auth.middleware";
-import { requireRole } from "../middlewares/roles.middleware";
 import { requireMerchant, requireMerchantAllowPaused } from "../middlewares/merchant.middleware";
 import { requirePermission } from "../middlewares/permission.middleware";
 import { validate } from "../middlewares/validate.middleware";
 import { applyMerchantSchema, reviewApplicationSchema, merchantCheckoutSchema, notificationSettingsSchema, pauseStoreSchema } from "../validators/merchant.validator";
 import * as merchantController from "../controllers/merchant.controller";
+import { singleUpload } from "../lib/upload";
+import { rateLimitUser } from "../lib/rate-limit";
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "application/pdf"];
-    if (!allowed.includes(file.mimetype)) return cb(new Error("Only images or PDF are allowed for ID documents"));
-    cb(null, true);
-  },
+// const upload = multer({
+//   storage: multer.memoryStorage(),
+//   limits: { fileSize: 10 * 1024 * 1024 },
+//   fileFilter: (_req, file, cb) => {
+//     const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "application/pdf"];
+//     if (!allowed.includes(file.mimetype)) return cb(new Error("Only images or PDF are allowed for ID documents"));
+//     cb(null, true);
+//   },
+// });
+
+const ID_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp", "application/pdf"];
+const idUpload = singleUpload("file", {
+  maxBytes: 10 * 1024 * 1024,
+  allow: (file) => ID_TYPES.includes(file.mimetype),
+  rejectMessage: "Upload a PNG, JPG, WebP or PDF.",
 });
 
 const router = Router();
@@ -23,7 +30,7 @@ router.use(requireAuth);
 
 router.get("/status", merchantController.getStatus);
 router.post("/apply", validate(applyMerchantSchema), merchantController.apply);
-router.post("/id-upload", upload.single("file"), merchantController.uploadIdDocument);
+router.post("/id-upload", rateLimitUser("merchant-id-upload", 10, 3600, "You've uploaded too many ID files."), idUpload, merchantController.uploadIdDocument);
 router.post("/checkout", validate(merchantCheckoutSchema), merchantController.checkout);
 router.post("/billing-portal", merchantController.portal);
 

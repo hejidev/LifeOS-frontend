@@ -9,6 +9,7 @@ import {
   changePasswordSchema,
   deactivateAccountSchema,
 } from "../validators/settings.validator";
+import { rateLimitUser } from "../lib/rate-limit";
 
 const router = Router();
 router.use(requireAuth);
@@ -20,5 +21,6 @@ router.patch("/notifications", validate(updateNotificationsSchema), settingsCont
 router.post("/change-password", validate(changePasswordSchema), settingsController.changePassword);
 router.get("/overview", settingsController.getAccountOverview);
 router.post("/deactivate", validate(deactivateAccountSchema), settingsController.deactivateAccount);
+router.get("/export", rateLimitUser("data-export", 3, 86_400, "You can export your data three times a day."), settingsController.exportData);
 
 export default router;

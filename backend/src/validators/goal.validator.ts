@@ -1,21 +1,27 @@
 import { z } from "zod";
 
+const module = z.enum(["TASKS", "FINANCE", "STUDY", "HEALTH", "CAREER", "OTHER"]);
+const amount = z.number().finite().min(0).max(1e12);
+
 export const createGoalSchema = z.object({
   body: z.object({
-    title: z.string().trim().min(1).max(200),
-    module: z.enum(["TASKS", "FINANCE", "STUDY", "HEALTH", "CAREER", "OTHER"]).optional(),
-    target: z.number().positive(),
-    unit: z.string().max(20).optional(),
+    title: z.string().trim().min(1).max(150),
+    module: module.default("OTHER"),
+    target: amount.refine((value) => value > 0, "The target must be above zero"),
+    progress: amount.optional(),
+    unit: z.string().trim().max(20).optional(),
     deadline: z.string().datetime().optional(),
   }),
 });
 
 export const updateGoalSchema = z.object({
   body: z.object({
-    title: z.string().trim().min(1).max(200).optional(),
-    progress: z.number().min(0).optional(),
-    target: z.number().positive().optional(),
+    title: z.string().trim().min(1).max(150).optional(),
+    module: module.optional(),
+    target: amount.refine((value) => value > 0, "The target must be above zero").optional(),
+    progress: amount.optional(),
+    unit: z.string().trim().max(20).nullable().optional(),
+    deadline: z.string().datetime().nullable().optional(),
     status: z.enum(["ACTIVE", "COMPLETED", "ABANDONED"]).optional(),
-    deadline: z.string().datetime().optional().nullable(),
   }),
 });

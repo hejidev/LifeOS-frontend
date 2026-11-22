@@ -34,27 +34,46 @@ async function listStores(userId) {
 }
 async function createStore(userId, data) {
     const profile = await getBizProfile(userId);
-    const store = await prisma_1.prisma.store.create({
-        data: { bizProfileId: profile.id, name: data.name, address: data.address, phone: data.phone },
-    });
-    const products = await prisma_1.prisma.bizProduct.findMany({ where: { userId }, select: { id: true, lowStockAt: true } });
-    if (products.length > 0) {
-        await prisma_1.prisma.storeInventory.createMany({
-            data: products.map((p) => ({ storeId: store.id, productId: p.id, stock: 0, lowStockAt: p.lowStockAt })),
-            skipDuplicates: true,
+    const name = data.name.trim();
+    if (!name)
+        throw new errors_1.AppError("Give the location a name", 400);
+    return prisma_1.prisma.$transaction(async (tx) => {
+        const store = await tx.store.create({
+            data: { bizProfileId: profile.id, name, address: data.address?.trim() || null, phone: data.phone?.trim() || null },
         });
-    }
-    return serializeStore(store);
+        const products = await tx.bizProduct.findMany({ where: { userId }, select: { id: true, lowStockAt: true } });
+        if (products.length > 0) {
+            await tx.storeInventory.createMany({
+                data: products.map((p) => ({ storeId: store.id, productId: p.id, stock: 0, lowStockAt: p.lowStockAt })),
+                skipDuplicates: true,
+            });
+        }
+        return serializeStore(store);
+    });
 }
 async function updateStore(userId, storeId, data) {
     const profile = await getBizProfile(userId);
     const existing = await prisma_1.prisma.store.findFirst({ where: { id: storeId, bizProfileId: profile.id } });
     if (!existing)
         throw new errors_1.AppError("Store not found", 404);
-    if (existing.isDefault && data.active === false) {
-        throw new errors_1.AppError("Can't deactivate your default location — set another location as default first", 400);
+    if (data.active === false) {
+        if (existing.isDefault) {
+            throw new errors_1.AppError("Can't deactivate your default location. Set another location as default first.", 400);
+        }
+        const staffHere = await prisma_1.prisma.bizStaff.count({ where: { storeId, status: "ACTIVE" } });
+        if (staffHere > 0) {
+            throw new errors_1.AppError(`${staffHere} active staff ${staffHere === 1 ? "member is" : "members are"} assigned here. Move or suspend them first.`, 409);
+        }
     }
-    const store = await prisma_1.prisma.store.update({ where: { id: storeId }, data });
+    const store = await prisma_1.prisma.store.update({
+        where: { id: storeId },
+        data: {
+            ...(data.name !== undefined && { name: data.name.trim() || existing.name }),
+            ...(data.address !== undefined && { address: data.address.trim() || null }),
+            ...(data.phone !== undefined && { phone: data.phone.trim() || null }),
+            ...(data.active !== undefined && { active: data.active }),
+        },
+    });
     return serializeStore(store);
 }
 async function setDefaultStore(userId, storeId) {

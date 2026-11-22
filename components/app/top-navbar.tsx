@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { NotificationBell } from "../notifications/notification-bell";
 import { CommandPalette } from "../shell/command-palette";
 import { MobileMenuToggle } from "../shell/sidebar";
+import { Search } from "lucide-react";
+import { OPEN_SEARCH_EVENT } from "../shell/command-palette";
 
 export function TopNavbar() {
   const { user } = useAuthStore();
@@ -40,6 +42,9 @@ export function TopNavbar() {
       </div>
 
       <div className="ml-auto flex items-center gap-2">
+        <Button variant="ghost" size="icon" className="h-8 w-8 sm:hidden" aria-label="Search" onClick={() => window.dispatchEvent(new Event(OPEN_SEARCH_EVENT))}>
+          <Search className="h-4 w-4" />
+        </Button>
         <div className="flex items-center gap-2 sm:gap-3">
           <NotificationBell />
         </div>

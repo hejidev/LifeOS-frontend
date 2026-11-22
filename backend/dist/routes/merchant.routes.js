@@ -32,33 +32,36 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const multer_1 = __importDefault(require("multer"));
 const auth_middleware_1 = require("../middlewares/auth.middleware");
 const merchant_middleware_1 = require("../middlewares/merchant.middleware");
 const permission_middleware_1 = require("../middlewares/permission.middleware");
 const validate_middleware_1 = require("../middlewares/validate.middleware");
 const merchant_validator_1 = require("../validators/merchant.validator");
 const merchantController = __importStar(require("../controllers/merchant.controller"));
-const upload = (0, multer_1.default)({
-    storage: multer_1.default.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 },
-    fileFilter: (_req, file, cb) => {
-        const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "application/pdf"];
-        if (!allowed.includes(file.mimetype))
-            return cb(new Error("Only images or PDF are allowed for ID documents"));
-        cb(null, true);
-    },
+const upload_1 = require("../lib/upload");
+const rate_limit_1 = require("../lib/rate-limit");
+// const upload = multer({
+//   storage: multer.memoryStorage(),
+//   limits: { fileSize: 10 * 1024 * 1024 },
+//   fileFilter: (_req, file, cb) => {
+//     const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "application/pdf"];
+//     if (!allowed.includes(file.mimetype)) return cb(new Error("Only images or PDF are allowed for ID documents"));
+//     cb(null, true);
+//   },
+// });
+const ID_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp", "application/pdf"];
+const idUpload = (0, upload_1.singleUpload)("file", {
+    maxBytes: 10 * 1024 * 1024,
+    allow: (file) => ID_TYPES.includes(file.mimetype),
+    rejectMessage: "Upload a PNG, JPG, WebP or PDF.",
 });
 const router = (0, express_1.Router)();
 router.use(auth_middleware_1.requireAuth);
 router.get("/status", merchantController.getStatus);
 router.post("/apply", (0, validate_middleware_1.validate)(merchant_validator_1.applyMerchantSchema), merchantController.apply);
-router.post("/id-upload", upload.single("file"), merchantController.uploadIdDocument);
+router.post("/id-upload", (0, rate_limit_1.rateLimitUser)("merchant-id-upload", 10, 3600, "You've uploaded too many ID files."), idUpload, merchantController.uploadIdDocument);
 router.post("/checkout", (0, validate_middleware_1.validate)(merchant_validator_1.merchantCheckoutSchema), merchantController.checkout);
 router.post("/billing-portal", merchantController.portal);
 router.get("/applications", (0, permission_middleware_1.requirePermission)("MANAGE_MERCHANTS"), merchantController.listApplications);

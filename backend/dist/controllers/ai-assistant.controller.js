@@ -33,11 +33,12 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.streamReply = exports.deleteConversation = exports.getConversation = exports.listConversations = exports.getFocusSuggestions = exports.getContext = void 0;
+exports.createBrief = exports.getBrief = exports.streamReply = exports.deleteConversation = exports.getConversation = exports.listConversations = exports.getFocusSuggestions = exports.getContext = void 0;
 const errors_1 = require("../lib/errors");
 const aiContextService = __importStar(require("../services/ai-context.service"));
 const assistantContext = __importStar(require("../services/assistant-context.service"));
 const assistant = __importStar(require("../services/ai-assistant.service"));
+const dailyBrief = __importStar(require("../services/daily-brief.service"));
 exports.getContext = (0, errors_1.asyncHandler)(async (req, res) => res.json(await assistantContext.getAssistantContext(req.user.id)));
 exports.getFocusSuggestions = (0, errors_1.asyncHandler)(async (req, res) => res.json({ suggestions: await aiContextService.getFocusSuggestions(req.user.id) }));
 exports.listConversations = (0, errors_1.asyncHandler)(async (req, res) => res.json({ conversations: await assistant.listConversations(req.user.id) }));
@@ -78,3 +79,5 @@ exports.streamReply = (0, errors_1.asyncHandler)(async (req, res) => {
         res.end();
     }
 });
+exports.getBrief = (0, errors_1.asyncHandler)(async (req, res) => res.json(await dailyBrief.getBrief(req.user.id)));
+exports.createBrief = (0, errors_1.asyncHandler)(async (req, res) => res.json(await dailyBrief.generateBrief(req.user.id)));

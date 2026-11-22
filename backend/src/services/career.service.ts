@@ -1,5 +1,7 @@
 import { prisma } from "../config/prisma";
 import { AppError } from "../lib/errors";
+import { dayBounds } from "../lib/time";
+import { getUserClock } from "../lib/user-clock";
 
 async function assertGoal(userId: string, goalId?: string | null) {
   if (goalId && !(await prisma.careerGoal.findFirst({ where: { id: goalId, userId }, select: { id: true } }))) {
@@ -8,37 +10,39 @@ async function assertGoal(userId: string, goalId?: string | null) {
 }
 
 export async function getCareerDashboard(userId: string) {
+  const clock = await getUserClock(userId);
+  const { start: todayStart } = dayBounds(clock.zone);
+
   const [goals, skills, achievements] = await Promise.all([
-    prisma.careerGoal.findMany({ where: { userId }, orderBy: [{ status: "asc" }, { targetDate: "asc" }] }),
+    prisma.careerGoal.findMany({ where: { userId }, orderBy: [{ targetDate: "asc" }, { createdAt: "desc" }] }),
     prisma.skill.findMany({ where: { userId }, orderBy: { progress: "desc" } }),
     prisma.achievement.findMany({ where: { userId }, orderBy: { date: "desc" } }),
   ]);
 
-  const activeGoals = goals.filter((g) => g.status !== "COMPLETED");
-  const completedGoals = goals.filter((g) => g.status === "COMPLETED");
-  const overdueGoals = goals.filter((g) => g.targetDate && g.targetDate < new Date() && g.status !== "COMPLETED");
-  const avgSkillProgress = skills.length ? Math.round(skills.reduce((s, k) => s + k.progress, 0) / skills.length) : 0;
+  const goalViews = goals.map((goal) => ({
+    ...goal,
+    overdue: !!goal.targetDate && goal.targetDate < todayStart && goal.status !== "COMPLETED",
+  }));
+  const active = goalViews.filter((goal) => goal.status !== "COMPLETED");
+  const overdue = goalViews.filter((goal) => goal.overdue);
+  const avgSkillProgress = skills.length ? Math.round(skills.reduce((sum, skill) => sum + skill.progress, 0) / skills.length) : 0;
 
-  let insight = "Add career goals and skills to start tracking your growth.";
+  let insight = "Add a goal or a skill to start tracking your growth.";
   if (goals.length || skills.length) {
-    if (overdueGoals.length > 0) {
-      insight = `${overdueGoals.length} goal${overdueGoals.length > 1 ? "s are" : " is"} past its target date — consider revisiting timelines.`;
-    } else if (activeGoals.length === 0 && goals.length > 0) {
-      insight = "All career goals completed — nice work. Set a new one to keep momentum.";
-    } else {
-      insight = `${activeGoals.length} active goal${activeGoals.length === 1 ? "" : "s"}, average skill progress ${avgSkillProgress}%.`;
-    }
+    if (overdue.length > 0) insight = `${overdue.length} ${overdue.length === 1 ? "goal is" : "goals are"} past the target date. Move the date or finish ${overdue.length === 1 ? "it" : "them"}.`;
+    else if (active.length === 0 && goals.length > 0) insight = "All your goals are complete. Set a new one to keep the momentum.";
+    else insight = `${active.length} active ${active.length === 1 ? "goal" : "goals"}. Average skill progress is ${avgSkillProgress}%.`;
   }
 
   return {
-    goals,
+    goals: goalViews,
     skills,
     achievements,
     stats: {
       totalGoals: goals.length,
-      activeGoals: activeGoals.length,
-      completedGoals: completedGoals.length,
-      overdueGoals: overdueGoals.length,
+      activeGoals: active.length,
+      completedGoals: goals.length - active.length,
+      overdueGoals: overdue.length,
       avgSkillProgress,
       totalSkills: skills.length,
       totalAchievements: achievements.length,
@@ -54,18 +58,31 @@ export async function createGoal(userId: string, data: { title: string; area: st
   });
 }
 
-export async function updateGoal(userId: string, id: string, data: {
-  title?: string; area?: string; status?: string; progress?: number; targetDate?: string; notes?: string;
-}) {
+export async function updateGoal(
+  userId: string,
+  id: string,
+  data: { title?: string; area?: string; status?: string; progress?: number; targetDate?: string | null; notes?: string | null }
+) {
   const existing = await prisma.careerGoal.findFirst({ where: { id, userId } });
   if (!existing) throw new AppError("Goal not found", 404);
+
+  let status = data.status;
+  let progress = data.progress;
+  if (status === "COMPLETED") {
+    progress = 100;
+  } else if (status === undefined && progress !== undefined) {
+    if (progress >= 100) status = "COMPLETED";
+    else if (existing.status === "COMPLETED") status = "IN_PROGRESS";
+    else if (progress > 0 && existing.status === "NOT_STARTED") status = "IN_PROGRESS";
+  }
+
   return prisma.careerGoal.update({
     where: { id },
     data: {
       ...(data.title && { title: data.title }),
       ...(data.area && { area: data.area as any }),
-      ...(data.status && { status: data.status as any }),
-      ...(data.progress !== undefined && { progress: data.progress }),
+      ...(status && { status: status as any }),
+      ...(progress !== undefined && { progress }),
       ...(data.targetDate !== undefined && { targetDate: data.targetDate ? new Date(data.targetDate) : null }),
       ...(data.notes !== undefined && { notes: data.notes }),
     },

@@ -37,6 +37,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.safeProfile = safeProfile;
+exports.ownerProfile = ownerProfile;
 exports.getApplicationStatus = getApplicationStatus;
 exports.applyAsMerchant = applyAsMerchant;
 exports.uploadIdDocument = uploadIdDocument;
@@ -85,6 +86,10 @@ function safeProfile(profile, keepNumber = true) {
     if (!keepNumber)
         delete result.idDocumentNumber;
     return result;
+}
+function ownerProfile(profile) {
+    const { idFrontUrl: _front, idBackUrl: _back, idDocumentNumber: _number, paystackCustomerCode: _customer, paystackSubscriptionCode: _subscription, staffLoginCode: _code, reviewedBy: _reviewer, ...rest } = profile;
+    return rest;
 }
 async function getApplicationStatus(userId) {
     const profile = await prisma_1.prisma.bizProfile.findUnique({ where: { userId } });
@@ -262,7 +267,7 @@ async function changeMerchantStatus(reviewerId, bizProfileId, action, reason) {
             throw new errors_1.AppError("Only approved merchants can be suspended", 409);
         const updated = await prisma_1.prisma.bizProfile.update({
             where: { id: bizProfileId },
-            data: { status: "SUSPENDED", reviewedAt: new Date(), reviewedBy: reviewerId, rejectionReason: reason ?? "Suspended by admin" },
+            data: { status: "SUSPENDED", reviewedAt: new Date(), reviewedBy: reviewerId, rejectionReason: reason ?? "Suspended by admin", staffTokenVersion: { increment: 1 } },
         });
         await (0, audit_service_1.logAdminAction)(reviewerId, "MERCHANT_SUSPENDED", "BizProfile", bizProfileId, `Suspended ${updated.businessName}`);
         await (0, notification_service_1.createNotification)(updated.userId, { type: "ALERT", title: "Merchant account suspended", message: reason ?? "Your merchant account has been suspended." });

@@ -33,9 +33,10 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deactivateAccount = exports.getAccountOverview = exports.changePassword = exports.updateNotifications = exports.updatePreferences = exports.updateProfile = exports.getProfile = void 0;
+exports.exportData = exports.deactivateAccount = exports.getAccountOverview = exports.changePassword = exports.updateNotifications = exports.updatePreferences = exports.updateProfile = exports.getProfile = void 0;
 const errors_1 = require("../lib/errors");
 const settingsService = __importStar(require("../services/settings.service"));
+const data_export_service_1 = require("../services/data-export.service");
 exports.getProfile = (0, errors_1.asyncHandler)(async (req, res) => {
     const profile = await settingsService.getProfile(req.user.id);
     return res.json({ user: profile });
@@ -63,4 +64,12 @@ exports.getAccountOverview = (0, errors_1.asyncHandler)(async (req, res) => {
 exports.deactivateAccount = (0, errors_1.asyncHandler)(async (req, res) => {
     await settingsService.deactivateAccount(req.user.id, req.body ?? {});
     return res.status(204).send();
+});
+exports.exportData = (0, errors_1.asyncHandler)(async (req, res) => {
+    const data = await (0, data_export_service_1.exportUserData)(req.user.id);
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="lifeos-data-${stamp}.json"`);
+    res.setHeader("Cache-Control", "no-store");
+    return res.send(JSON.stringify(data, null, 2));
 });

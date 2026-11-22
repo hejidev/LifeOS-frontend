@@ -42,6 +42,8 @@ const helmet_1 = __importDefault(require("helmet"));
 const compression_1 = __importDefault(require("compression"));
 const hpp_1 = __importDefault(require("hpp"));
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
+const prisma_1 = require("./config/prisma");
+const redis_1 = require("./config/redis");
 const env_1 = require("./config/env");
 // import * as utilitiesController from "./controllers/utilities.controller";
 const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
@@ -101,6 +103,7 @@ const validate_middleware_1 = require("./middlewares/validate.middleware");
 const family_validator_1 = require("./validators/family.validator");
 const family_space_routes_1 = __importDefault(require("./routes/family-space.routes"));
 const finance_extras_routes_1 = __importDefault(require("./routes/finance-extras.routes"));
+const discover_routes_1 = __importDefault(require("./routes/discover.routes"));
 const errorHandler_middleware_1 = require("./middlewares/errorHandler.middleware");
 const cron_1 = require("./config/cron");
 const app = (0, express_1.default)();
@@ -122,6 +125,14 @@ app.use((0, cookie_parser_1.default)());
 app.use((0, hpp_1.default)());
 app.use((0, compression_1.default)());
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
+const within = (promise, ms) => Promise.race([promise, new Promise((_resolve, reject) => setTimeout(() => reject(new Error("timeout")), ms).unref())]);
+app.get("/ready", async (_req, res) => {
+    const started = Date.now();
+    const check = (run) => within(run(), 3000).then(() => true, () => false);
+    const [database, cache] = await Promise.all([check(() => prisma_1.prisma.$queryRaw `SELECT 1`), check(() => redis_1.redis.ping())]);
+    const ok = database && cache;
+    res.status(ok ? 200 : 503).json({ status: ok ? "ready" : "degraded", database, cache, ms: Date.now() - started, uptimeSeconds: Math.round(process.uptime()) });
+});
 app.post("/api/emergency/public/:token", (0, validate_middleware_1.validate)(emergency_validator_1.publicUnlockSchema), emergencyController.getPublic);
 app.get("/api/family/invites/:token", familyController.getInvite);
 app.post("/api/family/invites/accept", (0, validate_middleware_1.validate)(family_validator_1.acceptInviteSchema), familyController.acceptInvite);
@@ -150,6 +161,7 @@ app.use("/api", ping_routes_1.default);
 // Every router with its OWN specific prefix — must be tried before the
 // generic "/api" block below, or Express's prefix-matching lets the
 // generic block's blanket requireAuth intercept these requests first.
+app.use("/api/discover", discover_routes_1.default);
 app.use("/api/merchant", merchant_routes_1.default);
 app.use("/api/merchant/staff", staff_routes_1.default);
 app.use("/api/staff-portal", staff_portal_routes_1.default);

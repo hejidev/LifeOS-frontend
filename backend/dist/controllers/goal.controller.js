@@ -36,18 +36,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.remove = exports.update = exports.create = exports.list = void 0;
 const errors_1 = require("../lib/errors");
 const goalService = __importStar(require("../services/goal.service"));
-exports.list = (0, errors_1.asyncHandler)(async (req, res) => {
-    const goals = await goalService.listGoals(req.user.id);
-    return res.json({ goals });
-});
-exports.create = (0, errors_1.asyncHandler)(async (req, res) => {
-    const goal = await goalService.createGoal(req.user.id, req.body);
-    return res.status(201).json({ goal });
-});
-exports.update = (0, errors_1.asyncHandler)(async (req, res) => {
-    const goal = await goalService.updateGoal(req.user.id, req.params.id, req.body);
-    return res.json({ goal });
-});
+exports.list = (0, errors_1.asyncHandler)(async (req, res) => res.json({ goals: await goalService.listGoals(req.user.id) }));
+exports.create = (0, errors_1.asyncHandler)(async (req, res) => res.status(201).json({ goal: await goalService.createGoal(req.user.id, req.body) }));
+exports.update = (0, errors_1.asyncHandler)(async (req, res) => res.json({ goal: await goalService.updateGoal(req.user.id, req.params.id, req.body) }));
 exports.remove = (0, errors_1.asyncHandler)(async (req, res) => {
     await goalService.deleteGoal(req.user.id, req.params.id);
     return res.status(204).send();

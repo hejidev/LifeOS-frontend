@@ -23,6 +23,7 @@ export * from "./use-habits";
 export * from "./use-ai";
 export * from "./use-billing";
 export * from "./use-documents";
+export * from "./use-goals";
 export * from "./use-vault";
 
 
@@ -904,21 +905,21 @@ export function useDeleteCalendarEvent() {
   });
 }
 
-export function useGoals() {
-  return useQuery({ queryKey: ["goals"], queryFn: () => api.get("/goals").then((d) => d.goals) });
-}
-export function useCreateGoal() {
-  const qc = useQueryClient();
-  return useMutation({ mutationFn: (data: any) => api.post("/goals", data), onSuccess: () => qc.invalidateQueries({ queryKey: ["goals"] }) });
-}
-export function useUpdateGoal() {
-  const qc = useQueryClient();
-  return useMutation({ mutationFn: ({ id, data }: { id: string; data: any }) => api.patch(`/goals/${id}`, data), onSuccess: () => qc.invalidateQueries({ queryKey: ["goals"] }) });
-}
-export function useDeleteGoal() {
-  const qc = useQueryClient();
-  return useMutation({ mutationFn: (id: string) => api.delete(`/goals/${id}`), onSuccess: () => qc.invalidateQueries({ queryKey: ["goals"] }) });
-}
+// export function useGoals() {
+//   return useQuery({ queryKey: ["goals"], queryFn: () => api.get("/goals").then((d) => d.goals) });
+// }
+// export function useCreateGoal() {
+//   const qc = useQueryClient();
+//   return useMutation({ mutationFn: (data: any) => api.post("/goals", data), onSuccess: () => qc.invalidateQueries({ queryKey: ["goals"] }) });
+// }
+// export function useUpdateGoal() {
+//   const qc = useQueryClient();
+//   return useMutation({ mutationFn: ({ id, data }: { id: string; data: any }) => api.patch(`/goals/${id}`, data), onSuccess: () => qc.invalidateQueries({ queryKey: ["goals"] }) });
+// }
+// export function useDeleteGoal() {
+//   const qc = useQueryClient();
+//   return useMutation({ mutationFn: (id: string) => api.delete(`/goals/${id}`), onSuccess: () => qc.invalidateQueries({ queryKey: ["goals"] }) });
+// }
 
 export function useFocusSuggestions() {
   return useQuery({ queryKey: ["focusSuggestions"], queryFn: () => api.get("/ai-assistant/focus-suggestions").then((d) => d.suggestions) });

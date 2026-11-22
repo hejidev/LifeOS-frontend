@@ -17,6 +17,8 @@ import { useCreateNote, useCreateTask, useTodayOverview, useUpdateTaskStatus, us
 import { formatCurrency, dueNoon } from "@/lib/utils";
 import { BecomeMerchantCard } from "../merchant/become-merchant-card";
 
+import { DailyBriefCard, SetupChecklist } from "@/components/app/dashboard-extras";
+
 type Overview = {
   user: { name: string };
   events: { id: string; title: string; start: string; type: string }[];
@@ -214,6 +216,9 @@ export function DashboardContent() {
         <p className="mb-5 mt-1 text-sm text-muted-foreground">{summary}</p>
         <QuickAdd />
       </section>
+
+      <SetupChecklist />
+      <DailyBriefCard />
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard

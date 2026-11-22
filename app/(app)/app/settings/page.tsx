@@ -18,6 +18,7 @@ import {
 } from "@/lib/hooks/use-life-data";
 import { cn } from "@/lib/utils";
 import type { UserProfile } from "@/types/life";
+import { ExportData } from "@/components/settings/export-data";
 
 const CURRENCIES = [
   "NGN", "USD", "EUR", "GBP", "GHS", "ZAR", "KES", "CAD", "AUD", "AED", "CNY", "INR", "JPY",
@@ -266,6 +267,7 @@ function SettingsForm({ user }: { user: UserProfile }) {
               </div>
             ))}
           </div>
+          <ExportData />
         </Section>
       </div>
 

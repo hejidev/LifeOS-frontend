@@ -1,393 +1,403 @@
 "use client";
 
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Briefcase, Target, Sparkles, Plus, Pencil, Trash2, Award, TrendingUp } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMemo, useState } from "react";
+import { formatDistanceToNow } from "date-fns";
+import { AlertTriangle, Award, Briefcase, Check, CheckCircle2, ExternalLink, Pencil, Plus, Sparkles, Target, Trash2, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { EmptyState, PageHeader, ProgressBar, Section, StatCard } from "@/components/app/kit";
 import {
-  useCareerDashboard, useCreateCareerGoal, useUpdateCareerGoal, useDeleteCareerGoal,
-  useCreateSkill, useUpdateSkill, useDeleteSkill,
-  useCreateAchievement, useDeleteAchievement,
-} from "@/lib/hooks/use-life-data";
+  useCareerDashboard, useCreateAchievement, useCreateCareerGoal, useCreateSkill, useDeleteAchievement,
+  useDeleteCareerGoal, useDeleteSkill, useUpdateCareerGoal, useUpdateSkill,
+} from "@/lib/hooks/use-career";
+import type { AchievementType, CareerGoal, CareerSkill, GoalArea, GoalStatus, SkillLevel } from "@/lib/hooks/use-career";
+import { cn } from "@/lib/utils";
 
-const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
-const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
+const AREAS: Record<GoalArea, string> = { SKILLS: "Skills", ROLE: "Role", PROJECT: "Project", CERTIFICATION: "Certification" };
+const STATUSES: Record<GoalStatus, string> = { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", COMPLETED: "Completed", ON_HOLD: "On hold" };
+const LEVELS: SkillLevel[] = ["BEGINNER", "INTERMEDIATE", "ADVANCED", "EXPERT"];
+const ACHIEVEMENT_TYPES: AchievementType[] = ["CERTIFICATION", "AWARD", "PROMOTION", "PUBLICATION", "OTHER"];
+const select = "flex h-10 w-full rounded-lg border bg-background px-3 text-sm";
+const pretty = (value: string) => value.charAt(0) + value.slice(1).toLowerCase().replace(/_/g, " ");
 
-const AREA_LABELS: Record<string, string> = { SKILLS: "Skills", ROLE: "Role", PROJECT: "Project", CERTIFICATION: "Certification" };
-const GOAL_STATUS_CONFIG: Record<string, { label: string; variant: any }> = {
-  NOT_STARTED: { label: "Not started", variant: "outline" },
-  IN_PROGRESS: { label: "In progress", variant: "default" },
-  COMPLETED: { label: "Completed", variant: "secondary" },
-  ON_HOLD: { label: "On hold", variant: "outline" },
-};
-const SKILL_LEVELS = ["BEGINNER", "INTERMEDIATE", "ADVANCED", "EXPERT"];
-const ACHIEVEMENT_TYPES = ["CERTIFICATION", "AWARD", "PROMOTION", "PUBLICATION", "OTHER"];
+function dueText(goal: CareerGoal) {
+  if (!goal.targetDate) return null;
+  const [year, month, day] = goal.targetDate.slice(0, 10).split("-").map(Number);
+  const target = new Date(year, month - 1, day);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((target.getTime() - today.getTime()) / 86_400_000);
+  const label = target.toLocaleDateString(undefined, { dateStyle: "medium" });
 
-const emptyGoalForm = { title: "", area: "SKILLS", status: "NOT_STARTED", progress: 0, targetDate: "", notes: "" };
-const emptySkillForm = { name: "", level: "BEGINNER", progress: 0, category: "" };
-const emptyAchievementForm = { title: "", type: "CERTIFICATION", issuer: "", date: "", description: "", credentialUrl: "" };
+  if (goal.status === "COMPLETED") return { text: `Target was ${label}`, tone: "text-muted-foreground" };
+  if (days < 0) return { text: `${-days} ${days === -1 ? "day" : "days"} overdue`, tone: "text-destructive" };
+  if (days === 0) return { text: "Due today", tone: "text-amber-600" };
+  if (days <= 14) return { text: `Due in ${days} ${days === 1 ? "day" : "days"}`, tone: "text-amber-600" };
+  return { text: `Target ${label}`, tone: "text-muted-foreground" };
+}
 
-export default function CareerPage() {
-  const { data, isLoading } = useCareerDashboard();
-  const createGoal = useCreateCareerGoal();
-  const updateGoal = useUpdateCareerGoal();
-  const deleteGoal = useDeleteCareerGoal();
-  const createSkill = useCreateSkill();
-  const updateSkill = useUpdateSkill();
-  const deleteSkill = useDeleteSkill();
-  const createAchievement = useCreateAchievement();
-  const deleteAchievement = useDeleteAchievement();
+function GoalDialog({ editing, onClose }: { editing: CareerGoal | null; onClose: () => void }) {
+  const create = useCreateCareerGoal();
+  const update = useUpdateCareerGoal();
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    title: editing?.title ?? "",
+    area: editing?.area ?? ("SKILLS" as GoalArea),
+    status: editing?.status ?? ("NOT_STARTED" as GoalStatus),
+    progress: editing?.progress ?? 0,
+    targetDate: editing?.targetDate?.slice(0, 10) ?? "",
+    notes: editing?.notes ?? "",
+  });
 
-  const [goalOpen, setGoalOpen] = useState(false);
-  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
-  const [goalForm, setGoalForm] = useState(emptyGoalForm);
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    const outcome = { onSuccess: onClose, onError: (err: Error) => setError(err.message) };
+    const targetDate = form.targetDate ? `${form.targetDate}T12:00:00.000Z` : null;
+    const notes = form.notes.trim();
 
-  const [skillOpen, setSkillOpen] = useState(false);
-  const [editingSkillId, setEditingSkillId] = useState<string | null>(null);
-  const [skillForm, setSkillForm] = useState(emptySkillForm);
-
-  const [achievementOpen, setAchievementOpen] = useState(false);
-  const [achievementForm, setAchievementForm] = useState(emptyAchievementForm);
-
-  if (isLoading || !data) return <Skeleton className="h-[calc(100vh-8rem)] rounded-xl" />;
-
-  const { goals, skills, achievements, stats, insight } = data as any;
-
-  function openCreateGoal() {
-    setEditingGoalId(null);
-    setGoalForm(emptyGoalForm);
-    setGoalOpen(true);
-  }
-  function openEditGoal(g: any) {
-    setEditingGoalId(g.id);
-    setGoalForm({ title: g.title, area: g.area, status: g.status, progress: g.progress, targetDate: g.targetDate ? g.targetDate.split("T")[0] : "", notes: g.notes ?? "" });
-    setGoalOpen(true);
-  }
-  function handleGoalSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const payload = {
-      title: goalForm.title, area: goalForm.area, status: goalForm.status, progress: Number(goalForm.progress),
-      targetDate: goalForm.targetDate ? new Date(goalForm.targetDate).toISOString() : undefined,
-      notes: goalForm.notes || undefined,
-    };
-    if (editingGoalId) {
-      updateGoal.mutate({ id: editingGoalId, data: payload }, { onSuccess: () => setGoalOpen(false) });
+    if (editing) {
+      update.mutate({ id: editing.id, data: { title: form.title.trim(), area: form.area, status: form.status, progress: form.progress, targetDate, notes: notes || null } }, outcome);
     } else {
-      createGoal.mutate(payload as any, { onSuccess: () => setGoalOpen(false) });
+      create.mutate({ title: form.title.trim(), area: form.area, ...(targetDate ? { targetDate } : {}), ...(notes ? { notes } : {}) }, outcome);
     }
   }
 
-  function openCreateSkill() {
-    setEditingSkillId(null);
-    setSkillForm(emptySkillForm);
-    setSkillOpen(true);
-  }
-  function openEditSkill(s: any) {
-    setEditingSkillId(s.id);
-    setSkillForm({ name: s.name, level: s.level, progress: s.progress, category: s.category ?? "" });
-    setSkillOpen(true);
-  }
-  function handleSkillSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const payload = { name: skillForm.name, level: skillForm.level, progress: Number(skillForm.progress), category: skillForm.category || undefined };
-    if (editingSkillId) {
-      updateSkill.mutate({ id: editingSkillId, data: payload }, { onSuccess: () => setSkillOpen(false) });
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
+        <DialogHeader><DialogTitle>{editing ? "Edit goal" : "New career goal"}</DialogTitle></DialogHeader>
+        <form onSubmit={submit} className="space-y-3 pt-1">
+          <div className="space-y-1"><Label>Goal</Label><Input value={form.title} onChange={(event) => setForm((f) => ({ ...f, title: event.target.value }))} placeholder="e.g. Earn my AWS certification" maxLength={200} required autoFocus /></div>
+          <div className={cn("grid gap-3", editing && "grid-cols-2")}>
+            <div className="space-y-1"><Label>Area</Label><select className={select} value={form.area} onChange={(event) => setForm((f) => ({ ...f, area: event.target.value as GoalArea }))}>{(Object.keys(AREAS) as GoalArea[]).map((key) => <option key={key} value={key}>{AREAS[key]}</option>)}</select></div>
+            {editing && (
+              <div className="space-y-1">
+                <Label>Status</Label>
+                <select className={select} value={form.status} onChange={(event) => { const status = event.target.value as GoalStatus; setForm((f) => ({ ...f, status, progress: status === "COMPLETED" ? 100 : f.progress })); }}>
+                  {(Object.keys(STATUSES) as GoalStatus[]).map((key) => <option key={key} value={key}>{STATUSES[key]}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+          {editing && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-sm"><Label>Progress</Label><span className="tabular-nums text-muted-foreground">{form.progress}%</span></div>
+              <input type="range" min={0} max={100} step={5} value={form.progress} className="w-full accent-primary" onChange={(event) => { const progress = Number(event.target.value); setForm((f) => ({ ...f, progress, status: progress === 100 ? "COMPLETED" : f.status === "COMPLETED" ? "IN_PROGRESS" : f.status })); }} />
+            </div>
+          )}
+          <div className="space-y-1"><Label>Target date (optional)</Label><Input type="date" value={form.targetDate} onChange={(event) => setForm((f) => ({ ...f, targetDate: event.target.value }))} /></div>
+          <div className="space-y-1"><Label>Notes (optional)</Label><Textarea rows={3} value={form.notes} maxLength={2000} onChange={(event) => setForm((f) => ({ ...f, notes: event.target.value }))} /></div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={create.isPending || update.isPending || !form.title.trim()}>{create.isPending || update.isPending ? "Saving..." : "Save"}</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SkillDialog({ editing, goals, onClose }: { editing: CareerSkill | null; goals: CareerGoal[]; onClose: () => void }) {
+  const create = useCreateSkill();
+  const update = useUpdateSkill();
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    name: editing?.name ?? "",
+    level: editing?.level ?? ("BEGINNER" as SkillLevel),
+    progress: editing?.progress ?? 0,
+    category: editing?.category ?? "",
+    goalId: editing?.relatedGoalId ?? "",
+  });
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    const outcome = { onSuccess: onClose, onError: (err: Error) => setError(err.message) };
+    const category = form.category.trim();
+
+    if (editing) {
+      update.mutate({ id: editing.id, data: { name: form.name.trim(), level: form.level, progress: form.progress, category, relatedGoalId: form.goalId || null } }, outcome);
     } else {
-      createSkill.mutate(payload, { onSuccess: () => setSkillOpen(false) });
+      create.mutate({ name: form.name.trim(), level: form.level, progress: form.progress, ...(category ? { category } : {}), ...(form.goalId ? { relatedGoalId: form.goalId } : {}) }, outcome);
     }
   }
 
-  function handleAchievementSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    createAchievement.mutate(
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>{editing ? "Edit skill" : "Add skill"}</DialogTitle></DialogHeader>
+        <form onSubmit={submit} className="space-y-3 pt-1">
+          <div className="space-y-1"><Label>Skill</Label><Input value={form.name} onChange={(event) => setForm((f) => ({ ...f, name: event.target.value }))} maxLength={100} required autoFocus /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1"><Label>Level</Label><select className={select} value={form.level} onChange={(event) => setForm((f) => ({ ...f, level: event.target.value as SkillLevel }))}>{LEVELS.map((level) => <option key={level} value={level}>{pretty(level)}</option>)}</select></div>
+            <div className="space-y-1"><Label>Category</Label><Input value={form.category} onChange={(event) => setForm((f) => ({ ...f, category: event.target.value }))} placeholder="e.g. Engineering" maxLength={60} /></div>
+          </div>
+          <div className="space-y-1">
+            <div className="flex justify-between text-sm"><Label>Progress</Label><span className="tabular-nums text-muted-foreground">{form.progress}%</span></div>
+            <input type="range" min={0} max={100} step={5} value={form.progress} className="w-full accent-primary" onChange={(event) => setForm((f) => ({ ...f, progress: Number(event.target.value) }))} />
+          </div>
+          {goals.length > 0 && (
+            <div className="space-y-1"><Label>Supports goal (optional)</Label><select className={select} value={form.goalId} onChange={(event) => setForm((f) => ({ ...f, goalId: event.target.value }))}><option value="">None</option>{goals.map((goal) => <option key={goal.id} value={goal.id}>{goal.title}</option>)}</select></div>
+          )}
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={create.isPending || update.isPending || !form.name.trim()}>Save</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AchievementDialog({ onClose }: { onClose: () => void }) {
+  const create = useCreateAchievement();
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({ title: "", type: "CERTIFICATION" as AchievementType, issuer: "", date: "", credentialUrl: "", description: "" });
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    let link = form.credentialUrl.trim();
+    if (link && !/^https?:\/\//i.test(link)) link = `https://${link}`;
+    const issuer = form.issuer.trim();
+    const description = form.description.trim();
+
+    create.mutate(
       {
-        title: achievementForm.title, type: achievementForm.type,
-        issuer: achievementForm.issuer || undefined,
-        date: achievementForm.date ? new Date(achievementForm.date).toISOString() : undefined,
-        description: achievementForm.description || undefined,
-        credentialUrl: achievementForm.credentialUrl || undefined,
+        title: form.title.trim(),
+        type: form.type,
+        ...(issuer ? { issuer } : {}),
+        ...(form.date ? { date: `${form.date}T12:00:00.000Z` } : {}),
+        ...(link ? { credentialUrl: link } : {}),
+        ...(description ? { description } : {}),
       },
-      { onSuccess: () => { setAchievementOpen(false); setAchievementForm(emptyAchievementForm); } }
+      { onSuccess: onClose, onError: (err: Error) => setError(err.message) }
     );
   }
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={item} className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Briefcase className="h-6 w-6 text-primary" /> Career
-          </h1>
-          <p className="text-muted-foreground mt-1 text-[10px] sm:text-xl">Track goals, skills, and achievements toward your career growth.</p>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
+        <DialogHeader><DialogTitle>Add achievement</DialogTitle></DialogHeader>
+        <form onSubmit={submit} className="space-y-3 pt-1">
+          <div className="space-y-1"><Label>Title</Label><Input value={form.title} onChange={(event) => setForm((f) => ({ ...f, title: event.target.value }))} maxLength={200} required autoFocus /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1"><Label>Type</Label><select className={select} value={form.type} onChange={(event) => setForm((f) => ({ ...f, type: event.target.value as AchievementType }))}>{ACHIEVEMENT_TYPES.map((type) => <option key={type} value={type}>{pretty(type)}</option>)}</select></div>
+            <div className="space-y-1"><Label>Date</Label><Input type="date" value={form.date} onChange={(event) => setForm((f) => ({ ...f, date: event.target.value }))} /></div>
+          </div>
+          <div className="space-y-1"><Label>Issuer (optional)</Label><Input value={form.issuer} onChange={(event) => setForm((f) => ({ ...f, issuer: event.target.value }))} placeholder="e.g. Google, University of Ibadan" maxLength={120} /></div>
+          <div className="space-y-1"><Label>Credential link (optional)</Label><Input value={form.credentialUrl} onChange={(event) => setForm((f) => ({ ...f, credentialUrl: event.target.value }))} placeholder="https://..." /></div>
+          <div className="space-y-1"><Label>Description (optional)</Label><Textarea rows={2} value={form.description} maxLength={2000} onChange={(event) => setForm((f) => ({ ...f, description: event.target.value }))} /></div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={create.isPending || !form.title.trim()}>Save</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type DialogState = { kind: "goal"; id: number; editing: CareerGoal | null } | { kind: "skill"; id: number; editing: CareerSkill | null } | { kind: "achievement"; id: number } | null;
+
+export default function CareerPage() {
+  const { data, isLoading, isError, refetch } = useCareerDashboard();
+  const updateGoal = useUpdateCareerGoal();
+  const deleteGoal = useDeleteCareerGoal();
+  const updateSkill = useUpdateSkill();
+  const deleteSkill = useDeleteSkill();
+  const deleteAchievement = useDeleteAchievement();
+  const [dialog, setDialog] = useState<DialogState>(null);
+  const [showDone, setShowDone] = useState(false);
+
+  const goals = data?.goals;
+  const { active, done } = useMemo(() => {
+    const list = goals ?? [];
+    return {
+      active: list
+        .filter((goal) => goal.status !== "COMPLETED")
+        .sort((a, b) => Number(b.overdue) - Number(a.overdue) || (a.targetDate ?? "9999").localeCompare(b.targetDate ?? "9999")),
+      done: list.filter((goal) => goal.status === "COMPLETED"),
+    };
+  }, [goals]);
+  const goalTitle = useMemo(() => new Map((goals ?? []).map((goal) => [goal.id, goal.title])), [goals]);
+
+  if (isError && !data) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-20 text-center">
+        <p className="text-sm text-destructive">Couldn't load your career data.</p>
+        <Button size="sm" variant="outline" onClick={() => refetch()}>Try again</Button>
+      </div>
+    );
+  }
+
+  if (isLoading || !data) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-12 w-56" />
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-28 rounded-xl" />)}</div>
+        <Skeleton className="h-72 rounded-xl" />
+      </div>
+    );
+  }
+
+  const { stats } = data;
+
+  const GoalCard = ({ goal }: { goal: CareerGoal }) => {
+    const due = dueText(goal);
+    const complete = goal.status === "COMPLETED";
+    return (
+      <div className={cn("space-y-3 rounded-xl border bg-card p-4", goal.overdue && "border-destructive/40")}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className={cn("text-sm font-medium", complete && "text-muted-foreground line-through")}>{goal.title}</p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <Badge variant="outline" className="text-[10px]">{AREAS[goal.area]}</Badge>
+              <Badge variant={complete ? "secondary" : "outline"} className="text-[10px]">{STATUSES[goal.status]}</Badge>
+              {due && <span className={cn("text-xs", due.tone)}>{due.text}</span>}
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-0.5">
+            <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Edit goal" onClick={() => setDialog({ kind: "goal", id: Date.now(), editing: goal })}><Pencil className="h-3.5 w-3.5" /></Button>
+            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" aria-label="Delete goal" onClick={() => window.confirm(`Delete the goal "${goal.title}"?`) && deleteGoal.mutate(goal.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+          </div>
         </div>
-        <div className="flex gap-2 flex-col sm:flex-row">
-          <Button variant="outline" onClick={openCreateSkill} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl ml-2">
-            <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Skill</Button>
-          <Button onClick={openCreateGoal} className="px-5 w-23 sm:w-40 text-[13px] sm:text-xl ml-2">
-            <Plus className="h-3 w-3 sm:w-4 sm:h-4" /> Goal</Button>
+        <div className="space-y-1.5">
+          <ProgressBar value={goal.progress} tone={complete ? "success" : goal.overdue ? "danger" : "default"} />
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs tabular-nums text-muted-foreground">{goal.progress}%</span>
+            <div className="flex gap-1.5">
+              {complete ? (
+                <Button size="sm" variant="outline" className="h-7 text-xs" disabled={updateGoal.isPending} onClick={() => updateGoal.mutate({ id: goal.id, data: { status: "IN_PROGRESS", progress: 90 } })}>Reopen</Button>
+              ) : (
+                <>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" disabled={updateGoal.isPending} onClick={() => updateGoal.mutate({ id: goal.id, data: { progress: Math.min(100, goal.progress + 10) } })}>+10%</Button>
+                  <Button size="sm" className="h-7 text-xs" disabled={updateGoal.isPending} onClick={() => updateGoal.mutate({ id: goal.id, data: { status: "COMPLETED" } })}><Check className="mr-1 h-3 w-3" /> Complete</Button>
+                </>
+              )}
+            </div>
+          </div>
         </div>
-      </motion.div>
+        {goal.notes && <p className="text-xs text-muted-foreground">{goal.notes}</p>}
+      </div>
+    );
+  };
 
-      <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "Active goals", value: stats.activeGoals },
-          { label: "Completed", value: stats.completedGoals },
-          { label: "Overdue", value: stats.overdueGoals },
-          { label: "Avg skill progress", value: `${stats.avgSkillProgress}%` },
-        ].map((s) => (
-          <Card key={s.label} className="hover:border-primary/20 transition-colors">
-            <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">{s.label}</CardTitle></CardHeader>
-            <CardContent><p className="text-xl font-semibold">{s.value}</p></CardContent>
-          </Card>
-        ))}
-      </motion.div>
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        icon={Briefcase}
+        title="Career"
+        subtitle="Goals, skills and achievements that move you forward."
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setDialog({ kind: "skill", id: Date.now(), editing: null })}><Plus className="mr-1.5 h-4 w-4" /> Skill</Button>
+            <Button onClick={() => setDialog({ kind: "goal", id: Date.now(), editing: null })}><Plus className="mr-1.5 h-4 w-4" /> Goal</Button>
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <motion.div variants={item} className="lg:col-span-2">
-          <Card className="hover:border-primary/20 transition-colors">
-            <CardHeader className="pb-3 flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Target className="h-4 w-4 text-primary" /> Career goals
-              </CardTitle>
-              <Badge variant="secondary" className="text-[11px]">{goals.length} goals</Badge>
-            </CardHeader>
-            <CardContent>
-              {goals.length === 0 ? (
-                <div className="text-center py-6 space-y-3">
-                  <p className="text-sm text-muted-foreground">No goals yet.</p>
-                  <Button size="sm" onClick={openCreateGoal}><Plus className="mr-1 h-3 w-3" /> Add goal</Button>
-                </div>
-              ) : (
-                <ScrollArea className="max-h-105">
-                  <div className="space-y-3 pt-1">
-                    {goals.map((g: any) => {
-                      const cfg = GOAL_STATUS_CONFIG[g.status] ?? GOAL_STATUS_CONFIG.NOT_STARTED;
-                      const overdue = g.targetDate && new Date(g.targetDate) < new Date() && g.status !== "COMPLETED";
-                      return (
-                        <div key={g.id} className="space-y-2 rounded-lg border border-border/60 bg-card/60 p-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium truncate">{g.title}</p>
-                              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                <Badge variant="outline" className="text-[10px]">{AREA_LABELS[g.area]}</Badge>
-                                <Badge variant={cfg.variant} className="text-[10px]">{cfg.label}</Badge>
-                                {overdue && <Badge variant="destructive" className="text-[10px]">Overdue</Badge>}
-                                {g.targetDate && <span className="text-[11px] text-muted-foreground">Target {new Date(g.targetDate).toLocaleDateString()}</span>}
-                              </div>
-                            </div>
-                            <div className="flex gap-1 shrink-0">
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEditGoal(g)}><Pencil className="h-3.5 w-3.5" /></Button>
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => deleteGoal.mutate(g.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                            </div>
-                          </div>
-                          <div className="h-2 rounded-full bg-muted overflow-hidden">
-                            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${g.progress}%` }} />
-                          </div>
-                          {g.notes && <p className="text-[11px] text-muted-foreground">{g.notes}</p>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div variants={item} className="space-y-4">
-          <Card className="hover:border-primary/20 transition-colors">
-            <CardHeader className="pb-3 flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4 text-primary" /> Skills</CardTitle>
-              <Button size="sm" variant="ghost" onClick={openCreateSkill}><Plus className="h-3 w-3" /></Button>
-            </CardHeader>
-            <CardContent>
-              {skills.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No skills tracked yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {skills.map((s: any) => (
-                    <div key={s.id} className="space-y-1 rounded-lg border border-border/60 bg-card/60 p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{s.name}</p>
-                          <p className="text-[11px] text-muted-foreground capitalize">{s.level.toLowerCase()}</p>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Badge variant="outline" className="text-[10px]">{s.progress}%</Badge>
-                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => openEditSkill(s)}><Pencil className="h-3 w-3" /></Button>
-                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:text-destructive" onClick={() => deleteSkill.mutate(s.id)}><Trash2 className="h-3 w-3" /></Button>
-                        </div>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div className="h-full rounded-full bg-primary" style={{ width: `${s.progress}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="hover:border-primary/20 transition-colors">
-            <CardHeader className="pb-3 flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2"><Award className="h-4 w-4 text-primary" /> Achievements</CardTitle>
-              <Button size="sm" variant="ghost" onClick={() => setAchievementOpen(true)}><Plus className="h-3 w-3" /></Button>
-            </CardHeader>
-            <CardContent>
-              {achievements.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No achievements logged yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {achievements.map((a: any) => (
-                    <div key={a.id} className="flex items-start justify-between gap-2 rounded-lg border border-border/60 bg-card/60 p-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{a.title}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {a.type.charAt(0) + a.type.slice(1).toLowerCase()}{a.issuer ? ` · ${a.issuer}` : ""}{a.date ? ` · ${new Date(a.date).toLocaleDateString()}` : ""}
-                        </p>
-                      </div>
-                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:text-destructive shrink-0" onClick={() => deleteAchievement.mutate(a.id)}><Trash2 className="h-3 w-3" /></Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-primary/20 bg-primary/5 hover:border-primary/30 transition-colors">
-            <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /> Career insight</CardTitle></CardHeader>
-            <CardContent><p className="text-xs text-muted-foreground">{insight}</p></CardContent>
-          </Card>
-        </motion.div>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <StatCard icon={Target} label="Active goals" value={stats.activeGoals} hint={`${stats.totalGoals} in total`} />
+        <StatCard icon={CheckCircle2} label="Completed" value={stats.completedGoals} tone="success" progress={stats.totalGoals ? (stats.completedGoals / stats.totalGoals) * 100 : 0} />
+        <StatCard icon={AlertTriangle} label="Overdue" value={stats.overdueGoals} tone={stats.overdueGoals > 0 ? "danger" : "success"} hint={stats.overdueGoals > 0 ? "Needs a new date" : "On schedule"} />
+        <StatCard icon={TrendingUp} label="Skill progress" value={`${stats.avgSkillProgress}%`} progress={stats.avgSkillProgress} hint={`${stats.totalSkills} ${stats.totalSkills === 1 ? "skill" : "skills"}`} />
       </div>
 
-      <Dialog open={goalOpen} onOpenChange={setGoalOpen}>
-        <DialogContent className="flex! flex-col! max-w-70 sm:max-w-xl px-2 sm:px-5 mt-10 max-h-[90vh] gap-1 overflow-hidden">
-          <DialogHeader className="shrink-0"><DialogTitle className="text-start mb-0">{editingGoalId ? "Edit goal" : "Add career goal"}</DialogTitle></DialogHeader>
-          <form onSubmit={handleGoalSubmit} className="flex flex-col flex-1 min-h-0">
-            <div className="flex-1 min-h-0 overflow-y-auto pr-3">
-              <div className="space-y-2 pt-2 pb-2">
-                <div className="space-y-1 px-1">
-                  <Label>Title</Label>
-                  <Input value={goalForm.title} onChange={(e) => setGoalForm((f) => ({ ...f, title: e.target.value }))} required />
-                </div>
-                <div className="space-y-1 px-1">
-                  <Label>Area</Label>
-                  <select className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={goalForm.area} onChange={(e) => setGoalForm((f) => ({ ...f, area: e.target.value }))}>
-                    {Object.keys(AREA_LABELS).map((a) => <option key={a} value={a}>{AREA_LABELS[a]}</option>)}
-                  </select>
-                </div>
-                {editingGoalId && (
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
+          <Section title="Goals" icon={Target}>
+            {active.length === 0 && done.length === 0 ? (
+              <EmptyState icon={Target} title="Set your first career goal" body="A certification, a promotion or a project. Pick one and track it here." action={<Button size="sm" onClick={() => setDialog({ kind: "goal", id: Date.now(), editing: null })}>Add a goal</Button>} />
+            ) : (
+              <div className="space-y-3">
+                {active.map((goal) => <GoalCard key={goal.id} goal={goal} />)}
+                {active.length === 0 && <p className="py-3 text-center text-sm text-muted-foreground">No active goals. Add a new one to keep going.</p>}
+                {done.length > 0 && (
                   <>
-                    <div className="space-y-1 px-1">
-                      <Label>Status</Label>
-                      <select className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={goalForm.status} onChange={(e) => setGoalForm((f) => ({ ...f, status: e.target.value }))}>
-                        {Object.keys(GOAL_STATUS_CONFIG).map((s) => <option key={s} value={s}>{GOAL_STATUS_CONFIG[s].label}</option>)}
-                      </select>
-                    </div>
-                    <div className="space-y-1 px-1">
-                      <div className="flex items-center justify-between"><Label>Progress</Label><span className="text-xs text-muted-foreground">{goalForm.progress}%</span></div>
-                      <input type="range" min={0} max={100} step={5} value={goalForm.progress} onChange={(e) => setGoalForm((f) => ({ ...f, progress: Number(e.target.value) }))} className="w-full accent-primary" />
-                    </div>
+                    <button type="button" className="text-xs font-medium text-muted-foreground hover:text-foreground" onClick={() => setShowDone((value) => !value)}>{showDone ? "Hide" : "Show"} {done.length} completed</button>
+                    {showDone && done.map((goal) => <GoalCard key={goal.id} goal={goal} />)}
                   </>
                 )}
-                <div className="space-y-1 px-1">
-                  <Label>Target date (optional)</Label>
-                  <Input type="date" value={goalForm.targetDate} onChange={(e) => setGoalForm((f) => ({ ...f, targetDate: e.target.value }))} />
-                </div>
-                <div className="space-y-1 px-1">
-                  <Label>Notes (optional)</Label>
-                  <Textarea rows={3} value={goalForm.notes} onChange={(e) => setGoalForm((f) => ({ ...f, notes: e.target.value }))} />
-                </div>
               </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-3 border-t border-border mt-2 shrink-0">
-              <Button type="button" variant="outline" onClick={() => setGoalOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createGoal.isPending || updateGoal.isPending}>{createGoal.isPending || updateGoal.isPending ? "Saving..." : "Save"}</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+            )}
+          </Section>
 
-      <Dialog open={skillOpen} onOpenChange={setSkillOpen}>
-        <DialogContent className="max-w-70 sm:max-w-xl px-2 sm:px-5">
-          <DialogHeader><DialogTitle>{editingSkillId ? "Edit skill" : "Add skill"}</DialogTitle></DialogHeader>
-          <form onSubmit={handleSkillSubmit} className="space-y-4 pt-2">
-            <div className="space-y-1 px-1">
-              <Label>Name</Label>
-              <Input value={skillForm.name} onChange={(e) => setSkillForm((f) => ({ ...f, name: e.target.value }))} required />
-            </div>
-            <div className="space-y-1 px-1">
-              <Label>Level</Label>
-              <select className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={skillForm.level} onChange={(e) => setSkillForm((f) => ({ ...f, level: e.target.value }))}>
-                {SKILL_LEVELS.map((l) => <option key={l} value={l}>{l.charAt(0) + l.slice(1).toLowerCase()}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1 px-1">
-              <div className="flex items-center justify-between"><Label>Progress</Label><span className="text-xs text-muted-foreground">{skillForm.progress}%</span></div>
-              <input type="range" min={0} max={100} step={5} value={skillForm.progress} onChange={(e) => setSkillForm((f) => ({ ...f, progress: Number(e.target.value) }))} className="w-full accent-primary" />
-            </div>
-            <div className="space-y-1 px-1">
-              <Label>Category (optional)</Label>
-              <Input placeholder="e.g. Engineering, Design" value={skillForm.category} onChange={(e) => setSkillForm((f) => ({ ...f, category: e.target.value }))} />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setSkillOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createSkill.isPending || updateSkill.isPending}>{createSkill.isPending || updateSkill.isPending ? "Saving..." : "Save"}</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={achievementOpen} onOpenChange={setAchievementOpen}>
-        <DialogContent className="flex! flex-col! max-w-70 sm:max-w-xl px-2 sm:px-5 mt-3 max-h-[90vh] overflow-hidden">
-          <DialogHeader className="shrink-0"><DialogTitle>Add achievement</DialogTitle></DialogHeader>
-          <form onSubmit={handleAchievementSubmit} className="flex flex-col flex-1 min-h-0">
-            <div className="flex-1 min-h-0 overflow-y-auto pr-3">
-              <div className="space-y-4 pt-2 pb-2">
-                <div className="space-y-1 px-1">
-                  <Label>Title</Label>
-                  <Input value={achievementForm.title} onChange={(e) => setAchievementForm((f) => ({ ...f, title: e.target.value }))} required />
-                </div>
-                <div className="space-y-1 px-1">
-                  <Label>Type</Label>
-                  <select className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={achievementForm.type} onChange={(e) => setAchievementForm((f) => ({ ...f, type: e.target.value }))}>
-                    {ACHIEVEMENT_TYPES.map((t) => <option key={t} value={t}>{t.charAt(0) + t.slice(1).toLowerCase()}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1 px-1">
-                  <Label>Issuer (optional)</Label>
-                  <Input placeholder="e.g. AWS, Google" value={achievementForm.issuer} onChange={(e) => setAchievementForm((f) => ({ ...f, issuer: e.target.value }))} />
-                </div>
-                <div className="space-y-1 px-1">
-                  <Label>Date (optional)</Label>
-                  <Input type="date" value={achievementForm.date} onChange={(e) => setAchievementForm((f) => ({ ...f, date: e.target.value }))} />
-                </div>
-                <div className="space-y-1 px-1">
-                  <Label>Credential URL (optional)</Label>
-                  <Input placeholder="https://..." value={achievementForm.credentialUrl} onChange={(e) => setAchievementForm((f) => ({ ...f, credentialUrl: e.target.value }))} />
-                </div>
-                <div className="space-y-1 px-1">
-                  <Label>Description (optional)</Label>
-                  <Textarea rows={2} value={achievementForm.description} onChange={(e) => setAchievementForm((f) => ({ ...f, description: e.target.value }))} />
-                </div>
+          <Section title="Achievements" icon={Award} action={<Button size="sm" variant="outline" onClick={() => setDialog({ kind: "achievement", id: Date.now() })}><Plus className="mr-1 h-3.5 w-3.5" /> Add</Button>}>
+            {data.achievements.length === 0 ? (
+              <EmptyState icon={Award} title="No achievements yet" body="Certificates, awards and promotions you earn show up here." />
+            ) : (
+              <div className="space-y-2">
+                {data.achievements.map((achievement) => (
+                  <div key={achievement.id} className="flex items-start gap-3 rounded-lg border p-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600"><Award className="h-4 w-4" /></span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{achievement.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {pretty(achievement.type)}{achievement.issuer ? ` · ${achievement.issuer}` : ""}{achievement.date ? ` · ${new Date(achievement.date).toLocaleDateString(undefined, { dateStyle: "medium" })}` : ""}
+                      </p>
+                      {achievement.description && <p className="mt-1 text-xs text-muted-foreground">{achievement.description}</p>}
+                      {achievement.credentialUrl && /^https?:\/\//i.test(achievement.credentialUrl) && (
+                        <a href={achievement.credentialUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"><ExternalLink className="h-3 w-3" /> View credential</a>
+                      )}
+                    </div>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-destructive hover:text-destructive" aria-label="Delete achievement" onClick={() => window.confirm(`Delete "${achievement.title}"?`) && deleteAchievement.mutate(achievement.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  </div>
+                ))}
               </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-3 border-t border-border mt-2 shrink-0">
-              <Button type="button" variant="outline" onClick={() => setAchievementOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createAchievement.isPending}>{createAchievement.isPending ? "Saving..." : "Save"}</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </motion.div>
+            )}
+          </Section>
+        </div>
+
+        <div className="space-y-4">
+          <Section title="Skills" icon={TrendingUp} action={<Button size="sm" variant="outline" onClick={() => setDialog({ kind: "skill", id: Date.now(), editing: null })}><Plus className="mr-1 h-3.5 w-3.5" /> Add</Button>}>
+            {data.skills.length === 0 ? (
+              <EmptyState icon={TrendingUp} title="No skills tracked" body="Add the skills you're building and log practice as you go." />
+            ) : (
+              <div className="space-y-3">
+                {data.skills.map((skill) => (
+                  <div key={skill.id} className="space-y-2 rounded-lg border p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{skill.name}</p>
+                        <p className="text-xs text-muted-foreground">{pretty(skill.level)}{skill.category ? ` · ${skill.category}` : ""}</p>
+                      </div>
+                      <div className="flex shrink-0 gap-0.5">
+                        <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Edit skill" onClick={() => setDialog({ kind: "skill", id: Date.now(), editing: skill })}><Pencil className="h-3.5 w-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" aria-label="Delete skill" onClick={() => window.confirm(`Delete the skill "${skill.name}"?`) && deleteSkill.mutate(skill.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      </div>
+                    </div>
+                    <ProgressBar value={skill.progress} />
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-[11px] text-muted-foreground">
+                        {skill.relatedGoalId && goalTitle.get(skill.relatedGoalId) ? `For: ${goalTitle.get(skill.relatedGoalId)}` : skill.lastPracticedAt ? `Practiced ${formatDistanceToNow(new Date(skill.lastPracticedAt), { addSuffix: true })}` : "Not practiced yet"}
+                      </span>
+                      <Button size="sm" variant="outline" className="h-7 shrink-0 text-xs" disabled={updateSkill.isPending} onClick={() => updateSkill.mutate({ id: skill.id, data: { lastPracticedAt: new Date().toISOString() } })}>Practiced today</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Section>
+
+          <Section title="Insight" icon={Sparkles} className="border-primary/20 bg-primary/5">
+            <p className="text-sm text-muted-foreground">{data.insight}</p>
+          </Section>
+        </div>
+      </div>
+
+      {dialog?.kind === "goal" && <GoalDialog key={dialog.id} editing={dialog.editing} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "skill" && <SkillDialog key={dialog.id} editing={dialog.editing} goals={active} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "achievement" && <AchievementDialog key={dialog.id} onClose={() => setDialog(null)} />}
+    </div>
   );
 }

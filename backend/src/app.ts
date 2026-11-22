@@ -5,6 +5,9 @@ import compression from "compression";
 import hpp from "hpp";
 import cookieParser from "cookie-parser";
 
+import { prisma } from "./config/prisma";
+import { redis } from "./config/redis";
+
 import { env } from "./config/env";
 // import * as utilitiesController from "./controllers/utilities.controller";
 import authRoutes from "./routes/auth.routes";
@@ -70,6 +73,8 @@ import familySpaceRoutes from "./routes/family-space.routes";
 
 import financeExtrasRoutes from "./routes/finance-extras.routes";
 
+import discoverRoutes from "./routes/discover.routes";
+
 import { errorHandler } from "./middlewares/errorHandler.middleware";
 import { startCronJobs } from "./config/cron";
 
@@ -97,6 +102,17 @@ app.use(hpp());
 app.use(compression());
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
+
+const within = <T,>(promise: Promise<T>, ms: number) =>
+  Promise.race([promise, new Promise<never>((_resolve, reject) => setTimeout(() => reject(new Error("timeout")), ms).unref())]);
+
+app.get("/ready", async (_req, res) => {
+  const started = Date.now();
+  const check = (run: () => Promise<unknown>) => within(run(), 3000).then(() => true, () => false);
+  const [database, cache] = await Promise.all([check(() => prisma.$queryRaw`SELECT 1`), check(() => redis.ping())]);
+  const ok = database && cache;
+  res.status(ok ? 200 : 503).json({ status: ok ? "ready" : "degraded", database, cache, ms: Date.now() - started, uptimeSeconds: Math.round(process.uptime()) });
+});
 
 app.post("/api/emergency/public/:token", validate(publicUnlockSchema), emergencyController.getPublic);
 app.get("/api/family/invites/:token", familyController.getInvite);
@@ -129,6 +145,7 @@ app.use("/api", pingRoutes);
 // Every router with its OWN specific prefix — must be tried before the
 // generic "/api" block below, or Express's prefix-matching lets the
 // generic block's blanket requireAuth intercept these requests first.
+app.use("/api/discover", discoverRoutes);
 app.use("/api/merchant", merchantRoutes);
 app.use("/api/merchant/staff", staffRoutes);
 app.use("/api/staff-portal", staffPortalRoutes);
