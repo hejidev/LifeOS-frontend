@@ -2,6 +2,7 @@
   "name": "lifeos-backend",
   "version": "1.0.0",
   "private": true,
+  "type": "commonjs",
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",

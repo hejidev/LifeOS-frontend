@@ -33,7 +33,7 @@ const MODULES = [
   { label: "Merchant & POS", icon: Store },
 ];
 
-export function MarketingFooter() {
+export function SiteFooter() {
   return (
     <footer className="relative mt-24 overflow-hidden">
       <div className="absolute inset-0 -z-10 bg-gradient-to-b from-transparent to-primary/[0.04]" />
@@ -86,4 +86,4 @@ export function MarketingFooter() {
   );
 }
 
-export default MarketingFooter;
+export default SiteFooter;

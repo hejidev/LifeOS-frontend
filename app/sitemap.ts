@@ -4,7 +4,7 @@ const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.lifeos.com.ng";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
-  return ["", "/about", "/contact", "/faq", "/blog", "/signup", "/terms", "/privacy"].map((path) => ({
+  return ["", "/pricing", "/about", "/contact", "/faq", "/blog", "/download", "/signup", "/terms", "/privacy"].map((path) => ({
     url: `${base}${path}`,
     lastModified: now,
     changeFrequency: path === "/blog" ? "weekly" : "monthly",

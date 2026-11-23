@@ -9,6 +9,11 @@ export function proxy(req: NextRequest) {
     pathname === "/about" ||
     pathname === "/contact" ||
     pathname === "/faq" ||
+    pathname === "/pricing" ||
+    pathname === "/robots.txt" ||
+    pathname === "/sitemap.xml" ||
+    pathname.startsWith("/opengraph-image") ||
+    pathname.startsWith("/twitter-image") ||
     pathname.startsWith("/blog") ||
     pathname === "/terms" ||
     pathname === "/privacy" ||

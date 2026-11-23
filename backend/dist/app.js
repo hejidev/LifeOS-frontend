@@ -106,6 +106,7 @@ const finance_extras_routes_1 = __importDefault(require("./routes/finance-extras
 const discover_routes_1 = __importDefault(require("./routes/discover.routes"));
 const errorHandler_middleware_1 = require("./middlewares/errorHandler.middleware");
 const cron_1 = require("./config/cron");
+const plan_1 = require("./config/plan");
 const app = (0, express_1.default)();
 app.use(traffic_service_1.trafficMiddleware);
 app.set("trust proxy", 1);
@@ -151,6 +152,21 @@ app.get("/api/public/social-profile/:slug", async (req, res, next) => {
     catch (err) {
         next(err);
     }
+});
+app.get("/api/public/plans", (_req, res) => {
+    const shape = (plan) => ({
+        name: plan.name,
+        priceLabelMonthly: plan.priceLabelMonthly,
+        priceLabelYearly: plan.priceLabelYearly,
+        description: plan.description,
+        ...(plan.staffLimit !== undefined && { staffLimit: Number.isFinite(plan.staffLimit) ? plan.staffLimit : null }),
+    });
+    res.setHeader("Cache-Control", "public, max-age=300, s-maxage=300");
+    res.json({
+        freeUsesPerTool: plan_1.FREE_USES_PER_TOOL,
+        user: Object.fromEntries(Object.entries(plan_1.PLANS).map(([key, plan]) => [key, shape(plan)])),
+        merchant: Object.fromEntries(Object.entries(plan_1.MERCHANT_PLANS).map(([key, plan]) => [key, shape(plan)])),
+    });
 });
 // Auth-layer routers — no evidence these shadow anything, left in place
 app.use("/api", auth_routes_1.default);

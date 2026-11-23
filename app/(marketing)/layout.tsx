@@ -1,12 +1,12 @@
-import { MarketingFooter } from "./footer/page";
-import MarketingNavbar from "./navbar/page";
+import SiteHeader from "@/components/marketing/site-header";
+import SiteFooter from "@/components/marketing/site-footer";
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <MarketingNavbar />
+      <SiteHeader />
       {children}
-      <MarketingFooter />
+      <SiteFooter />
     </>
   );
 }

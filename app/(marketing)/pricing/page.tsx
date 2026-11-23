@@ -1,38 +1,53 @@
 import type { Metadata } from "next";
-import { PricingAudienceToggle, type PricingAudience } from "@/components/marketing/pricing/pricing-audience-toggle";
-import { UserPricingTiers } from "@/components/marketing/pricing/user-tiers";
-import { MerchantPricingTiers } from "@/components/marketing/pricing/merchant-tiers";
+import { FaqList, type FaqItem } from "@/components/marketing/faq-list";
+import { PricingView } from "@/components/marketing/pricing-view";
+import { getPublicPlans } from "@/lib/marketing/plans";
+
+const SITE = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.lifeos.com.ng";
+const TITLE = "Pricing | LifeOS";
+const DESCRIPTION = "Start free. Upgrade for unlimited AI tools, or apply as a merchant to run your shop on LifeOS. Prices in Naira.";
+
+export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: "Pricing",
-  description: "LifeOS pricing for individuals and merchants.",
+  metadataBase: new URL(SITE),
+  title: { absolute: TITLE },
+  description: DESCRIPTION,
+  alternates: { canonical: "/pricing" },
+  openGraph: { title: TITLE, description: DESCRIPTION, url: "/pricing", siteName: "LifeOS", type: "website", locale: "en_NG" },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
-type PricingPageProps = { searchParams: Promise<{ audience?: string }> };
+export default async function PricingPage() {
+  const plans = await getPublicPlans();
 
-function resolveAudience(value: string | undefined): PricingAudience {
-  return value === "merchants" ? "merchants" : "users";
-}
-
-export default async function PricingPage({ searchParams }: PricingPageProps) {
-  const params = await searchParams;
-  const audience = resolveAudience(params.audience);
+  const faq: FaqItem[] = [
+    { q: "Can I use LifeOS for free?", a: `Yes. Every core module is free. The AI writing, image and file-conversion tools include ${plans?.freeUsesPerTool ?? "a few"} free uses each.` },
+    { q: "How do I cancel?", a: "Open Billing in your account and choose Manage subscription. You can cancel there at any time." },
+    { q: "What happens to my data if I cancel?", a: "Your data stays. You simply return to the free plan, so the free limits apply to the AI tools again." },
+    { q: "How do I pay?", a: "Payments are handled securely by Paystack at checkout. LifeOS doesn't see or store your card details." },
+    { q: "Do merchants need a personal plan too?", a: "No. Merchant plans are separate. You apply, our team reviews your application, and once approved you choose a merchant plan." },
+    { q: "Is there a discount for paying yearly?", a: "Yes. Switch the toggle above to see yearly prices and the saving for each plan." },
+  ];
 
   return (
     <>
-      <section className="pt-14 md:pt-20">
-        <div className="mx-auto max-w-4xl px-4 text-center">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-5xl">Pricing that matches how you use LifeOS</h1>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
-            Free plans for everyday life management. Paid plans for power users and real businesses.
-          </p>
-          <div className="mt-8 flex justify-center pb-4">
-            <PricingAudienceToggle audience={audience} />
+      <main>
+        <section className="relative overflow-hidden">
+          <div className="pointer-events-none absolute -top-32 left-1/2 h-80 w-[32rem] -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
+          <div className="relative mx-auto max-w-6xl space-y-12 px-4 py-16 sm:px-6 sm:py-20">
+            <div className="mx-auto max-w-2xl space-y-3 text-center">
+              <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Simple pricing, in <span className="gradient-text">Naira</span></h1>
+              <p className="text-muted-foreground">Start free and upgrade only when you need more. No contracts.</p>
+            </div>
+            <PricingView plans={plans} />
           </div>
-        </div>
-      </section>
-
-      {audience === "users" ? <UserPricingTiers /> : <MerchantPricingTiers />}
+        </section>
+        <section className="mx-auto max-w-3xl space-y-8 px-4 pb-24 sm:px-6">
+          <h2 className="text-center text-2xl font-bold tracking-tight">Pricing questions</h2>
+          <FaqList items={faq} />
+        </section>
+      </main>
     </>
   );
 }

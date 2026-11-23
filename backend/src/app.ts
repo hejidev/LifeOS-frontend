@@ -78,6 +78,8 @@ import discoverRoutes from "./routes/discover.routes";
 import { errorHandler } from "./middlewares/errorHandler.middleware";
 import { startCronJobs } from "./config/cron";
 
+import { FREE_USES_PER_TOOL, MERCHANT_PLANS, PLANS } from "./config/plan";
+
 const app = express();
 
 app.use(trafficMiddleware);
@@ -132,6 +134,23 @@ app.get("/api/public/social-profile/:slug", async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+app.get("/api/public/plans", (_req, res) => {
+  const shape = (plan: { name: string; priceLabelMonthly: string; priceLabelYearly: string; description: string; staffLimit?: number }) => ({
+    name: plan.name,
+    priceLabelMonthly: plan.priceLabelMonthly,
+    priceLabelYearly: plan.priceLabelYearly,
+    description: plan.description,
+    ...(plan.staffLimit !== undefined && { staffLimit: Number.isFinite(plan.staffLimit) ? plan.staffLimit : null }),
+  });
+
+  res.setHeader("Cache-Control", "public, max-age=300, s-maxage=300");
+  res.json({
+    freeUsesPerTool: FREE_USES_PER_TOOL,
+    user: Object.fromEntries(Object.entries(PLANS).map(([key, plan]) => [key, shape(plan)])),
+    merchant: Object.fromEntries(Object.entries(MERCHANT_PLANS).map(([key, plan]) => [key, shape(plan)])),
+  });
 });
 
 // Auth-layer routers — no evidence these shadow anything, left in place
