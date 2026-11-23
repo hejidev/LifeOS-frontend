@@ -9,71 +9,73 @@ datasource db {
 }
 
 model User {
-  id                String            @id @default(uuid())
-  email             String            @unique
-  name              String
-  passwordHash      String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  avatarUrl         String?
-  emailVerified     Boolean           @default(false)
-  isActive          Boolean           @default(true)
-  providerId        String?
-  role              Role              @default(USER)
-  provider          Provider          @default(CREDENTIALS)
-  currency          String            @default("NGN")
-  darkMode          Boolean           @default(false)
-  location          String?
-  notifyCalendar    Boolean           @default(true)
-  notifyFinance     Boolean           @default(false)
-  notifyTasks       Boolean           @default(true)
-  timezone          String            @default("Africa/Lagos")
-  weekStartsOn      Int               @default(1)
-  sessionVersion    Int               @default(1)
-  twoFactorEnabled  Boolean           @default(false)
-  twoFactorSecret   String?
-  achievements      Achievement[]
-  adminAuditLogs    AdminAuditLog[]
-  permissions       AdminPermission[]
-  bizCustomers      BizCustomer[]
-  bizExpenses       BizExpense[]
-  bizProducts       BizProduct[]
-  bizProfile        BizProfile?
-  bizSales          BizSale[]
-  calendarEvents    CalendarEvent[]
-  careerGoals       CareerGoal[]
-  content           ContentItem[]
-  conversationsAsA  Conversation[]    @relation("ConversationsAsA")
-  conversationsAsB  Conversation[]    @relation("ConversationsAsB")
-  documents         Document[]
-  documentFolders   DocumentFolder[]
-  emergencyProfile  EmergencyProfile?
-  familyControls    FamilyControl[]
-  familyInvites     FamilyInvite[]
-  familyMembers     FamilyMember[]
-  financeAccounts   FinanceAccount[]
-  financeBudgets    FinanceBudget[]
-  financeCategories FinanceCategory[]
-  goals             Goal[]
-  habits            Habit[]
-  healthLogs        HealthLog[]
-  messages          Message[]
-  assistantConversations  AssistantConversation[]
+  id                     String                  @id @default(uuid())
+  email                  String                  @unique
+  name                   String
+  passwordHash           String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  avatarUrl              String?
+  emailVerified          Boolean                 @default(false)
+  isActive               Boolean                 @default(true)
+  providerId             String?
+  role                   Role                    @default(USER)
+  provider               Provider                @default(CREDENTIALS)
+  currency               String                  @default("NGN")
+  darkMode               Boolean                 @default(false)
+  location               String?
+  notifyCalendar         Boolean                 @default(true)
+  notifyFinance          Boolean                 @default(false)
+  notifyTasks            Boolean                 @default(true)
+  timezone               String                  @default("Africa/Lagos")
+  weekStartsOn           Int                     @default(1)
+  sessionVersion         Int                     @default(1)
+  twoFactorEnabled       Boolean                 @default(false)
+  twoFactorSecret        String?
+  achievements           Achievement[]
+  adminAuditLogs         AdminAuditLog[]
+  permissions            AdminPermission[]
+  assistantConversations AssistantConversation[]
+  bizCustomers           BizCustomer[]
+  bizExpenses            BizExpense[]
+  bizProducts            BizProduct[]
+  bizProfile             BizProfile?
+  bizSales               BizSale[]
+  calendarEvents         CalendarEvent[]
+  careerGoals            CareerGoal[]
+  content                ContentItem[]
+  conversationsAsA       Conversation[]          @relation("ConversationsAsA")
+  conversationsAsB       Conversation[]          @relation("ConversationsAsB")
+  documents              Document[]
+  documentFolders        DocumentFolder[]
+  emergencyProfile       EmergencyProfile?
+  familyControls         FamilyControl[]
+  familyInvites          FamilyInvite[]
+  familyMembers          FamilyMember[]
+  financeAccounts        FinanceAccount[]
+  financeBudgets         FinanceBudget[]
+  financeCategories      FinanceCategory[]
+  goals                  Goal[]
+  habits                 Habit[]
+  healthLogs             HealthLog[]
+  messages               Message[]
+  notes                  Note[]
+  notifications          Notification[]
+  skills                 Skill[]
+  socialProfile          SocialProfile?
+  studyMaterials         StudyMaterial[]
+  studySessions          StudySession[]
+  studySubjects          StudySubject[]
+  subscription           Subscription?
+  tasks                  Task[]
+  toolUsage              ToolUsage[]
+  transactions           Transaction[]
+  vaultItems             VaultItem[]
+  writingDocuments       WritingDocument[]
 
-  socialProfile SocialProfile?
-
-  notes            Note[]
-  notifications    Notification[]
-  skills           Skill[]
-  studyMaterials   StudyMaterial[]
-  studySessions    StudySession[]
-  studySubjects    StudySubject[]
-  subscription     Subscription?
-  tasks            Task[]
-  toolUsage        ToolUsage[]
-  transactions     Transaction[]
-  vaultItems       VaultItem[]
-  writingDocuments WritingDocument[]
+  notifyWeekly           Boolean       @default(true)
+  notifyDocuments        Boolean       @default(true)
+  reminderLogs           ReminderLog[]
 
   @@index([email])
 }
@@ -250,7 +252,6 @@ model Transaction {
   accountId    String?
   categoryId   String?
   type         TransactionType
-  toAccountId  String?
   amount       Decimal
   description  String
   date         DateTime
@@ -259,6 +260,7 @@ model Transaction {
   linkedNoteId String?
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
+  toAccountId  String?
   account      FinanceAccount?  @relation(fields: [accountId], references: [id])
   category     FinanceCategory? @relation(fields: [categoryId], references: [id])
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -449,12 +451,11 @@ model FamilyMember {
   screenTimeMinutesToday Int                @default(0)
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
+  memberUserId           String?            @unique
   controls               FamilyControl[]
   user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  memberUserId           String?            @unique
-  schedules              FamilySchedule[]
   overrides              FamilyOverride[]
+  schedules              FamilySchedule[]
 
   @@index([userId])
 }
@@ -605,45 +606,45 @@ model BizProfile {
   idVerifiedAt             DateTime?
   planStatus               MerchantPlanStatus @default(INACTIVE)
   planTier                 MerchantPlanTier   @default(NONE)
-  paystackCustomerCode     String?
-  paystackSubscriptionCode String?
   staffLoginCode           String?            @unique
   notifyDailySummary       Boolean            @default(false)
   notifyLowStock           Boolean            @default(true)
   notifyNewSale            Boolean            @default(false)
   paused                   Boolean            @default(false)
   staffTokenVersion        Int                @default(1)
+  paystackCustomerCode     String?
+  paystackSubscriptionCode String?
+  loyaltyEarnRate          Int                @default(1)
+  loyaltyEnabled           Boolean            @default(true)
+  loyaltyRedemptionValue   Int                @default(1)
   user                     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   staff                    BizStaff[]
-  stores                   Store[]
   chatThreads              ChatThread[]
-  loyaltyEnabled           Boolean @default(true)
-  loyaltyEarnRate          Int     @default(1)
-  loyaltyRedemptionValue   Int     @default(1)
+  stores                   Store[]
 }
 
 model BizProduct {
-  id             String        @id @default(uuid())
+  id             String           @id @default(uuid())
   userId         String
   name           String
   sku            String?
-  barcode        String?
   category       String?
   price          Decimal
   cost           Decimal?
-  stock          Int           @default(0)
-  lowStockAt     Int           @default(3)
+  stock          Int              @default(0)
+  lowStockAt     Int              @default(3)
   imageUrl       String?
-  active         Boolean       @default(true)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  active         Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  barcode        String?
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   saleItems      BizSaleItem[]
   storeInventory StoreInventory[]
 
+  @@unique([userId, barcode])
   @@index([userId])
   @@index([userId, active])
-  @@unique([userId, barcode])
 }
 
 model BizCustomer {
@@ -655,9 +656,9 @@ model BizCustomer {
   notes         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  loyaltyPoints Int       @default(0)
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   sales         BizSale[]
-  loyaltyPoints Int @default(0)
 
   @@index([userId])
 }
@@ -674,30 +675,27 @@ model BizSale {
   status          BizSaleStatus    @default(PAID)
   note            String?
   createdAt       DateTime         @default(now())
-  customer        BizCustomer?     @relation(fields: [customerId], references: [id])
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items           BizSaleItem[]
   storeId         String?
-  store           Store?           @relation(fields: [storeId], references: [id])
   clientRequestId String?
-
-  soldOffline     Boolean          @default(false)
   needsReview     Boolean          @default(false)
   reviewNotes     String?
+  soldOffline     Boolean          @default(false)
   pointsEarned    Int              @default(0)
   pointsRedeemed  Int              @default(0)
   staffId         String?
   amountPaid      Decimal          @default(0)
+  customer        BizCustomer?     @relation(fields: [customerId], references: [id])
+  store           Store?           @relation(fields: [storeId], references: [id])
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items           BizSaleItem[]
 
+  @@unique([userId, clientRequestId])
   @@index([userId, staffId])
-
   @@index([userId, needsReview])
-
   @@index([storeId])
   @@index([userId])
   @@index([userId, createdAt])
   @@index([userId, status])
-  @@unique([userId, clientRequestId])
 }
 
 model BizSaleItem {
@@ -724,12 +722,11 @@ model BizExpense {
   date      DateTime           @default(now())
   note      String?
   createdAt DateTime           @default(now())
-  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   storeId   String?
   store     Store?             @relation(fields: [storeId], references: [id])
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([storeId])
-
   @@index([userId])
   @@index([userId, date])
 }
@@ -740,25 +737,23 @@ model BizStaff {
   name         String
   email        String?
   phone        String?
-  address      String?
-  age          Int?
-  sex          String?
-  tribe        String?
-  religion     String?
   role         StaffRole          @default(CASHIER)
   pinHash      String
   status       StaffStatus        @default(ACTIVE)
   lastActiveAt DateTime?
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
-  bizProfile   BizProfile         @relation(fields: [bizProfileId], references: [id], onDelete: Cascade)
-  activityLogs BizStaffActivity[]
-
-  shifts       StaffShift[]
-  chatThreads  ChatThread[]
-
+  address      String?
+  age          Int?
+  religion     String?
+  sex          String?
+  tribe        String?
   storeId      String?
+  bizProfile   BizProfile         @relation(fields: [bizProfileId], references: [id], onDelete: Cascade)
   store        Store?             @relation(fields: [storeId], references: [id])
+  activityLogs BizStaffActivity[]
+  chatThreads  ChatThread[]
+  shifts       StaffShift[]
 
   @@index([storeId])
   @@index([bizProfileId])
@@ -797,21 +792,21 @@ model StaffShift {
 }
 
 model Store {
-  id           String            @id @default(uuid())
+  id           String           @id @default(uuid())
   bizProfileId String
   name         String
   address      String?
   phone        String?
-  isDefault    Boolean           @default(false)
-  active       Boolean           @default(true)
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  bizProfile   BizProfile        @relation(fields: [bizProfileId], references: [id], onDelete: Cascade)
-  inventory    StoreInventory[]
-  sales        BizSale[]
+  isDefault    Boolean          @default(false)
+  active       Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
   expenses     BizExpense[]
+  sales        BizSale[]
   staff        BizStaff[]
   shifts       StaffShift[]
+  bizProfile   BizProfile       @relation(fields: [bizProfileId], references: [id], onDelete: Cascade)
+  inventory    StoreInventory[]
 
   @@index([bizProfileId])
 }
@@ -824,22 +819,12 @@ model StoreInventory {
   lowStockAt Int        @default(3)
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
-  store      Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
   product    BizProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  store      Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, productId])
   @@index([storeId])
   @@index([productId])
-}
-
-enum ChatThreadKind {
-  TEAM
-  DIRECT
-}
-
-enum ChatSenderType {
-  OWNER
-  STAFF
 }
 
 model ChatThread {
@@ -849,10 +834,10 @@ model ChatThread {
   staffId       String?
   lastMessageAt DateTime       @default(now())
   createdAt     DateTime       @default(now())
-  bizProfile    BizProfile     @relation(fields: [bizProfileId], references: [id], onDelete: Cascade)
-  staff         BizStaff?      @relation(fields: [staffId], references: [id], onDelete: Cascade)
   messages      ChatMessage[]
   reads         ChatRead[]
+  bizProfile    BizProfile     @relation(fields: [bizProfileId], references: [id], onDelete: Cascade)
+  staff         BizStaff?      @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
   @@index([bizProfileId, lastMessageAt])
 }
@@ -865,8 +850,8 @@ model ChatMessage {
   senderName String
   body       String
   createdAt  DateTime       @default(now())
-  thread     ChatThread     @relation(fields: [threadId], references: [id], onDelete: Cascade)
   attachment Json?
+  thread     ChatThread     @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
   @@index([threadId, createdAt])
 }
@@ -893,16 +878,6 @@ model PushToken {
 
   @@index([userId])
   @@index([staffId])
-}
-
-enum StockReason {
-  RECEIVED
-  DAMAGED
-  EXPIRED
-  COUNT_CORRECTION
-  RETURNED_TO_SUPPLIER
-  MANUAL_EDIT
-  OTHER
 }
 
 model StockMovement {
@@ -1052,13 +1027,13 @@ model Subscription {
   userId                   String             @unique
   tier                     SubscriptionTier   @default(FREE)
   status                   SubscriptionStatus @default(ACTIVE)
-  billingInterval          String?
-  paystackCustomerCode     String?
-  paystackSubscriptionCode String?
   currentPeriodEnd         DateTime?
   cancelAtPeriodEnd        Boolean            @default(false)
   createdAt                DateTime           @default(now())
   updatedAt                DateTime           @updatedAt
+  paystackCustomerCode     String?
+  paystackSubscriptionCode String?
+  billingInterval          String?
   user                     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -1236,6 +1211,159 @@ model AssistantMessage {
   conversation   AssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, createdAt])
+}
+
+model SocialProfile {
+  id          String              @id @default(cuid())
+  userId      String              @unique
+  slug        String              @unique
+  displayName String
+  bio         String?
+  avatar      String?
+  isPublic    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  links       SocialLink[]
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  views       SocialProfileView[]
+
+  @@index([slug])
+}
+
+model SocialLink {
+  id        String        @id @default(cuid())
+  profileId String
+  platform  String
+  url       String
+  label     String?
+  enabled   Boolean       @default(true)
+  sortOrder Int           @default(0)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  profile   SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model SocialProfileView {
+  id        String        @id @default(cuid())
+  profileId String
+  userAgent String?
+  referrer  String?
+  country   String?
+  device    String?
+  createdAt DateTime      @default(now())
+  profile   SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([createdAt])
+}
+
+model TrafficBucket {
+  id           String   @id @default(uuid())
+  minute       DateTime
+  instance     String
+  area         String
+  requests     Int      @default(0)
+  clientErrors Int      @default(0)
+  serverErrors Int      @default(0)
+  totalMs      Int      @default(0)
+  maxMs        Int      @default(0)
+  b50          Int      @default(0)
+  b100         Int      @default(0)
+  b250         Int      @default(0)
+  b500         Int      @default(0)
+  b1000        Int      @default(0)
+  b2500        Int      @default(0)
+  bSlow        Int      @default(0)
+
+  @@unique([minute, instance, area])
+  @@index([minute])
+}
+
+model TrafficRoute {
+  id           String   @id @default(uuid())
+  hour         DateTime
+  instance     String
+  route        String
+  requests     Int      @default(0)
+  clientErrors Int      @default(0)
+  serverErrors Int      @default(0)
+  totalMs      Int      @default(0)
+  maxMs        Int      @default(0)
+
+  @@unique([hour, instance, route])
+  @@index([hour])
+}
+
+model ServiceInstance {
+  instance   String   @id
+  bootedAt   DateTime
+  lastSeenAt DateTime
+  rssMb      Int      @default(0)
+  heapMb     Int      @default(0)
+  loopLagMs  Int      @default(0)
+  dbPingMs   Int      @default(0)
+  requests   Int      @default(0)
+}
+
+model LoadTestRun {
+  id            String    @id @default(uuid())
+  createdAt     DateTime  @default(now())
+  createdByName String
+  status        String
+  config        Json
+  progress      Json?
+  result        Json?
+  stopRequested Boolean   @default(false)
+  heartbeatAt   DateTime  @default(now())
+  finishedAt    DateTime?
+
+  @@index([createdAt])
+}
+
+model SupportNote {
+  id         String   @id @default(uuid())
+  userId     String
+  authorId   String
+  authorName String
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model ReminderLog {
+  id        String   @id @default(uuid())
+  userId    String
+  kind      String
+  refId     String   @default("")
+  period    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, refId, period])
+  @@index([createdAt])
+}
+
+enum ChatThreadKind {
+  TEAM
+  DIRECT
+}
+
+enum ChatSenderType {
+  OWNER
+  STAFF
+}
+
+enum StockReason {
+  RECEIVED
+  DAMAGED
+  EXPIRED
+  COUNT_CORRECTION
+  RETURNED_TO_SUPPLIER
+  MANUAL_EDIT
+  OTHER
 }
 
 enum Role {
@@ -1546,26 +1674,26 @@ enum NotificationType {
 enum AdminAuditAction {
   USER_SUSPENDED
   USER_ACTIVATED
-  USER_PASSWORD_RESET_SENT
-  USER_EMAIL_CHANGE_REQUESTED
-  USER_EMAIL_CHANGED
-  USER_TWO_FACTOR_RESET
-  USER_DELETED
-  MERCHANT_ID_VIEWED
   MERCHANT_APPROVED
   MERCHANT_REJECTED
   MERCHANT_SUSPENDED
   MERCHANT_REACTIVATED
   MERCHANT_ID_VERIFIED
-  MERCHANT_STAFF_SIGNED_OUT
-  MERCHANT_STORE_CODE_REGENERATED
-  MERCHANT_STORE_PAUSED
-  MERCHANT_STORE_RESUMED
   ROLE_CHANGED
   ADMIN_CREATED
   PERMISSION_GRANTED
   PERMISSION_REVOKED
   BROADCAST_SENT
+  USER_PASSWORD_RESET_SENT
+  USER_EMAIL_CHANGE_REQUESTED
+  USER_EMAIL_CHANGED
+  USER_TWO_FACTOR_RESET
+  USER_DELETED
+  MERCHANT_STAFF_SIGNED_OUT
+  MERCHANT_STORE_CODE_REGENERATED
+  MERCHANT_STORE_PAUSED
+  MERCHANT_STORE_RESUMED
+  MERCHANT_ID_VIEWED
 }
 
 enum AdminCapability {
@@ -1595,133 +1723,4 @@ enum ContactSubmissionStatus {
   NEW
   READ
   RESOLVED
-}
-
-model SocialProfile {
-  id     String @id @default(cuid())
-  userId String @unique
-
-  slug        String  @unique
-  displayName String
-  bio         String?
-  avatar      String?
-  isPublic    Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  links SocialLink[]
-  views SocialProfileView[]
-
-  @@index([slug])
-}
-
-model SocialLink {
-  id        String @id @default(cuid())
-  profileId String
-
-  platform  String
-  url       String
-  label     String?
-  enabled   Boolean @default(true)
-  sortOrder Int     @default(0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  profile SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@index([profileId])
-}
-
-model SocialProfileView {
-  id        String @id @default(cuid())
-  profileId String
-
-  userAgent String?
-  referrer  String?
-  country   String?
-  device    String?
-
-  createdAt DateTime @default(now())
-
-  profile SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@index([profileId])
-  @@index([createdAt])
-}
-
-model TrafficBucket {
-  id           String   @id @default(uuid())
-  minute       DateTime
-  instance     String
-  area         String
-  requests     Int      @default(0)
-  clientErrors Int      @default(0)
-  serverErrors Int      @default(0)
-  totalMs      Int      @default(0)
-  maxMs        Int      @default(0)
-  b50          Int      @default(0)
-  b100         Int      @default(0)
-  b250         Int      @default(0)
-  b500         Int      @default(0)
-  b1000        Int      @default(0)
-  b2500        Int      @default(0)
-  bSlow        Int      @default(0)
-
-  @@unique([minute, instance, area])
-  @@index([minute])
-}
-
-model TrafficRoute {
-  id           String   @id @default(uuid())
-  hour         DateTime
-  instance     String
-  route        String
-  requests     Int      @default(0)
-  clientErrors Int      @default(0)
-  serverErrors Int      @default(0)
-  totalMs      Int      @default(0)
-  maxMs        Int      @default(0)
-
-  @@unique([hour, instance, route])
-  @@index([hour])
-}
-
-model ServiceInstance {
-  instance   String   @id
-  bootedAt   DateTime
-  lastSeenAt DateTime
-  rssMb      Int      @default(0)
-  heapMb     Int      @default(0)
-  loopLagMs  Int      @default(0)
-  dbPingMs   Int      @default(0)
-  requests   Int      @default(0)
-}
-
-model LoadTestRun {
-  id            String    @id @default(uuid())
-  createdAt     DateTime  @default(now())
-  createdByName String
-  status        String
-  config        Json
-  progress      Json?
-  result        Json?
-  stopRequested Boolean   @default(false)
-  heartbeatAt   DateTime  @default(now())
-  finishedAt    DateTime?
-
-  @@index([createdAt])
-}
-
-model SupportNote {
-  id         String   @id @default(uuid())
-  userId     String
-  authorId   String
-  authorName String
-  body       String
-  createdAt  DateTime @default(now())
-
-  @@index([userId, createdAt])
 }

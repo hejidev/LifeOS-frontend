@@ -44,6 +44,8 @@ export interface UserProfile {
     notifyTasks: boolean;
     notifyCalendar: boolean;
     notifyFinance: boolean;
+    notifyWeekly: boolean;
+    notifyDocuments: boolean;
   };
   provider?: string;
   emailVerified?: boolean;

@@ -3,14 +3,15 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Store, ShieldCheck, Clock, Sparkles, Check, Upload, ImageIcon } from "lucide-react";
+import { Store, ShieldCheck, Clock, Sparkles, Check, Upload, ImageIcon, CheckCircle2, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useApplyMerchant, useUploadMerchantId } from "@/lib/hooks/use-life-data";
+import { useApplyMerchant, useMerchantStatus, useUploadMerchantId } from "@/lib/hooks/use-life-data";
 import Link from "next/link";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const CATEGORIES = [
   { value: "RETAIL", label: "Retail" }, { value: "FOOD_BEVERAGE", label: "Food & Beverage" },
@@ -82,6 +83,54 @@ export default function MerchantApplyPage() {
   const applyMerchant = useApplyMerchant();
   const uploadFront = useUploadMerchantId();
   const uploadBack = useUploadMerchantId();
+
+  const { data: merchantStatus, isLoading: statusLoading } =  useMerchantStatus();
+
+  if (statusLoading) {
+    return <Skeleton className="h-[calc(100vh-8rem)] rounded-xl" />;
+  }
+  
+  const currentStatus = merchantStatus?.status;
+  
+  if (currentStatus === "PENDING") {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Card className="max-w-md w-full text-center">
+          <CardContent className="pt-8 pb-8 space-y-3">
+            <Clock className="h-10 w-10 text-amber-500 mx-auto" />
+            <h2 className="text-lg font-semibold">Application under review</h2>
+            <p className="text-sm text-muted-foreground">
+              Your merchant application has already been submitted and cannot be
+              edited while it is under review.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
+  if (currentStatus === "APPROVED") {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Card className="max-w-md w-full text-center">
+          <CardContent className="pt-8 pb-8 space-y-3">
+            <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto" />
+            <h2 className="text-lg font-semibold">Merchant account approved</h2>
+            <p className="text-sm text-muted-foreground">
+              Your merchant application has been approved. You cannot submit or
+              edit another application.
+            </p>
+            <Button asChild>
+              <Link href="/merchant/dashboard">
+                Go to merchant dashboard
+                <ArrowRight className="ml-1 h-3 w-3" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const [form, setForm] = useState({
     businessName: "", category: "RETAIL", description: "",

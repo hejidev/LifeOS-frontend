@@ -69,8 +69,13 @@ function escapeHtml(str: string) {
     .replace(/'/g, "&#39;");
 }
 
-async function send(to: string, subject: string, html: string, { critical = false }: { critical?: boolean } = {}) {
-  const { data, error } = await resend.emails.send({ from: env.RESEND_FROM_EMAIL, to, subject, html });
+async function send(
+  to: string,
+  subject: string,
+  html: string,
+  { critical = false, headers }: { critical?: boolean; headers?: Record<string, string> } = {}
+) {
+  const { data, error } = await resend.emails.send({ from: env.RESEND_FROM_EMAIL, to, subject, html, ...(headers && { headers }) });
   if (error) {
     logger.error(`[resend] failed to send "${subject}" to ${to}:`, error);
     if (critical) throw new Error(`Failed to send email: ${subject}`);
@@ -285,4 +290,55 @@ export async function sendCustomerBroadcastEmail(to: string, businessName: strin
      <p style="margin:24px 0 0;color:#555;font-size:12px;line-height:1.6;">This message was sent to you by ${escapeHtml(businessName)} via LifeOS.</p>`
   );
   await send(to, subject, html, { critical: true });
+}
+
+
+export interface WeeklyDigestData {
+  name: string;
+  tasksDone: number;
+  overdue: number;
+  upcoming: string[];
+  habitCheckins: number;
+  studyMinutes: number;
+  income: string | null;
+  spent: string | null;
+  goals: { title: string; percent: number }[];
+  dashboardUrl: string;
+  unsubscribeUrl: string;
+}
+
+const statCell = (label: string, value: string) =>
+  `<td width="33%" style="padding:4px;"><div style="background:#181818;border-radius:10px;padding:14px 6px;text-align:center;"><div style="color:#fff;font-size:20px;font-weight:700;">${value}</div><div style="color:#888;font-size:11px;margin-top:4px;">${label}</div></div></td>`;
+
+const subheading = (text: string) => `<p style="margin:18px 0 6px;color:#fff;font-size:13px;font-weight:600;">${text}</p>`;
+
+const bullets = (items: string[]) =>
+  `<ul style="margin:0 0 16px;padding-left:18px;color:#ccc;font-size:14px;line-height:1.8;">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+
+const studied = (minutes: number) => (minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m`);
+
+export async function sendWeeklyDigestEmail(to: string, data: WeeklyDigestData) {
+  const first = escapeHtml(data.name.split(" ")[0] || "there");
+  const money =
+    data.spent || data.income
+      ? paragraph(
+          [data.spent && `You spent <strong style="color:#fff;">${data.spent}</strong>`, data.income && `received <strong style="color:#fff;">${data.income}</strong>`].filter(Boolean).join(" and ") + "."
+        )
+      : "";
+
+  const html = renderLayout(
+    "Your week in LifeOS",
+    paragraph(`Hi ${first}, here's how your week went.`) +
+      `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;"><tr>${statCell("Tasks done", String(data.tasksDone))}${statCell("Habit check-ins", String(data.habitCheckins))}${statCell("Studied", studied(data.studyMinutes))}</tr></table>` +
+      money +
+      (data.overdue > 0 ? paragraph(`<strong style="color:#f59e0b;">${data.overdue}</strong> ${data.overdue === 1 ? "task is" : "tasks are"} overdue.`) : "") +
+      (data.upcoming.length ? subheading("Coming up this week") + bullets(data.upcoming) : "") +
+      (data.goals.length ? subheading("Your goals") + bullets(data.goals.map((goal) => `${goal.title}: ${goal.percent}%`)) : "") +
+      `<div style="margin-top:8px;">${button("Open LifeOS", data.dashboardUrl)}</div>` +
+      `<p style="margin:28px 0 0;color:#555;font-size:11px;line-height:1.6;">You're getting this because the weekly review is on in your settings. <a href="${data.unsubscribeUrl}" style="color:#6366f1;">Unsubscribe</a></p>`
+  );
+
+  await send(to, data.tasksDone > 0 ? `Your week in LifeOS: ${data.tasksDone} ${data.tasksDone === 1 ? "task" : "tasks"} done` : "Your week in LifeOS", html, {
+    headers: { "List-Unsubscribe": `<${data.unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
+  });
 }

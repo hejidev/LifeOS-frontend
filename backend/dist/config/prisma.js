@@ -12,7 +12,7 @@ const pool = new pg_1.Pool({
     connectionString: env_1.env.DATABASE_URL,
     max: poolMax,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 8000,
+    connectionTimeoutMillis: 30000,
     keepAlive: true,
 });
 pool.on("error", (err) => {
@@ -21,7 +21,13 @@ pool.on("error", (err) => {
 const adapter = new adapter_pg_1.PrismaPg(pool);
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1500;
-const RETRYABLE_CODES = new Set(["57P03", "57P01", "08006", "08003", "08001"]);
+const RETRYABLE_CODES = new Set([
+    "57P03",
+    "57P01",
+    "08006",
+    "08003",
+    "08001",
+]);
 const READ_OPERATIONS = new Set([
     "findUnique",
     "findUniqueOrThrow",
@@ -51,7 +57,11 @@ function isRetryable(err) {
 function neverReachedDatabase(err) {
     const code = err?.code ?? err?.meta?.code ?? err?.cause?.code;
     const message = errorText(err);
-    return code === "57P03" || message.includes("57P03") || message.includes("recovery mode") || message.includes("starting up") || message.includes("ECONNREFUSED");
+    return (code === "57P03" ||
+        message.includes("57P03") ||
+        message.includes("recovery mode") ||
+        message.includes("starting up") ||
+        message.includes("ECONNREFUSED"));
 }
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const basePrisma = new client_1.PrismaClient({
@@ -68,7 +78,9 @@ exports.prisma = basePrisma.$extends({
                 }
                 catch (err) {
                     attempt += 1;
-                    const safeToRetry = READ_OPERATIONS.has(operation) ? isRetryable(err) : neverReachedDatabase(err);
+                    const safeToRetry = READ_OPERATIONS.has(operation)
+                        ? isRetryable(err)
+                        : neverReachedDatabase(err);
                     if (attempt > MAX_RETRIES || !safeToRetry)
                         throw err;
                     logger_1.logger.warn(`[prisma] retryable error on ${model ?? "raw"}.${operation} (attempt ${attempt}/${MAX_RETRIES}), retrying in ${RETRY_DELAY_MS}ms`);

@@ -19,7 +19,7 @@ const MobileSidebarContext = createContext<{
   setMobileOpen: (open: boolean) => void;
 }>({
   mobileOpen: false,
-  setMobileOpen: () => {},
+  setMobileOpen: () => { },
 });
 
 export function useMobileSidebar() {
@@ -44,12 +44,12 @@ export function Sidebar() {
     <>
       {/* Mobile overlay */}
       {mobileOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
-      
+
       <aside
         className={cn(
           "flex h-full flex-col border-r border-border bg-card transition-all duration-300 z-50",
@@ -64,7 +64,7 @@ export function Sidebar() {
             <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" />
           </div>
           {!sidebarCollapsed && (
-              <span className="text-base sm:text-lg font-bold gradient-text truncate">LifeOS</span>
+            <span className="text-base sm:text-lg font-bold gradient-text truncate">LifeOS</span>
           )}
           <div className="ml-auto flex items-center gap-1">
             <Button
@@ -131,7 +131,13 @@ export function Sidebar() {
 
         <div className="border-t border-border px-2 sm:px-3 py-2 sm:py-3">
           {bottomNavItems.map((item) => {
-            const isActive = pathname === item.href;
+
+            const activeHref = [...mainNavGroups.flatMap((group) => group.items), ...bottomNavItems]
+              .map((entry) => entry.href)
+              .filter((href) => pathname === href || pathname.startsWith(`${href}/`))
+              .sort((a, b) => b.length - a.length)[0];
+
+            const isActive = item.href === activeHref;
             return (
               <Link
                 key={item.title}
@@ -157,7 +163,7 @@ export function Sidebar() {
 
 export function MobileMenuToggle() {
   const { setMobileOpen } = useMobileSidebar();
-  
+
   return (
     <Button
       variant="ghost"
@@ -165,7 +171,7 @@ export function MobileMenuToggle() {
       className="lg:hidden h-9 w-9"
       onClick={() => setMobileOpen(true)}
     >
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="18" y2="18" /></svg>
     </Button>
   );
 }

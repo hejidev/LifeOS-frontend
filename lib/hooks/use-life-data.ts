@@ -1616,7 +1616,7 @@ export function useUpdatePreferences() {
 export function useUpdateNotifications() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { notifyTasks?: boolean; notifyCalendar?: boolean; notifyFinance?: boolean }) =>
+    mutationFn: (data: { notifyTasks?: boolean; notifyCalendar?: boolean; notifyFinance?: boolean; notifyWeekly?: boolean; notifyDocuments?: boolean }) =>
       api.patch("/settings/notifications", data),
     onMutate: async (data) => {
       await qc.cancelQueries({ queryKey: ["userProfile"] });

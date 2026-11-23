@@ -24,6 +24,8 @@ function serializeUser(u: any) {
       notifyTasks: u.notifyTasks,
       notifyCalendar: u.notifyCalendar,
       notifyFinance: u.notifyFinance,
+      notifyWeekly: u.notifyWeekly,
+      notifyDocuments: u.notifyDocuments,
     },
     provider: u.provider,
     emailVerified: u.emailVerified,
@@ -67,6 +69,8 @@ export async function updateNotifications(userId: string, data: {
   notifyTasks?: boolean;
   notifyCalendar?: boolean;
   notifyFinance?: boolean;
+  notifyWeekly?: boolean;
+  notifyDocuments?: boolean;
 }) {
   const user = await prisma.user.update({ where: { id: userId }, data });
   return serializeUser(user);

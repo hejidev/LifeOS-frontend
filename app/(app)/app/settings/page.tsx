@@ -218,10 +218,12 @@ function SettingsForm({ user }: { user: UserProfile }) {
         </Section>
 
         <Section title="Notifications" icon={Bell}>
-          <SwitchRow title="Task reminders" checked={user.notifications.notifyTasks} onChange={(value) => updateNotifications.mutate({ notifyTasks: value })} />
-          <SwitchRow title="Calendar alerts" checked={user.notifications.notifyCalendar} onChange={(value) => updateNotifications.mutate({ notifyCalendar: value })} />
-          <SwitchRow title="Finance nudges" checked={user.notifications.notifyFinance} onChange={(value) => updateNotifications.mutate({ notifyFinance: value })} />
-        </Section>
+          <SwitchRow title="Task reminders" hint="A morning summary of tasks due today and overdue." checked={user.notifications.notifyTasks} onChange={(value) => updateNotifications.mutate({ notifyTasks: value })} />
+          <SwitchRow title="Calendar alerts" hint="The events you have today, in your morning summary." checked={user.notifications.notifyCalendar} onChange={(value) => updateNotifications.mutate({ notifyCalendar: value })} />
+          <SwitchRow title="Finance nudges" hint="A heads-up when you go over a budget category." checked={user.notifications.notifyFinance} onChange={(value) => updateNotifications.mutate({ notifyFinance: value })} />
+          <SwitchRow title="Document expiry" hint="Reminders 30 days, 7 days and 1 day before, and on expiry." checked={user.notifications.notifyDocuments ?? true} onChange={(value) => updateNotifications.mutate({ notifyDocuments: value })} />
+          <SwitchRow title="Weekly review email" hint="A short summary every Sunday evening." checked={user.notifications.notifyWeekly ?? true} onChange={(value) => updateNotifications.mutate({ notifyWeekly: value })} />
+        </Section>  
 
         <Section title="Security" icon={KeyRound} className="lg:col-span-2">
           {user.hasPassword === false ? (

@@ -33,7 +33,7 @@ export function NotificationBell({ viewAllHref = "/app/notifications" }: { viewA
 
   return (
     <div className="relative">
-      <Button onClick={() => setOpen((o) => !o)} className="relative flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted/50 transition-colors">
+      <Button onClick={() => setOpen((o) => !o)} aria-label="Notifications" className="relative flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted/50 transition-colors">
         <Bell className="h-4 w-4" />
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-white">
@@ -49,7 +49,7 @@ export function NotificationBell({ viewAllHref = "/app/notifications" }: { viewA
             <motion.div
               initial={{ opacity: 0, y: -8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.98 }}
               transition={{ duration: 0.15 }}
-              className="absolute right-0 top-11 z-50 w-50 rounded-xl border border-border bg-card shadow-xl overflow-hidden"
+              className="absolute right-0 top-11 z-50 w-[22rem] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card shadow-xl overflow-hidden"
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <p className="text-sm font-semibold">Notifications</p>

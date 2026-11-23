@@ -30,7 +30,11 @@ export const updatePreferencesSchema = z.object({
 });
 
 export const updateNotificationsSchema = z.object({
-  body: z.object({ notifyTasks: z.boolean().optional(), notifyCalendar: z.boolean().optional(), notifyFinance: z.boolean().optional() }),
+  body: z.object({ notifyTasks: z.boolean().optional(),
+    notifyCalendar: z.boolean().optional(),
+    notifyFinance: z.boolean().optional() }),
+    notifyWeekly: z.boolean().optional(),
+    notifyDocuments: z.boolean().optional(),
 });
 
 export const changePasswordSchema = z.object({

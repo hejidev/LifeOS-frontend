@@ -74,6 +74,7 @@ import familySpaceRoutes from "./routes/family-space.routes";
 import financeExtrasRoutes from "./routes/finance-extras.routes";
 
 import discoverRoutes from "./routes/discover.routes";
+import unsubscribeRoutes from "./routes/unsubscribe.routes";
 
 import { errorHandler } from "./middlewares/errorHandler.middleware";
 import { startCronJobs } from "./config/cron";
@@ -152,6 +153,8 @@ app.get("/api/public/plans", (_req, res) => {
     merchant: Object.fromEntries(Object.entries(MERCHANT_PLANS).map(([key, plan]) => [key, shape(plan)])),
   });
 });
+
+app.use("/api/public/unsubscribe", unsubscribeRoutes);
 
 // Auth-layer routers — no evidence these shadow anything, left in place
 app.use("/api", authRoutes);
