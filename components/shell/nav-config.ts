@@ -11,7 +11,6 @@ import {
   KeyRound,
   Target,
   Users,
-  Building2,
   PenTool,
   Image,
   FileType,
@@ -21,6 +20,8 @@ import {
   type LucideIcon,
   BriefcaseBusiness,
   Calendar,
+  Bell, CreditCard, Flag,
+  LifeBuoy
 } from "lucide-react";
 
 export interface NavItem {
@@ -43,23 +44,22 @@ export const mainNavGroups: NavGroup[] = [
       { title: "Dashboard", href: "/app/dashboard", icon: LayoutDashboard },
       { title: "Tasks", href: "/app/tasks", icon: CheckSquare },
       { title: "Notes", href: "/app/notes", icon: FileText },
+      { title: "Calendar", href: "/app/calendar", icon: Calendar },
+      { title: "Goals", href: "/app/goals", icon: Flag },
       { title: "AI Assistant", href: "/app/ai", icon: Sparkles },
     ],
   },
   {
     label: "Life Modules",
     items: [
-      { title: "Finance", href: "/app/finance", icon: Wallet, comingSoon: false },
-      { title: "Health", href: "/app/health", icon: Heart, comingSoon: false },
-      { title: "Study", href: "/app/study", icon: GraduationCap, comingSoon: false },
-      { title: "Career", href: "/app/career", icon: Briefcase, comingSoon: false },
-      { title: "Documents", href: "/app/documents", icon: FolderLock, comingSoon: false },
-      { title: "Password Vault", href: "/app/password-vault", icon: KeyRound, comingSoon: false },
-      { title: "Habits", href: "/app/habits", icon: Target, comingSoon: false },
-      { title: "Calendar", href: "/app/calendar", icon: Calendar, comingSoon: false },
-      { title: "Family Space", href: "/app/family", icon: Users, comingSoon: false },
-      { title: "Billing", href: "/app/billing", icon: Building2, comingSoon: false },
-      { title: "Contact Support", href: "/app/contact", icon: Building2, comingSoon: false },
+      { title: "Finance", href: "/app/finance", icon: Wallet },
+      { title: "Health", href: "/app/health", icon: Heart },
+      { title: "Habits", href: "/app/habits", icon: Target },
+      { title: "Study", href: "/app/study", icon: GraduationCap },
+      { title: "Career", href: "/app/career", icon: Briefcase },
+      { title: "Documents", href: "/app/documents", icon: FolderLock },
+      { title: "Password Vault", href: "/app/password-vault", icon: KeyRound },
+      { title: "Family Space", href: "/app/family", icon: Users },
     ],
   },
   {
@@ -75,6 +75,9 @@ export const mainNavGroups: NavGroup[] = [
 ];
 
 export const bottomNavItems: NavItem[] = [
+  { title: "Notifications", href: "/app/notifications", icon: Bell },
+  { title: "Billing", href: "/app/billing", icon: CreditCard },
+  { title: "Contact Support", href: "/app/contact", icon: LifeBuoy },
   { title: "Settings", href: "/app/settings", icon: Settings },
 ];
 
