@@ -32,6 +32,10 @@ export interface Sale {
   soldOffline?: boolean;
   needsReview?: boolean;
   reviewNotes?: string;
+  paymentReference?: string;
+  confirmation?: string;
+  confirmedAt?: string;
+  confirmedByName?: string;
   createdAt: string;
 }
 

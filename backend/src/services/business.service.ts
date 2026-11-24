@@ -75,6 +75,10 @@ function serializeSale(s: any) {
     note: s.note ?? undefined,
     soldOffline: s.soldOffline ?? false,
     needsReview: s.needsReview ?? false,
+    paymentReference: s.paymentReference ?? undefined,
+    confirmation: s.confirmation,
+    confirmedAt: s.confirmedAt ? s.confirmedAt.toISOString() : undefined,
+    confirmedByName: s.confirmedByName ?? undefined,
     reviewNotes: s.reviewNotes ?? undefined,
     createdAt: s.createdAt.toISOString(),
   };
@@ -350,6 +354,8 @@ export async function createSale(
     offline?: boolean;
     reviewNotes?: string[];
     staffId?: string;
+    paymentReference?: string;
+    requiresConfirmation?: boolean;
   },
   storeId?: string
 ) {
@@ -446,6 +452,8 @@ export async function createSale(
         pointsRedeemed,
         createdAt: offline && data.soldAt ? data.soldAt : undefined,
         soldOffline: offline,
+        paymentReference: data.paymentReference || undefined,
+        confirmation: data.requiresConfirmation && status === "PAID" && (data.paymentMethod ?? "CASH") !== "CASH" ? "AWAITING" : "NOT_REQUIRED",
         needsReview: issues.length > 0,
         reviewNotes: issues.length > 0 ? issues.join("\n") : undefined,
         items: {
@@ -500,12 +508,22 @@ export async function createSale(
     }
   }
 
+  if (sale.confirmation === "AWAITING") {
+    const method = sale.paymentMethod.replace(/_/g, " ").toLowerCase();
+    await createNotification(userId, {
+      type: "INFO",
+      title: "Confirm a payment",
+      message: `${sale.receiptNumber}: ${num(sale.total).toLocaleString()} by ${method}${sale.paymentReference ? ` (${sale.paymentReference})` : ""}`,
+      actionUrl: "/merchant/payments",
+    });
+  }
+
   if (issues.length > 0) {
     await createNotification(userId, {
       type: "ALERT",
-      title: "Offline sale needs review",
+      title: offline ? "Offline sale needs review" : "Sale needs review",
       message: `${sale.receiptNumber}: ${issues[0]}${issues.length > 1 ? ` (+${issues.length - 1} more)` : ""}`,
-      actionUrl: "/merchant/dashboard",
+      actionUrl: "/merchant/sales?view=review",
     });
   }
 

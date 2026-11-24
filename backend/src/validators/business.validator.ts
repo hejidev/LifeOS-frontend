@@ -104,6 +104,7 @@ export const createSaleSchema = z.object({
     soldAt: z.string().datetime().optional(),
     offline: z.boolean().optional(),
     staffId: z.string().uuid().optional(),
+    paymentReference: z.string().trim().max(60).optional(),
   }),
 });
 

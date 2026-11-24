@@ -27,6 +27,8 @@ function statusPill(sale: Sale) {
   if (sale.status === "PENDING") return <Pill tone="warning">Unpaid</Pill>;
   if (sale.status === "REFUNDED") return <Pill tone="danger">Refunded</Pill>;
   if (sale.status === "CANCELLED") return <Pill>Cancelled</Pill>;
+  if (sale.confirmation === "AWAITING") return <Pill tone="warning">Awaiting confirmation</Pill>;
+  if (sale.confirmation === "DISPUTED") return <Pill tone="danger">Disputed</Pill>;
   return null;
 }
 
@@ -88,6 +90,7 @@ function SaleDetails({ sale, currency, onClose }: { sale: Sale; currency: string
         <div className="flex justify-between text-base font-bold"><span>Total</span><span>{money(currency, sale.total)}</span></div>
         <div className="flex justify-between"><span className="text-muted-foreground">Customer</span>
           {sale.customerId ? <Link className="text-primary hover:underline" href={`/merchant/customers/${sale.customerId}`}>{sale.customerName}</Link> : <span>Walk-in</span>}
+          {sale.paymentReference ? <div className="flex justify-between"><span className="text-muted-foreground">Payment reference</span><span>{sale.paymentReference}</span></div> : null}
         </div>
         {sale.status === "PENDING" ? (
           <>

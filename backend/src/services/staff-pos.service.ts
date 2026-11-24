@@ -68,6 +68,8 @@ export async function createSale(staffId: string, bizProfileId: string, storeId:
   } = data;
   const isOffline = offline === true;
 
+  if (saleData.status && saleData.status !== "PAID") throw new AppError("Only the owner can record sales on credit.", 403);
+
   if (clientRequestId) {
     const existing = await businessService.findSaleByRequestId(userId, clientRequestId);
     if (existing) return existing;
@@ -106,6 +108,15 @@ export async function createSale(staffId: string, bizProfileId: string, storeId:
     }
     return { productId: product.id, name: product.name, quantity: item.quantity, unitPrice: item.unitPrice };
   });
+
+  const method: string = saleData.paymentMethod ?? "CASH";
+  const reference = typeof saleData.paymentReference === "string" ? saleData.paymentReference.trim() : "";
+  if (method !== "CASH" && !reference) {
+    if (!isOffline && process.env.REQUIRE_PAYMENT_REFERENCE === "true") {
+      throw new AppError("Enter the payment reference (sender name, last 4 digits or transaction ID).", 400);
+    }
+    reviewNotes.push("No payment reference was entered");
+  }
 
   let soldAtDate: Date | undefined;
   let actingStaffId = staffId;
@@ -147,6 +158,8 @@ export async function createSale(staffId: string, bizProfileId: string, storeId:
         soldAt: soldAtDate,
         offline: isOffline,
         reviewNotes,
+        paymentReference: reference || undefined,
+        requiresConfirmation: true,
       },
       storeId
     );

@@ -6,6 +6,7 @@ import {
   UserCog, Activity, Settings, Sparkles, Store as StoreIcon,
   TrendingUp, Calendar, BarChart3, FileText, Banknote, Wallet,
   MessageSquare, Bell,
+  ShieldCheck,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarHeader,
@@ -21,6 +22,7 @@ const nav = [
   { href: "/merchant/receivables", label: "Unpaid", icon: Wallet },
   { href: "/merchant/register", label: "Cash Register", icon: Banknote },
   { href: "/merchant/products", label: "Products", icon: Package },
+  { href: "/merchant/payments", label: "Payments", icon: ShieldCheck },
   { href: "/merchant/customers", label: "Customers", icon: Users },
   { href: "/merchant/expenses", label: "Expenses", icon: Receipt },
   { href: "/merchant/reports", label: "Daily Report", icon: FileText },

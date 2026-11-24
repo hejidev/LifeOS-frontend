@@ -55,18 +55,18 @@ export default function MerchantChatPage() {
 
   return (
     <div className="flex flex-col gap-3 sm:gap-4">
-    <div className={`items-center gap-2.5 ${activeId ? "hidden md:flex" : "flex"}`}>
-      <div className="rounded-lg border border-primary/20 bg-linear-to-br from-primary/20 to-primary/5 p-2">
-        <MessageSquare className="h-5 w-5 text-primary" />
+      <div className={`items-center gap-2.5 ${activeId ? "hidden md:flex" : "flex"}`}>
+        <div className="rounded-lg border border-primary/20 bg-linear-to-br from-primary/20 to-primary/5 p-2">
+          <MessageSquare className="h-5 w-5 text-primary" />
+        </div>
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Team chat</h1>
+          <p className="hidden text-sm text-muted-foreground sm:block">Talk to your team about products, sales and shifts</p>
+        </div>
       </div>
-      <div className="min-w-0">
-        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Team chat</h1>
-        <p className="hidden text-sm text-muted-foreground sm:block">Talk to your team about products, sales and shifts</p>
-      </div>
-    </div>
 
-    <ChatWorkspace
-      className="h-[calc(100dvh-8.5rem)] min-h-[24rem] md:h-[calc(100dvh-12rem)]"
+      <ChatWorkspace
+        className="h-[calc(100dvh-9rem)] min-h-[24rem] md:h-[calc(100dvh-12rem)]"
         threads={threads}
         activeId={activeId}
         onSelect={setActiveId}

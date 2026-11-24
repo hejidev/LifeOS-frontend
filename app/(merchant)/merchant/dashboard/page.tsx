@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, ArrowRight, Banknote, Bell, CheckCircle2, Eye, FileText, MessageSquare, Package, ShoppingCart, Wallet } from "lucide-react";
+import { AlertCircle, ArrowRight, Banknote, Bell, CheckCircle2, Eye, FileText, MessageSquare, Package, ShoppingCart, Wallet, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,6 +11,7 @@ import { Empty, HourBars, MixBar, Pill, Tile, money, when } from "@/components/m
 import { useBusinessAnalytics } from "@/lib/hooks/use-life-data";
 import { dateKey, useAttention, useDailyReport, useOverview, useRegisterCurrent } from "@/lib/hooks/use-merchant-ops";
 import type { Range } from "@/lib/hooks/use-merchant-ops";
+import { usePaymentSummary } from "@/lib/hooks/use-payment-confirmation";
 
 type Period = "today" | "week" | "month" | "year";
 
@@ -84,6 +85,7 @@ export default function MerchantOverviewPage() {
   const attention = useAttention();
   const report = useDailyReport(today);
   const register = useRegisterCurrent();
+  const payments = usePaymentSummary();
 
   const analytics = analyticsQuery.data as (Analytics & { currency?: string }) | undefined;
   const currency = analytics?.currency ?? overview.data?.currency ?? "NGN";
@@ -96,7 +98,7 @@ export default function MerchantOverviewPage() {
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const businessName = overview.data?.businessName;
 
-  const rows = attention.data
+  const baseRows = attention.data
     ? [
         { href: "/merchant/products", icon: Package, tint: "text-amber-500", label: plural(attention.data.lowStock, "product is running low", "products are running low"), count: attention.data.lowStock },
         { href: "/merchant/sales?view=review", icon: Eye, tint: "text-destructive", label: plural(attention.data.needsReview, "sale needs review", "sales need review"), count: attention.data.needsReview },
@@ -105,6 +107,14 @@ export default function MerchantOverviewPage() {
         { href: "/merchant/notifications", icon: Bell, tint: "text-sky-500", label: plural(attention.data.unreadNotifications, "unread alert", "unread alerts"), count: attention.data.unreadNotifications },
       ].filter((row) => row.count > 0)
     : [];
+
+    const owedPayments = payments.data ? payments.data.awaitingCount + payments.data.disputedCount : 0;
+    const rows = [
+      ...(owedPayments > 0 && payments.data
+        ? [{ href: "/merchant/payments", icon: ShieldCheck, tint: "text-amber-500", label: `${money(currency, payments.data.awaitingTotal + payments.data.disputedTotal)} awaiting confirmation across ${plural(owedPayments, "payment", "payments")}`, count: owedPayments }]
+        : []),
+      ...baseRows,
+    ];
 
   return (
     <div className="space-y-5 sm:space-y-6">

@@ -83,6 +83,7 @@ export interface SalePayload {
   items: { productId: string; name: string; unitPrice: number; quantity: number }[];
   paymentMethod: PaymentMethod;
   status: "PAID";
+  paymentReference?: string;
 }
 
 export interface QueuedSale {

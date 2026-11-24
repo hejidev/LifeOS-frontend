@@ -689,6 +689,13 @@ model BizSale {
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   items           BizSaleItem[]
 
+  paymentReference String?
+  confirmation     SaleConfirmation @default(NOT_REQUIRED)
+  confirmedAt      DateTime?
+  confirmedByName  String?
+
+  @@index([userId, confirmation])
+
   @@unique([userId, clientRequestId])
   @@index([userId, staffId])
   @@index([userId, needsReview])
@@ -1344,6 +1351,13 @@ model ReminderLog {
 
   @@unique([userId, kind, refId, period])
   @@index([createdAt])
+}
+
+enum SaleConfirmation {
+  NOT_REQUIRED
+  AWAITING
+  CONFIRMED
+  DISPUTED
 }
 
 enum ChatThreadKind {

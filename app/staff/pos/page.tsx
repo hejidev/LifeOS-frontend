@@ -143,6 +143,7 @@ export default function StaffShiftPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
+  const [paymentReference, setPaymentReference] = useState("");
   const [redeemPoints, setRedeemPoints] = useState(0);
   const [checkingOut, setCheckingOut] = useState(false);
   const [receipt, setReceipt] = useState<SaleRecord | null>(null);
@@ -387,6 +388,13 @@ export default function StaffShiftPage() {
 
   async function handleCheckout() {
     if (!staff || cart.length === 0 || submittingRef.current) return;
+
+    const reference = paymentReference.trim();
+    if (paymentMethod !== "CASH" && reference.length < 3) {
+      showToast("error", "Enter the payment reference: sender name, last 4 digits or transaction ID.");
+      return;
+    }
+
     submittingRef.current = true;
     setCheckingOut(true);
 
@@ -394,6 +402,7 @@ export default function StaffShiftPage() {
       items: cart.map((item) => [item.productId, item.quantity]),
       customerId: customerId || null,
       paymentMethod,
+      paymentReference: reference,
       redeem,
     });
     const existing = attemptRef.current;
@@ -429,6 +438,7 @@ export default function StaffShiftPage() {
       setSaleOpen(false);
       setReceipt(sale);
       setRecentSales((previous) => [sale, ...previous]);
+      setPaymentReference("");
       if (!savedLocally) {
         void loadActivity();
         void refreshCatalog();
@@ -447,6 +457,7 @@ export default function StaffShiftPage() {
               customerId: customerId || undefined,
               items,
               paymentMethod,
+              paymentReference: reference || undefined,
               status: "PAID",
               redeemPoints: redeem > 0 ? redeem : undefined,
             },
@@ -481,6 +492,7 @@ export default function StaffShiftPage() {
         customerId: customerId || undefined,
         items,
         paymentMethod,
+        paymentReference: reference || undefined,
         status: "PAID",
       };
 
@@ -931,11 +943,24 @@ export default function StaffShiftPage() {
               <select
                 className="h-9 rounded-lg border border-input bg-background px-2 text-sm"
                 value={paymentMethod}
-                onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)}
+                onChange={(event) => {
+                  setPaymentMethod(event.target.value as PaymentMethod);
+                  setPaymentReference("");
+                }}
               >
                 {PAYMENT_METHODS.map((method) => <option key={method} value={method}>{method.replace("_", " ")}</option>)}
               </select>
             </div>
+
+            {paymentMethod !== "CASH" ? (
+              <Input
+                className="mt-2 h-9 text-sm"
+                value={paymentReference}
+                maxLength={60}
+                onChange={(event) => setPaymentReference(event.target.value)}
+                placeholder={paymentMethod === "TRANSFER" ? "Sender name or last 4 digits of the account" : paymentMethod === "CARD" ? "Last 4 digits or approval code" : "Transaction ID"}
+              />
+            ) : null}
           </div>
 
           {online && selectedCustomer && maxRedeemable > 0 && (

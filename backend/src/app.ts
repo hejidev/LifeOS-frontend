@@ -75,6 +75,7 @@ import financeExtrasRoutes from "./routes/finance-extras.routes";
 
 import discoverRoutes from "./routes/discover.routes";
 import unsubscribeRoutes from "./routes/unsubscribe.routes";
+import paymentConfirmationRoutes from "./routes/payment-confirmation.routes";
 
 import { errorHandler } from "./middlewares/errorHandler.middleware";
 import { startCronJobs } from "./config/cron";
@@ -167,6 +168,7 @@ app.use("/api", pingRoutes);
 // Every router with its OWN specific prefix — must be tried before the
 // generic "/api" block below, or Express's prefix-matching lets the
 // generic block's blanket requireAuth intercept these requests first.
+app.use("/api/payment-confirmation", paymentConfirmationRoutes);
 app.use("/api/discover", discoverRoutes);
 app.use("/api/merchant", merchantRoutes);
 app.use("/api/merchant/staff", staffRoutes);
